@@ -13,41 +13,19 @@ static std::string kUser = "user";
 static std::string kPassword = "password";
 
 class _Connection {
+    
+    SINGLETON(_Connection, )
+    
   public:
     enum TStatus {
-        kOK = 0,
-        kNotConnected,
+        kNotConnected = 0,
+        kConnected,
+        kBusy,
     };
     
-    _Connection() : status_(kNotConnected), conn_(false), retry_cnt_(3) {
-        Config();
-    }
+    ~_Connection() { conn_.disconnect(); }
     
-    int TryConnect() {
-        while (retry_cnt_--) {
-            if (conn_.connect(db_.c_str(), svr_.empty() ? "localhost" : svr_.c_str(),
-                              usr_.c_str(), pwd_.c_str())) {
-                LogI(__FILE__, "[TryConnect] succeed.")
-                status_ = kOK;
-                return 0;
-            } else {
-                LogE(__FILE__, "[TryConnect] failed.")
-                status_ = kNotConnected;
-            }
-        }
-        return -1;
-    }
-    
-    int Insert(const char *_sql) {
-        if (!IsConnected()) {
-            LogE(__FILE__, "[Insert] kNotConnected")
-            return -1;
-        }
-        
-        return 0;
-    }
-    
-    bool IsConnected() { return status_ == kOK; }
+    bool IsConnected() { return status_ == kConnected; }
     
     void Config() {
         Yaml::YamlDescriptor desc = Yaml::Load("../framework/dao/database.yaml");
@@ -59,10 +37,29 @@ class _Connection {
             Yaml::Close(desc);
             LogI(__FILE__, "db: %s, svr: %s, usr: %s, pwd: %s", db_.c_str(),
                  svr_.c_str(), usr_.c_str(), pwd_.c_str())
-            TryConnect();
+            __TryConnect();
             return;
         }
         LogE(__FILE__, "[Config] desc == NULL")
+    }
+    
+    int Insert(const char *_sql) {
+        if (!IsConnected()) {
+            LogE(__FILE__, "[Insert] kNotConnected")
+            return -1;
+        }
+        try {
+            mysqlpp::Query query = conn_.query();
+            query << _sql;
+            query.exec();
+            return query.insert_id();
+        } catch (const mysqlpp::BadQuery &er) {
+            LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
+        } catch (const mysqlpp::BadConversion &er) {
+            LogE(__FILE__, "[__TryConnect] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
+                 er.what(), er.retrieved, er.actual_size);
+            return -1;
+        }
     }
     
     int Query(const char *_sql, std::vector<std::string> &_res) {
@@ -70,15 +67,27 @@ class _Connection {
             LogE(__FILE__, "[Query] kNotConnected")
             return -1;
         }
-        mysqlpp::Query query = conn_.query(_sql);
-        if (mysqlpp::StoreQueryResult res = query.store()) {
-            mysqlpp::StoreQueryResult::const_iterator it;
-            for (it = res.begin(); it != res.end(); ++it) {
-                mysqlpp::Row row = *it;
-                
-                LogI(__FILE__, "%s-%s-%s-%s", row[0].c_str(), row[1].c_str(),
-                     row[2].c_str(), row[3].c_str())
+        try {
+            mysqlpp::Query query = conn_.query(_sql);
+//            query.storein(_res);
+            if (mysqlpp::StoreQueryResult res = query.store()) {
+                mysqlpp::StoreQueryResult::const_iterator it;
+                for (it = res.begin(); it != res.end(); ++it) {
+                    mysqlpp::Row row = *it;
+                    
+                    LogI(__FILE__, "%s-%s-%s-%s", row[0].c_str(), row[1].c_str(),
+                         row[2].c_str(), row[3].c_str())
+                }
             }
+        } catch (const mysqlpp::BadQuery &er) {
+            LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
+        } catch (const mysqlpp::BadConversion &er) {
+            LogE(__FILE__, "[__TryConnect] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
+                 er.what(), er.retrieved, er.actual_size);
+            return -1;
+        } catch (const mysqlpp::Exception& er) {
+            LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
+            return -1;
         }
         return 0;
     }
@@ -88,8 +97,37 @@ class _Connection {
             LogE(__FILE__, "[Query] kNotConnected")
             return -1;
         }
-    
+        try {
+        
+        } catch (const mysqlpp::BadQuery &er) {
+            LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
+        } catch (const mysqlpp::BadConversion &er) {
+            LogE(__FILE__, "[__TryConnect] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
+                 er.what(), er.retrieved, er.actual_size);
+            return -1;
+        }
         return 0;
+    }
+    
+  private:
+    int __TryConnect() {
+        while (retry_cnt_--) {
+            try {
+                if (conn_.connect(db_.c_str(), svr_.empty() ? "localhost" : svr_.c_str(),
+                                  usr_.c_str(), pwd_.c_str())) {
+                    LogI(__FILE__, "[TryConnect] succeed.")
+                    status_ = kConnected;
+                    return 0;
+                } else {
+                    LogE(__FILE__, "[TryConnect] failed.")
+                    status_ = kNotConnected;
+                }
+            } catch (const mysqlpp::Exception& er) {
+                LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
+                return -1;
+            }
+        }
+        return -1;
     }
     
   private:
@@ -102,17 +140,20 @@ class _Connection {
     TStatus                 status_;
 };
 
-static _Connection sg_conn;
+_Connection::_Connection()
+        : status_(kNotConnected)
+        , conn_(false)
+        , retry_cnt_(3) {
+    Config();
+}
 
-int Insert(const char *_sql) { return sg_conn.Insert(_sql); }
+int Insert(const char *_sql) { return _Connection::Instance().Insert(_sql); }
 
-int Update(const char *_sql) { return sg_conn.Insert(_sql); }
+int Update(const char *_sql) { return _Connection::Instance().Update(_sql); }
 
-int Query(const char *_sql, std::vector<std::string> &_res) { return sg_conn.Query(_sql, _res); }
+int Query(const char *_sql, std::vector<std::string> &_res) { return _Connection::Instance().Query(_sql, _res); }
 
-bool IsConnected() { return sg_conn.IsConnected(); }
-
-void Config() { sg_conn.Config(); }
+bool IsConnected() { return _Connection::Instance().IsConnected(); }
 
 
 }

@@ -1,0 +1,11 @@
+syntax = "proto2";
+
+package BaseNetSceneResp;
+
+
+message BaseNetSceneResp {
+  optional int32 errcode = 1;
+  optional string errmsg = 2;
+  optional bytes net_scene_resp_buff = 3;
+
+}

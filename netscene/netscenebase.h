@@ -5,6 +5,7 @@
 #include <map>
 #include "socket/unix_socket.h"
 #include "autobuffer.h"
+#include "autogen/basenetsceneresp.pb.h"
 
 /**
  * Base class for all NetScenes.
@@ -48,18 +49,18 @@ class NetSceneBase {
     
     int PackHttpMsg();
     
-    void CopyRespToSendBody(std::string &_resp, size_t _size);
+    void Write2BaseResp(std::string &_resp, size_t _size);
     
     AutoBuffer *GetHttpResp();
     
     SOCKET GetSocket() const;
     
   private:
-    void __ShowHttpHeader(AutoBuffer &_out);
+    static void __ShowHttpHeader(AutoBuffer &_out);
     
   protected:
     SOCKET                              socket_;
-    AutoBuffer                          resp_body_;
+    BaseNetSceneResp::BaseNetSceneResp  base_resp_;
     AutoBuffer                          resp_msg_;
     int                                 status_code_;
     std::string                         status_desc_;

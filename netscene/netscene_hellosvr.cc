@@ -18,6 +18,6 @@ int NetSceneHelloSvr::DoSceneImpl(const std::string &_in_buffer) {
     static int visit_times_since_last_boot_ = 0;
     std::string resp = "If you see this, the server is running normally, "
                    + std::to_string(++visit_times_since_last_boot_) + " visits since last boot.";
-    CopyRespToSendBody(resp, resp.size());
+    Write2BaseResp(resp, resp.size());
     return 0;
 }
