@@ -1,16 +1,18 @@
 #pragma once
 
 #include "singleton.h"
-
+#include <vector>
+#include <string>
 
 namespace Dao {
 
-class Connection {
-    SINGLETON(Connection, )
-    
-  public:
-    void Connect(const char *_db, const char *_pass, const char *_user="root");
-  
-};
+int Insert(const char *_sql);
+
+int Query(const char *_sql, std::vector<std::string> &_res);
+
+void Config();
+
+bool IsConnected();
+
 
 }

@@ -21,10 +21,23 @@ class NetSceneBase {
   public:
     NetSceneBase();
     
+    /**
+     *
+     * @return The Unique NetScene Type, must be declared outside the framework.
+     */
     virtual int GetType() = 0;
     
+    /**
+     *
+     * @return: a new instance of a net scene.
+     */
     virtual NetSceneBase *NewInstance() = 0;
     
+    /**
+     *
+     * @param _in_buffer: the buffer used to parse to your custom data structure.
+     * @return: the business logic implemented as you wish.
+     */
     virtual int DoSceneImpl(const std::string &_in_buffer) = 0;
     
     virtual ~NetSceneBase() {}

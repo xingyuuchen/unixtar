@@ -12,6 +12,7 @@ NetSceneDispatcher::NetSceneDispatcher() {
 }
 
 void NetSceneDispatcher::RegisterNetScene(NetSceneBase *_net_scene) {
+    std::unique_lock<std::mutex> lock(mutex_);
     if (_net_scene) {
         selectors_.push_back(_net_scene);
     }

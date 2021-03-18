@@ -1,5 +1,4 @@
 #include "netscene_hellosvr.h"
-#include "constantsprotocol.h"
 #include "headerfield.h"
 
 
@@ -7,6 +6,10 @@ NetSceneHelloSvr::NetSceneHelloSvr() : NetSceneBase() {
     http_headers_[http::HeaderField::KContentType] = http::HeaderField::KPlainText;
 }
 
+/**
+ * 0 is a reserved type.
+ */
+const int kNetSceneTypeHelloSvr = 0;
 int NetSceneHelloSvr::GetType() { return kNetSceneTypeHelloSvr; }
 
 NetSceneBase *NetSceneHelloSvr::NewInstance() { return new NetSceneHelloSvr(); }

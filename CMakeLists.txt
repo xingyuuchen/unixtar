@@ -45,6 +45,6 @@ link_directories(/usr/local/lib)
 
 add_library(${PROJECT_NAME} SHARED ${SELF_SRC_FILES})
 
-add_dependencies(${PROJECT_NAME} oiutils)
+add_dependencies(${PROJECT_NAME} oiutils oidao)
 
-target_link_libraries(${PROJECT_NAME} protobuf oiutils)
+target_link_libraries(${PROJECT_NAME} protobuf oiutils oidao)
