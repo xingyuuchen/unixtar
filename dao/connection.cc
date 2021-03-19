@@ -23,7 +23,10 @@ class _Connection {
         kBusy,
     };
     
-    ~_Connection() { conn_.disconnect(); }
+    ~_Connection() {
+        LogI(__FILE__, "[_Connection] disconnect database.")
+        conn_.disconnect();
+    }
     
     bool IsConnected() { return status_ == kConnected; }
     
@@ -43,14 +46,15 @@ class _Connection {
         LogE(__FILE__, "[Config] desc == NULL")
     }
     
-    int Insert(const char *_sql) {
+    int Insert(DBItem &_row) {
         if (!IsConnected()) {
             LogE(__FILE__, "[Insert] kNotConnected")
             return -1;
         }
         try {
             mysqlpp::Query query = conn_.query();
-            query << _sql;
+            query.insert(_row);
+            LogI(__FILE__, "[Insert] %s", query.str().c_str())
             query.exec();
             return query.insert_id();
         } catch (const mysqlpp::BadQuery &er) {
@@ -58,8 +62,8 @@ class _Connection {
         } catch (const mysqlpp::BadConversion &er) {
             LogE(__FILE__, "[__TryConnect] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
                  er.what(), er.retrieved, er.actual_size);
-            return -1;
         }
+        return -1;
     }
     
     int Query(const char *_sql, std::vector<std::string> &_res) {
@@ -147,7 +151,7 @@ _Connection::_Connection()
     Config();
 }
 
-int Insert(const char *_sql) { return _Connection::Instance().Insert(_sql); }
+int Insert(DBItem &_row) { return _Connection::Instance().Insert(_row); }
 
 int Update(const char *_sql) { return _Connection::Instance().Update(_sql); }
 
