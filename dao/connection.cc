@@ -58,9 +58,9 @@ class _Connection {
             query.exec();
             return query.insert_id();
         } catch (const mysqlpp::BadQuery &er) {
-            LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
+            LogE(__FILE__, "[Insert] BadQuery: %s", er.what());
         } catch (const mysqlpp::BadConversion &er) {
-            LogE(__FILE__, "[__TryConnect] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
+            LogE(__FILE__, "[Insert] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
                  er.what(), er.retrieved, er.actual_size);
         }
         return -1;
@@ -83,34 +83,36 @@ class _Connection {
                          row[2].c_str(), row[3].c_str())
                 }
             }
+            return 0;
         } catch (const mysqlpp::BadQuery &er) {
-            LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
+            LogE(__FILE__, "[Query] BadQuery: %s", er.what());
         } catch (const mysqlpp::BadConversion &er) {
-            LogE(__FILE__, "[__TryConnect] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
+            LogE(__FILE__, "[Query] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
                  er.what(), er.retrieved, er.actual_size);
-            return -1;
         } catch (const mysqlpp::Exception& er) {
-            LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
-            return -1;
+            LogE(__FILE__, "[Query] BadQuery: %s", er.what());
         }
-        return 0;
+        return -1;
     }
     
-    int Update(const char *_sql) {
+    int Update(DBItem &_o, DBItem &_n) {
         if (!IsConnected()) {
-            LogE(__FILE__, "[Query] kNotConnected")
+            LogE(__FILE__, "[Update] kNotConnected")
             return -1;
         }
         try {
-        
+            mysqlpp::Query query = conn_.query();
+            query.update(_o, _n);
+            LogI(__FILE__, "[Insert] %s", query.str().c_str())
+            query.exec();
+            return 0;
         } catch (const mysqlpp::BadQuery &er) {
-            LogE(__FILE__, "[__TryConnect] BadQuery: %s", er.what());
+            LogE(__FILE__, "[Update] BadQuery: %s", er.what());
         } catch (const mysqlpp::BadConversion &er) {
-            LogE(__FILE__, "[__TryConnect] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
+            LogE(__FILE__, "[Update] Conversion error: %s, retrieved data size: %ld, actual size: %ld",
                  er.what(), er.retrieved, er.actual_size);
-            return -1;
         }
-        return 0;
+        return -1;
     }
     
   private:
@@ -120,6 +122,9 @@ class _Connection {
                 if (conn_.connect(db_.c_str(), svr_.empty() ? "localhost" : svr_.c_str(),
                                   usr_.c_str(), pwd_.c_str())) {
                     LogI(__FILE__, "[TryConnect] succeed.")
+                    // Objects passed to this method and successfully set will be
+                    // released when this Connection object is destroyed.
+                    conn_.set_option(new mysqlpp::SetCharsetNameOption("utf8"));
                     status_ = kConnected;
                     return 0;
                 } else {
@@ -151,11 +156,21 @@ _Connection::_Connection()
     Config();
 }
 
-int Insert(DBItem &_row) { return _Connection::Instance().Insert(_row); }
+int Insert(DBItem &_row) {
+    _row.OnDataPrepared();
+    return _Connection::Instance().Insert(_row);
+}
 
-int Update(const char *_sql) { return _Connection::Instance().Update(_sql); }
+int Update(DBItem &_o, DBItem &_n) {
+    _o.OnDataPrepared();
+    _n.OnDataPrepared();
+    return _Connection::Instance().Update(_o, _n);
+}
 
-int Query(const char *_sql, std::vector<std::string> &_res) { return _Connection::Instance().Query(_sql, _res); }
+int Query(const char *_sql, std::vector<std::string> &_res) {
+    
+    return _Connection::Instance().Query(_sql, _res);
+}
 
 bool IsConnected() { return _Connection::Instance().IsConnected(); }
 
