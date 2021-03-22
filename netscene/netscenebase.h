@@ -6,6 +6,12 @@
 #include "socket/unix_socket.h"
 #include "autobuffer.h"
 #include "autogen/basenetsceneresp.pb.h"
+#include <atomic>
+
+#define NETSCENE_INIT_START     static std::atomic_flag has_init = ATOMIC_FLAG_INIT; \
+                                if (!has_init.test_and_set()) {
+#define NETSCENE_INIT_END       }
+
 
 /**
  * Base class for all NetScenes.
@@ -30,7 +36,7 @@ class NetSceneBase {
     
     /**
      *
-     * @return: a new instance of a net scene.
+     * @return: A new instance of a net scene.
      */
     virtual NetSceneBase *NewInstance() = 0;
     

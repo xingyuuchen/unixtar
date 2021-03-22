@@ -40,9 +40,9 @@ class DBItem {
     
     /**
      *
-     * @param _filed_list: where to populate all field-names in.
+     * @param _field_list: where to populate all field-names in.
      */
-    virtual void PopulateFieldList(std::vector<std::string> &_filed_list) const = 0;
+    virtual void PopulateFieldList(std::vector<std::string> &_field_list) const = 0;
     
     /**
      *

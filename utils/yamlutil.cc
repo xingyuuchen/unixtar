@@ -38,17 +38,17 @@ int _ParseYaml(const char *_path, YamlDescriptor _desc) {
     return 0;
 }
 
-void _GetFromCache(YamlDescriptor _desc, std::string &_filed, std::string &_res) {
+void _GetFromCache(YamlDescriptor _desc, std::string &_field, std::string &_res) {
     if (sg_yaml_cache.find(_desc) == sg_yaml_cache.end()) {
         LogI(__FILE__, "[_GetFromCache] (%p) not in sg_yaml_cache", _desc)
         return;
     }
     std::map<std::string, std::string> &kv = sg_yaml_cache[_desc];
-    if (kv.find(_filed) == kv.end()) {
-        LogI(__FILE__, "[_GetFromCache] field(%s) not in sg_yaml_cache", _filed.c_str())
+    if (kv.find(_field) == kv.end()) {
+        LogI(__FILE__, "[_GetFromCache] field(%s) not in sg_yaml_cache", _field.c_str())
         return;
     }
-    _res = kv[_filed];
+    _res = kv[_field];
 }
 
 YamlDescriptor Load(const char *_path) {

@@ -12,13 +12,13 @@ YamlDescriptor Load(const char *_path);
 
 bool IsOpen(YamlDescriptor _desc);
 
-void _GetFromCache(YamlDescriptor _desc, std::string &_filed, std::string &_res);
+void _GetFromCache(YamlDescriptor _desc, std::string &_field, std::string &_res);
 
 template<class T>
-int Get(YamlDescriptor _desc, std::string &_filed, T &_res) {
+int Get(YamlDescriptor _desc, std::string &_field, T &_res) {
     if (IsOpen(_desc)) {
         std::string cache;
-        _GetFromCache(_desc, _filed, cache);
+        _GetFromCache(_desc, _field, cache);
         if (cache.empty()) {
             return -1;
         }

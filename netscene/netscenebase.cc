@@ -1,6 +1,5 @@
 #include "netscenebase.h"
 #include "../http/httpresponse.h"
-#include "../http/firstline.h"
 #include "log.h"
 #include "headerfield.h"
 #include "socketepoll.h"

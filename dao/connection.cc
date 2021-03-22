@@ -66,7 +66,7 @@ class _Connection {
         return -1;
     }
     
-    int Query(const char *_sql, std::vector<std::string> &_res) {
+    int Query(const char *_sql, std::vector<std::string> &_res, int _col_cnt) {
         if (!IsConnected()) {
             LogE(__FILE__, "[Query] kNotConnected")
             return -1;
@@ -78,9 +78,9 @@ class _Connection {
                 mysqlpp::StoreQueryResult::const_iterator it;
                 for (it = res.begin(); it != res.end(); ++it) {
                     mysqlpp::Row row = *it;
-                    
-                    LogI(__FILE__, "%s-%s-%s-%s", row[0].c_str(), row[1].c_str(),
-                         row[2].c_str(), row[3].c_str())
+                    for (int i = 0; i < _col_cnt; ++i) {
+                        _res.emplace_back(row[i]);
+                    }
                 }
             }
             return 0;
@@ -122,9 +122,9 @@ class _Connection {
                 if (conn_.connect(db_.c_str(), svr_.empty() ? "localhost" : svr_.c_str(),
                                   usr_.c_str(), pwd_.c_str())) {
                     LogI(__FILE__, "[TryConnect] succeed.")
-                    // Objects passed to this method and successfully set will be
-                    // released when this Connection object is destroyed.
-                    conn_.set_option(new mysqlpp::SetCharsetNameOption("utf8"));
+//                    conn_.set_option(new mysqlpp::SetCharsetNameOption(MYSQLPP_UTF8_CS));
+                    mysqlpp::Query query = conn_.query("SET names 'utf8mb4'");
+                    query.exec();
                     status_ = kConnected;
                     return 0;
                 } else {
@@ -167,9 +167,8 @@ int Update(DBItem &_o, DBItem &_n) {
     return _Connection::Instance().Update(_o, _n);
 }
 
-int Query(const char *_sql, std::vector<std::string> &_res) {
-    
-    return _Connection::Instance().Query(_sql, _res);
+int Query(const char *_sql, std::vector<std::string> &_res, int _col_cnt) {
+    return _Connection::Instance().Query(_sql, _res, _col_cnt);
 }
 
 bool IsConnected() { return _Connection::Instance().IsConnected(); }

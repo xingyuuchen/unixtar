@@ -11,7 +11,8 @@ int Insert(DBItem &_row);
 
 int Update(DBItem &_o, DBItem &_n);
 
-int Query(const char *_sql, std::vector<std::string> &_res);
+// TODO optimize
+int Query(const char *_sql, std::vector<std::string> &_res, int _col_cnt);
 
 bool IsConnected();
 
