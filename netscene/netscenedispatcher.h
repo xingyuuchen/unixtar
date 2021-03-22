@@ -9,7 +9,7 @@
 /**
  * 业务分发枢纽
  */
-class NetSceneDispatcher {
+class NetSceneDispatcher final {
     
     SINGLETON(NetSceneDispatcher, )
     

@@ -1,8 +1,16 @@
 #pragma once
 
 
-// errcode
+/**
+ * Reserved NetSceneType,
+ * which can not be used in your application.
+ */
+const int kNetSceneTypeGetIndexPage     = 0;
+const int kNetSceneTypeHelloSvr         = 1;
 
+/**
+ * Errcode
+ */
 const int kOK               = 0x00;
 
 /*  below are defined in {@link: unix_socket.h}
@@ -18,8 +26,4 @@ const int kErrDatabase      = 0x40;
 const int kErrIllegalReq    = 0x80;
 const int kErrIllegalResp   = 0x100;    /* used by front-end */
 const int kErrFileBroken    = 0x200;
-
-/*
-const int kErrIllegalResp   = 0x80;
-*/
 

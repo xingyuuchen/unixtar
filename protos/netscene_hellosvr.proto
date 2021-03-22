@@ -1,0 +1,16 @@
+syntax = "proto2";
+
+package NetSceneHelloSvrProto;
+
+
+message NetSceneHelloSvrReq {
+  optional uint32 req_data0 = 1;
+  optional string req_data1 = 2;
+
+}
+
+message NetSceneHelloSvrResp {
+  optional bool resp_data0 = 1;
+  repeated float resp_data1 = 2;
+
+}

@@ -1,12 +1,14 @@
 #include "netscenedispatcher.h"
 #include <stdio.h>
 #include "basenetscenereq.pb.h"
+#include "netscene_getindexpage.h"
 #include "netscene_hellosvr.h"
 #include "log.h"
 
 
 NetSceneDispatcher::NetSceneDispatcher() {
     std::unique_lock<std::mutex> lock(mutex_);
+    selectors_.push_back(new NetSceneGetIndexPage());
     selectors_.push_back(new NetSceneHelloSvr());
     
 }
