@@ -67,6 +67,7 @@ void SignalHandler::__InvokeCallbacks() {
 
 void SignalHandler::__ProcessExitManually() {
     LogI(__FILE__, "[__ProcessExitManually] Process Exit Manually.")
+    // FIXME: SIGINT exit第一次后，没有~SignalHandler
     exit(EXIT_SUCCESS);
 }
 

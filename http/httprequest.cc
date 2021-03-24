@@ -48,7 +48,7 @@ void Parser::__ResolveRequestLine() {
     LogI(__FILE__, "[__ResolveRequestLine]")
     char *start = buff_.Ptr();
     char *crlf = oi::strnstr(start, "\r\n", buff_.Length());
-    if (crlf != NULL) {
+    if (crlf) {
         std::string req_line(start, crlf - start);
         if (request_line_.ParseFromString(req_line)) {
             position_ = kRequestHeaders;
@@ -92,7 +92,6 @@ void Parser::__ResolveRequestHeaders() {
 }
 
 void Parser::__ResolveBody() {
-    LogI(__FILE__, "[__ResolveBody]")
     uint64_t content_length = headers_.GetContentLength();
     if (content_length == 0) {
         LogE(__FILE__, "[__ResolveBody] Content-Length = 0")
@@ -100,7 +99,6 @@ void Parser::__ResolveBody() {
         return;
     }
     size_t new_size = buff_.Length() - resolved_len_;
-//    body_.Write(buff_.Ptr(resolved_len_), new_size);
     resolved_len_ += new_size;
     
     size_t curr_body_len = buff_.Length() - request_line_len_ - request_header_len_;
