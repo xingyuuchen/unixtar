@@ -2,6 +2,7 @@
 #define OI_SVR_NETSCENEDISPATCHER_H
 #include "netscenebase.h"
 #include "singleton.h"
+#include "server.h"
 #include <vector>
 #include <mutex>
 
@@ -16,9 +17,20 @@ class NetSceneDispatcher final {
   public:
     ~NetSceneDispatcher();
     
-    NetSceneBase *Dispatch(SOCKET _conn_fd, const AutoBuffer *_buffer);
-    
     void RegisterNetScene(NetSceneBase* _net_scene);
+    
+    class NetSceneWorker : public Server::WorkerThread {
+      public:
+        ~NetSceneWorker() override;
+        
+        void HandleImpl(Tcp::RecvContext *_recv_ctx) override;
+        
+        void HandleException(std::exception &ex) override;
+
+    private:
+        static void __PackHttpResp(NetSceneBase *_net_scene,
+                                   AutoBuffer &_http_msg);
+    };
     
   private:
     

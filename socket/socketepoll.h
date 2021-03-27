@@ -14,25 +14,26 @@
 #endif
 #include <stddef.h>
 #include "unix_socket.h"
-#include "singleton.h"
 
 
 class SocketEpoll {
-    
-    SINGLETON(SocketEpoll, int _max_fds = 1024)
-    
   public:
+    
+    explicit SocketEpoll(int _max_fds = 1024);
+    
     ~SocketEpoll();
     
     void SetListenFd(SOCKET _listen_fd);
     
-    int EpollWait(int _max_events = kMaxFds_, int _timeout_mills = -1);
+    int EpollWait(int _timeout_mills = -1, int _max_events = kMaxFds);
     
     int AddSocketRead(SOCKET _fd);
     
     int ModSocketWrite(SOCKET _fd, void *_ptr);
     
     int DelSocket(SOCKET _fd);
+    
+    SOCKET GetSocket(int _idx);
     
     int IsReadSet(int _idx);
     
@@ -62,7 +63,7 @@ class SocketEpoll {
     int                         listen_fd_;
     struct epoll_event*         epoll_events_;
     int                         errno_;
-    static const int            kMaxFds_;
+    static const int            kMaxFds;
     
 };
 

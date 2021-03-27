@@ -1,5 +1,4 @@
 #include "netscenebase.h"
-#include "../http/httpresponse.h"
 #include "log.h"
 #include "headerfield.h"
 #include "socketepoll.h"
@@ -12,12 +11,6 @@ NetSceneBase::NetSceneBase(bool _use_protobuf)
         , status_desc_("OK")
         , use_protobuf_(_use_protobuf)
         , socket_(-1) {
-    if (_use_protobuf) {
-        http_headers_[http::HeaderField::KContentType] = http::HeaderField::KOctetStream;
-    } else {
-        http_headers_[http::HeaderField::KContentType] = http::HeaderField::KPlainText;
-    }
-    http_headers_[http::HeaderField::KConnection] = http::HeaderField::KConnectionClose;
     errcode_ = kOK;
     errmsg_ = "OK";
     
@@ -37,25 +30,14 @@ int NetSceneBase::DoScene(const std::string &_in_buffer) {
         base_resp_.set_errmsg(errmsg_);
         base_resp_.set_net_scene_resp_buff(resp->SerializeAsString());
     }
-    __PackHttpMsg();
     
-    return ret;
-}
-
-
-int NetSceneBase::__PackHttpMsg() {
-    http_resp_msg_.Reset();
-    std::string ba;
     if (use_protobuf_) {
-        ba = base_resp_.SerializeAsString();
+        base_resp_.SerializeToString(&http_body_);
     } else {
-        ba = std::string((const char *) Data(), Length());
+        http_body_ = std::string((const char *) Data(), Length());
     }
-    http::response::Pack(http::kHTTP_1_1, status_code_,
-                         status_desc_, http_headers_, http_resp_msg_, ba);
-    LogI(__FILE__, "[__PackHttpMsg] http_resp_msg.len: %ld", http_resp_msg_.Length())
 //    __ShowHttpHeader(out_buff);
-    return 0;
+    return ret;
 }
 
 
@@ -69,7 +51,7 @@ void NetSceneBase::__ShowHttpHeader(AutoBuffer &_out) {
     }
 }
 
-AutoBuffer *NetSceneBase::GetHttpResp() { return &http_resp_msg_; }
+std::string &NetSceneBase::GetHttpBody() { return http_body_; }
 
 int NetSceneBase::GetSocket() const { return socket_; }
 
@@ -78,4 +60,6 @@ void NetSceneBase::SetSocket(SOCKET _socket) {
         socket_ = _socket;
     }
 }
+
+bool NetSceneBase::UseProtobuf() const { return use_protobuf_; }
 

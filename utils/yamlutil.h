@@ -12,28 +12,13 @@ YamlDescriptor Load(const char *_path);
 
 bool IsOpen(YamlDescriptor _desc);
 
-void _GetFromCache(YamlDescriptor _desc, std::string &_field, std::string &_res);
+int GetInt(YamlDescriptor _desc, std::string &_field, int &_res);
 
-template<class T>
-int Get(YamlDescriptor _desc, std::string &_field, T &_res) {
-    if (IsOpen(_desc)) {
-        std::string cache;
-        _GetFromCache(_desc, _field, cache);
-        if (cache.empty()) {
-            return -1;
-        }
-        if (std::is_same<T, int>::value || std::is_same<T, long>::value) {
-            _res = strtol(cache.c_str(), NULL, 10);
-            return 0;
-        } else if (std::is_same<T, float>::value || std::is_same<T, double>::value) {
-            _res = strtod(cache.c_str(), NULL);
-        } else if (std::is_same<T, std::string>::value) {
-            _res = std::move(cache);
-            return 0;
-        }
-    }
-    return -1;
-}
+int GetUShort(YamlDescriptor _desc, std::string &_field, uint16_t &_res);
+
+int GetString(YamlDescriptor _desc, std::string &_field, std::string &_res);
+
+int GetDouble(YamlDescriptor _desc, std::string &_field, double &_res);
 
 int Close(YamlDescriptor _desc);
 

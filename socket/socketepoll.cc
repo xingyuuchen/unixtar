@@ -5,7 +5,7 @@
 #include "log.h"
 
 
-const int SocketEpoll::kMaxFds_ = 1024;
+const int SocketEpoll::kMaxFds = 1024;
 
 SocketEpoll::SocketEpoll(int _max_fds)
         : epoll_fd_(-1)
@@ -42,7 +42,7 @@ int SocketEpoll::AddSocketRead(int _fd) {
 int SocketEpoll::ModSocketWrite(int _fd, void *_ptr) {
 #ifdef __linux__
     struct epoll_event event;
-    event.events = EPOLLOUT | EPOLLET;
+    event.events |= EPOLLOUT;
     event.data.ptr = _ptr;
     return __EpollCtl(EPOLL_CTL_MOD, _fd, &event);
 #else
@@ -76,8 +76,8 @@ int SocketEpoll::__EpollCtl(int _op, int _fd, struct epoll_event *_event/* = NUL
 }
 
 
-int SocketEpoll::EpollWait(int _max_events/* = kMaxFds_*/,
-                           int _timeout_mills/* = -1*/) {
+int SocketEpoll::EpollWait(int _timeout_mills/* = -1*/,
+                           int _max_events/* = kMaxFds*/) {
 #ifdef __linux__
     if (_timeout_mills < -1) { _timeout_mills = -1; }
     
@@ -94,7 +94,7 @@ int SocketEpoll::EpollWait(int _max_events/* = kMaxFds_*/,
 
 bool SocketEpoll::IsNewConnect(int _idx) {
 #ifdef __linux__
-    if (_idx < 0 || _idx >= kMaxFds_) {
+    if (_idx < 0 || _idx >= kMaxFds) {
         LogE(__FILE__, "[IsNewConnect] invalid _idx: %d", _idx)
         return false;
     }
@@ -111,6 +111,17 @@ void *SocketEpoll::IsWriteSet(int _idx) {
 #else
     return NULL;
 #endif
+}
+
+SOCKET SocketEpoll::GetSocket(int _idx) {
+#ifdef __linux__
+    if (_idx < 0 || _idx >= kMaxFds) {
+        LogE(__FILE__, "[GetSocket] invalid _idx: %d", _idx)
+        return INVALID_SOCKET;
+    }
+    return epoll_events_[_idx].data.fd;
+#endif
+    return INVALID_SOCKET;
 }
 
 int SocketEpoll::IsReadSet(int _idx) {
@@ -133,7 +144,7 @@ int SocketEpoll::IsErrSet(int _idx) {
 
 epoll_data_t *SocketEpoll::__IsFlagSet(int _idx, int _flag) {
 #ifdef __linux__
-    if (_idx < 0 || _idx >= kMaxFds_) {
+    if (_idx < 0 || _idx >= kMaxFds) {
         LogE(__FILE__, "[__IsFlagSet] invalid _idx: %d", _idx)
         return NULL;
     }

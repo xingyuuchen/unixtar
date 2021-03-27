@@ -2,6 +2,7 @@
 #define OI_SVR_LOG_H
 
 #include <syslog.h>
+#include <execinfo.h>
 #ifndef DAEMON
 #include "timeutil.h"
 #include <stdio.h>
@@ -18,7 +19,9 @@ namespace Logger {
  *
  */
 void OpenLog(const char *_ident);
-    
+
+void LogPrintStackTraceImpl();
+
 }
 
 #ifdef DAEMON
@@ -62,5 +65,6 @@ void OpenLog(const char *_ident);
     printf("\n");
 #endif
 
+#define LogPrintStackTrace()  Logger::LogPrintStackTraceImpl();
 
 #endif //OI_SVR_LOG_H

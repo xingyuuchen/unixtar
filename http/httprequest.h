@@ -29,12 +29,6 @@ class Parser {
     };
     
     void DoParse();
-
-    void __ResolveRequestLine();
-    
-    void __ResolveRequestHeaders();
-    
-    void __ResolveBody();
     
     bool IsEnd() const;
     
@@ -42,9 +36,18 @@ class Parser {
     
     TPosition GetPosition() const;
     
-    AutoBuffer *GetBody();
+    char *GetBody();
     
     AutoBuffer *GetBuff();
+    
+    size_t GetContentLength() const;
+
+  private:
+    void __ResolveRequestLine();
+    
+    void __ResolveRequestHeaders();
+    
+    void __ResolveBody();
     
   private:
     TPosition                               position_;
@@ -53,7 +56,6 @@ class Parser {
     size_t                                  request_line_len_;
     size_t                                  request_header_len_;
     size_t                                  resolved_len_;
-    AutoBuffer                              body_;
     AutoBuffer                              buff_;
     
 };

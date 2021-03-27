@@ -18,7 +18,7 @@
  *
  * Responsible for:
  *      1. Specifying the net scene type;
- *      2. Packing http body into http message;
+ *      2. Generating http body.
  * Note:
  *      1. NOT responsible for any network operation(recv, send, etc.);
  *      2. Business logic is Implemented the by subclasses by overriding DoSceneImpl.
@@ -83,13 +83,14 @@ class NetSceneBase {
     
     virtual int DoScene(const std::string &_in_buffer) final;
     
-    AutoBuffer *GetHttpResp();
+    std::string &GetHttpBody();
     
     virtual SOCKET GetSocket() const final;
     
+    bool UseProtobuf() const;
+    
     
   private:
-    int __PackHttpMsg();
     
     /**
      * Debug only
@@ -103,7 +104,7 @@ class NetSceneBase {
     
   private:
     BaseNetSceneResp::BaseNetSceneResp  base_resp_;
-    AutoBuffer                          http_resp_msg_;
+    std::string                         http_body_;
     bool                                use_protobuf_;
     
     // http fields

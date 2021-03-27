@@ -13,7 +13,6 @@ include_directories(http)
 include_directories(netscene)
 include_directories(socket)
 include_directories(utils)
-include_directories(utils/threadpool)
 
 include_directories(/usr/local/include)
 

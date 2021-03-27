@@ -4,6 +4,7 @@
 #include "netscene_getindexpage.h"
 #include "netscene_hellosvr.h"
 #include "log.h"
+#include "http/httpresponse.h"
 
 
 NetSceneDispatcher::NetSceneDispatcher() {
@@ -33,47 +34,93 @@ NetSceneBase *NetSceneDispatcher::__MakeNetScene(int _type) {
     return (*iter)->NewInstance();
 }
 
+NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() {
 
-/**
- * Dispatches the request to corresponding net_scene,
- * waiting for the latter finished processing.
- *
- * @return
- */
-NetSceneBase *NetSceneDispatcher::Dispatch(SOCKET _conn_fd, const AutoBuffer *_in_buffer) {
+}
+
+void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx) {
+    if (!_recv_ctx) {
+        return;
+    }
+    if (!net_thread_) {
+        LogE(__FILE__, "[HandleImpl] wtf? No net_thread!")
+        return;
+    }
+    SOCKET fd = _recv_ctx->fd;
+    AutoBuffer &buffer = _recv_ctx->buffer;
+    
     int type;
     std::string req_buffer;
     do {
-        if (_in_buffer == NULL || _in_buffer->Ptr() == NULL) {
-            LogI(__FILE__, "[Dispatch] return index page.")
+        if (!buffer.Ptr()) {
+            LogI(__FILE__, "[HandleImpl] return index page.")
             type = 0;
             break;
         }
-        LogI(__FILE__, "[Dispatch] _in_buffer.len: %zd", _in_buffer->Length());
+        LogI(__FILE__, "[HandleImpl] _in_buffer.len: %zd", buffer.Length());
     
         BaseNetSceneReq::BaseNetSceneReq base_req;
-        base_req.ParseFromArray(_in_buffer->Ptr(), _in_buffer->Length());
+        base_req.ParseFromArray(buffer.Ptr(), buffer.Length());
     
         if (!base_req.has_net_scene_type()) {
-            LogI(__FILE__, "[Dispatch] base_req.has_net_scene_type(): false")
-            return NULL;
+            LogI(__FILE__, "[HandleImpl] base_req.has_net_scene_type(): false")
+            return;
         }
         type = base_req.net_scene_type();
         if (!base_req.has_net_scene_req_buff()) {
-            LogI(__FILE__, "[Dispatch] type(%d), base_req.has_net_scene_req_buff(): false", type)
-            return NULL;
+            LogI(__FILE__, "[HandleImpl] type(%d), base_req.has_net_scene_req_buff(): false", type)
+            return;
         }
         req_buffer = base_req.net_scene_req_buff();
     } while (false);
     
-    LogI(__FILE__, "[Dispatch] dispatch to type %d", type)
+    LogI(__FILE__, "[HandleImpl] dispatch to type %d", type)
     
-    NetSceneBase *net_scene = __MakeNetScene(type);
-    if (net_scene) {
-        net_scene->SetSocket(_conn_fd);
-        net_scene->DoScene(req_buffer);
+    NetSceneBase *net_scene = NetSceneDispatcher::Instance().__MakeNetScene(type);
+    if (!net_scene) {
+        LogE(__FILE__, "[HandleImpl] !net_scene")
+        return;
     }
-    return net_scene;
+    net_scene->SetSocket(fd);
+    uint64_t start = ::gettickcount();
+    net_scene->DoScene(req_buffer);
+    LogI(__FILE__, "[HandleImpl] type:%d, cost: %llu ms", type, ::gettickcount() - start)
+    
+    AutoBuffer &http_resp_msg = _recv_ctx->send_context->buffer;
+    __PackHttpResp(net_scene, http_resp_msg);
+    
+    delete net_scene, net_scene = nullptr;
+    
+    Server::SendQueue *send_queue = net_thread_->GetSendQueue();
+    
+    send_queue->push(_recv_ctx->send_context);
+    net_thread_->NotifyEpoll();
+    
+}
+
+void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
+    LogE(__FILE__, "[HandleException] %s", ex.what())
+    running_ = false;
+}
+
+void NetSceneDispatcher::NetSceneWorker::__PackHttpResp(
+        NetSceneBase *_net_scene, AutoBuffer &_http_msg) {
+    
+    std::map<std::string, std::string> headers;
+    
+    if (_net_scene->UseProtobuf()) {
+        headers[http::HeaderField::KContentType] = http::HeaderField::KOctetStream;
+    } else {
+        headers[http::HeaderField::KContentType] = http::HeaderField::KPlainText;
+    }
+    headers[http::HeaderField::KConnection] = http::HeaderField::KConnectionClose;
+    
+    std::string status_desc = "OK";
+    int resp_code = 200;
+    
+    http::response::Pack(http::kHTTP_1_1, resp_code,status_desc,
+                         headers, _http_msg, _net_scene->GetHttpBody());
+    
 }
 
 

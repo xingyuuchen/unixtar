@@ -33,10 +33,10 @@ class _Connection {
     void Config() {
         Yaml::YamlDescriptor desc = Yaml::Load("../framework/dao/database.yaml");
         if (desc) {
-            Yaml::Get(desc, kDatabase, db_);
-            Yaml::Get(desc, kServer, svr_);
-            Yaml::Get(desc, kUser, usr_);
-            Yaml::Get(desc, kPassword, pwd_);
+            Yaml::GetString(desc, kDatabase, db_);
+            Yaml::GetString(desc, kServer, svr_);
+            Yaml::GetString(desc, kUser, usr_);
+            Yaml::GetString(desc, kPassword, pwd_);
             Yaml::Close(desc);
             LogI(__FILE__, "db: %s, svr: %s, usr: %s, pwd: %s", db_.c_str(),
                  svr_.c_str(), usr_.c_str(), pwd_.c_str())

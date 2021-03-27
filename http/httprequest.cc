@@ -152,20 +152,25 @@ Parser::TPosition Parser::GetPosition() const { return position_; }
 
 AutoBuffer *Parser::GetBuff() { return &buff_; }
 
-AutoBuffer *Parser::GetBody() {
+char *Parser::GetBody() {
     if (request_line_.GetMethod() == http::THttpMethod::kGET) {
-        LogI(__FILE__, "[GetBody] GET, no http body, return NULL")
-        return NULL;
+        LogI(__FILE__, "[GetBody] GET, return NULL")
+        return nullptr;
+    }
+    return buff_.Ptr(buff_.Length() - GetContentLength());
+}
+
+size_t Parser::GetContentLength() const {
+    if (request_line_.GetMethod() == http::THttpMethod::kGET) {
+        LogI(__FILE__, "[GetContentLength] GET, return 0")
+        return 0;
     }
     size_t content_len = headers_.GetContentLength();
     if (content_len <= 0) {
-        LogE(__FILE__, "[GetBody] content_len <= 0, return NULL")
-        return NULL;
+        LogE(__FILE__, "[GetContentLength] content_len <= 0")
+        return 0;
     }
-    body_.SetPtr(buff_.Ptr(buff_.Length() - content_len));
-    body_.SetLength(content_len);
-    body_.ShareFromOther(true);
-    return &body_;
+    return content_len;
 }
 
 }}

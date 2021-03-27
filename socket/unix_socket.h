@@ -8,6 +8,7 @@
 
 
 #define SOCKET int
+#define INVALID_SOCKET (-1)
 #define IS_EAGAIN(errno) ((errno) == EAGAIN || (errno) == EWOULDBLOCK)
 #define CLOSE_SOCKET ::close
 
