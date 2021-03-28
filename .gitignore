@@ -3,4 +3,4 @@ testclient.cc
 build/
 autogen/
 logs/
-dao/database.yaml
+dao/database.yml

@@ -108,6 +108,7 @@ bool ConnectionProfile::IsParseDone() {
 
 void ConnectionProfile::CloseSelf() {
     if (fd_ > 0) {
+        LogI(__FILE__, "[CloseSelf] %d", fd_)
         ::shutdown(fd_, SHUT_RDWR);
         fd_ = INVALID_SOCKET;
     }

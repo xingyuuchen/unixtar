@@ -20,16 +20,21 @@ void OpenLog(const char *_ident) {
 #endif
 }
 
-void LogPrintStackTraceImpl() {
-    int size = 16;
-    void *array[16];
-    int stack_num = backtrace(array, size);
+void LogPrintStacktraceImpl(int _size /* = 8*/) {
+    if (_size < 4) {
+        _size = 4;
+    }
+    if (_size > 32) {
+        _size = 32;
+    }
+    void *array[_size];
+    int stack_num = backtrace(array, _size);
     char **stacktrace = backtrace_symbols(array, stack_num);
     for (int i = 0; i < stack_num; ++i) {
 #ifdef DAEMON
         syslog(LOG_INFO, stacktrace[i]);
 #else
-        printf("%s\n", stacktrace[i]);
+        printf("%d: %s\n", i, stacktrace[i]);
 #endif
     }
     free(stacktrace);

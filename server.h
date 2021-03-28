@@ -44,11 +44,22 @@ class Server {
         void BindNetThread(NetThread *_net_thread);
     
         void Stop();
+    
+        void Notify();
+    
+        /**
+         * @return: whether @param _recv_ctx is a notification
+         * from another thread to terminate this worker thread.
+         */
+        bool IsNotification(Tcp::RecvContext *_recv_ctx);
         
         ~WorkerThread() override;
 
       protected:
-        NetThread *     net_thread_;
+        NetThread *             net_thread_;
+      
+    private:
+        Tcp::RecvContext *      notifier_;
     };
     
     /**
@@ -78,7 +89,7 @@ class Server {
      * by default one WorkerThread corresponds to one NetThread.
      *
      * The workers' life cycle is managed by Server,
-     * just implement WorkerThread's <HandleImpl> and register here.
+     * just implement WorkerThread's @func HandleImpl and register here.
      *
      */
     template<class WorkerImpl/* : public WorkerThread*/, class ...Args>
@@ -94,8 +105,8 @@ class Server {
         }
     }
     
-    using RecvQueue = MessageQueue::ThreadSafeQueue<Tcp::RecvContext *>;
-    using SendQueue = MessageQueue::ThreadSafeQueue<Tcp::SendContext *>;
+    using RecvQueue = MessageQueue::ThreadSafeDeque<Tcp::RecvContext *>;
+    using SendQueue = MessageQueue::ThreadSafeDeque<Tcp::SendContext *>;
     
   private:
     
@@ -176,7 +187,7 @@ class Server {
     
     int __CreateListenFd();
     
-    int __Bind(uint16_t _port);
+    int __Bind(uint16_t _port) const;
     
     int __HandleErr(SOCKET _fd);
     

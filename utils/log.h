@@ -20,7 +20,7 @@ namespace Logger {
  */
 void OpenLog(const char *_ident);
 
-void LogPrintStackTraceImpl();
+void LogPrintStacktraceImpl(int _size = 8);
 
 }
 
@@ -65,6 +65,6 @@ void LogPrintStackTraceImpl();
     printf("\n");
 #endif
 
-#define LogPrintStackTrace()  Logger::LogPrintStackTraceImpl();
+#define LogPrintStacktrace(...)  Logger::LogPrintStacktraceImpl(__VA_ARGS__);
 
 #endif //OI_SVR_LOG_H

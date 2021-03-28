@@ -8,7 +8,6 @@
 #include <unistd.h>
 #include <iostream>
 #include <string.h>
-#include <execinfo.h>
 
 
 std::string Server::ServerConfig::field_port("port");
@@ -27,7 +26,7 @@ Server::Server()
         , net_thread_cnt_(1)
         , running_(false) {
     
-    Yaml::YamlDescriptor server_config = Yaml::Load("../framework/serverconfig.yaml");
+    Yaml::YamlDescriptor server_config = Yaml::Load("../framework/serverconfig.yml");
     
     if (!server_config) {
         LogE(__FILE__, "[Server] serverconfig.yaml open failed!")
@@ -35,17 +34,22 @@ Server::Server()
     }
     
     do {
-        if (Yaml::GetUShort(server_config, ServerConfig::field_port,
+        if (Yaml::Get(server_config, ServerConfig::field_port,
                       ServerConfig::port) < 0) {
             LogE(__FILE__, "[Server] load port from yaml failed")
             break;
         }
-        if (Yaml::GetInt(server_config, ServerConfig::field_net_thread_cnt,
+        if (Yaml::Get(server_config, ServerConfig::field_net_thread_cnt,
                          (int &) ServerConfig::net_thread_cnt) < 0) {
             LogE(__FILE__, "[Server] load net_thread_cnt from yaml failed")
             break;
         }
-        
+        if (ServerConfig::net_thread_cnt < 1) {
+            ServerConfig::net_thread_cnt = 1;
+        }
+        if (ServerConfig::net_thread_cnt > 8) {
+            ServerConfig::net_thread_cnt = 8;
+        }
         net_thread_cnt_ = ServerConfig::net_thread_cnt;
         
         if (__CreateListenFd() < 0) { return; }
@@ -134,7 +138,8 @@ Server::~Server() {
 
 
 Server::WorkerThread::WorkerThread()
-        : net_thread_(nullptr) {
+        : net_thread_(nullptr)
+        , notifier_((Tcp::RecvContext *) &notifier_) {
     
 }
 
@@ -144,7 +149,7 @@ void Server::WorkerThread::Run() {
         running_ = false;
         return;
     }
-    LogI(__FILE__, "[:NetThread::Run] launching WorkerThread!")
+    LogI(__FILE__, "[NetThread::Run] launching WorkerThread!")
     
     auto recv_queue = net_thread_->GetRecvQueue();
     
@@ -152,7 +157,17 @@ void Server::WorkerThread::Run() {
         
         Tcp::RecvContext *recv_ctx;
         
-        if (recv_queue->pop_front(recv_ctx)) {
+        if (recv_queue->pop_front_to(recv_ctx)) {
+            if (IsNotification(recv_ctx)) {
+                running_ = false;
+                LogI(__FILE__, "[WorkerThread::Run] Worker terminate!")
+                size_t left = recv_queue->size();
+                if (left > 0) {
+                    LogI(__FILE__, "[WorkerThread::Run] %zu task left", left)
+                }
+                return;
+            }
+            
             HandleImpl(recv_ctx);
         }
     }
@@ -166,6 +181,20 @@ void Server::WorkerThread::BindNetThread(Server::NetThread *_net_thread) {
 
 void Server::WorkerThread::Stop() {
     running_ = false;
+    Notify();
+}
+
+void Server::WorkerThread::Notify() {
+    if (!net_thread_) {
+        LogE(__FILE__, "[Notify] !net_thread_, notify failed")
+        return;
+    }
+    auto recv_queue = net_thread_->GetRecvQueue();
+    recv_queue->push_front(notifier_);
+}
+
+bool Server::WorkerThread::IsNotification(Tcp::RecvContext *_recv_ctx) {
+    return _recv_ctx == notifier_;
 }
 
 Server::WorkerThread::~WorkerThread() {
@@ -265,7 +294,7 @@ void Server::ConnectionManager::DelConnection(SOCKET _fd) {
     if (conn) {
         conn->CloseSelf();
     } else {
-        LogW(__FILE__, "[DelConnection] Bug here!!")
+        LogE(__FILE__, "[DelConnection] Bug here!!")
     }
     connections_.erase(_fd);
     delete conn, conn = nullptr;
@@ -369,7 +398,7 @@ void Server::NetThread::DelConnection(int _fd) {
 
 void Server::NetThread::HandleSend() {
     Tcp::SendContext *send_ctx;
-    while (send_queue_.pop_front(send_ctx, false)) {
+    while (send_queue_.pop_front_to(send_ctx, false)) {
         LogI(__FILE__, "[NetThread::HandleSend] handle")
         __OnWriteEvent(send_ctx, true);
     }
@@ -382,12 +411,11 @@ Server::RecvQueue *Server::NetThread::GetRecvQueue() { return &recv_queue_; }
 Server::SendQueue *Server::NetThread::GetSendQueue() { return &send_queue_; }
 
 void Server::NetThread::Stop() {
-    // FIXME lock
     running_ = false;
+    notifier_.NotifyEpoll();
 }
 
 void Server::NetThread::HandleException(std::exception &ex) {
-    Thread::HandleException(ex);
     LogE(__FILE__, "[HandleException] %s", ex.what())
 }
 
@@ -413,7 +441,7 @@ int Server::NetThread::__OnReadEvent(SOCKET _fd) {
     
     if (conn->IsParseDone()) {
         LogI(__FILE__, "[__OnReadEvent] http parse succeed")
-        recv_queue_.push(conn->GetRecvContext());
+        recv_queue_.push_back(conn->GetRecvContext());
     }
     return 0;
 }
@@ -539,7 +567,7 @@ int Server::__CreateListenFd() {
 }
 
 
-int Server::__Bind(uint16_t _port) {
+int Server::__Bind(uint16_t _port) const {
     struct sockaddr_in sock_addr;
     memset(&sock_addr, 0, sizeof(sock_addr));
     sock_addr.sin_family = AF_INET;

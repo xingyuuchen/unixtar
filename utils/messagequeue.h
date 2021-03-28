@@ -1,51 +1,67 @@
 #pragma once
 #include <mutex>
-#include <queue>
+#include <deque>
 #include <condition_variable>
 
 
 namespace MessageQueue {
 
 
-template<class T>
-class ThreadSafeQueue {
+template<class T, class Container = std::deque<T>>
+class ThreadSafeDeque {
   public:
     
     using ScopedLock = std::unique_lock<std::mutex>;
     
-    using refrence = typename std::queue<T>::reference;  // T&
+    using refrence = typename Container::reference;  // T&
     
-    explicit ThreadSafeQueue(size_t _max_size = 10240);
+    explicit ThreadSafeDeque(size_t _max_size = 10240);
     
-    bool push(const T &_v, bool _notify = true);
+    bool push_front(const T &_v, bool _notify = true);
+    
+    bool push_back(const T &_v, bool _notify = true);
+    
+    bool pop_front(bool _wait = true, uint64_t _timeout_millis = 1000);
+    
+    bool pop_back(bool _wait = true, uint64_t _timeout_millis = 1000);
+    
+    bool pop_front_to(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
+    
+    bool pop_back_to(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
     
     bool front(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
     
-    void pop();
+    bool back(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
     
-    bool pop_front(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
+    bool get(T &_t, size_t _pos, bool _wait = true, uint64_t _timeout_millis = 1000);
     
     size_t size();
+    
+    void clear();
+
+  private:
+    void __WaitSizeGreaterOrEqual(size_t _than, ScopedLock &_lock, uint64_t _timeout_millis);
 
   private:
     size_t                      max_size_;
     std::mutex                  mtx_;
     std::condition_variable     cond_;
-    std::queue<T>               queue_;
+    Container                   container_;
 };
 
-template<class T>
-ThreadSafeQueue<T>::ThreadSafeQueue(size_t _max_size)
+template<class T, class Container>
+ThreadSafeDeque<T, Container>::ThreadSafeDeque(size_t _max_size)
         : max_size_(_max_size) {
 }
 
-template<class T>
-bool ThreadSafeQueue<T>::push(const T &_v, bool _notify /*= true*/) {
+
+template<class T, class Container>
+bool ThreadSafeDeque<T, Container>::push_front(const T &_v, bool _notify) {
     ScopedLock lock(mtx_);
-    if (queue_.size() > max_size_) {
+    if (container_.size() > max_size_) {
         return false;
     }
-    queue_.push(_v);
+    container_.push_front(_v);
     if (_notify) {
         cond_.notify_one();
     }
@@ -53,56 +69,150 @@ bool ThreadSafeQueue<T>::push(const T &_v, bool _notify /*= true*/) {
 }
 
 
-template<class T>
-void ThreadSafeQueue<T>::pop() {
-    ScopedLock lock(mtx_);
-    if (!queue_.empty()) {
-        queue_.pop();
-    }
-}
-
-
-template<class T>
-size_t ThreadSafeQueue<T>::size() {
-    ScopedLock lock(mtx_);
-    return queue_.size();
-}
-
-
-template<class T>
+template<class T, class Container>
 bool
-ThreadSafeQueue<T>::front(T &_t, bool _wait /*= true*/,
-                          uint64_t _timeout_millis /*= 1000*/) {
+ThreadSafeDeque<T, Container>::push_back(const T &_v, bool _notify /*= true*/) {
+    ScopedLock lock(mtx_);
+    if (container_.size() > max_size_) {
+        return false;
+    }
+    container_.push_back(_v);
+    if (_notify) {
+        cond_.notify_one();
+    }
+    return true;
+}
+
+template<class T, class Container>
+bool ThreadSafeDeque<T, Container>::pop_front(bool _wait,
+                                              uint64_t _timeout_millis) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        cond_.wait_for(lock,
-                       std::chrono::milliseconds(_timeout_millis),
-                       [this] { return !queue_.empty(); });
+        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
     }
-    if (!queue_.empty()) {
-        _t = queue_.front();
+    if (!container_.empty()) {
+        container_.pop_front();
+        return true;
+    }
+    return false;
+}
+
+template<class T, class Container>
+bool ThreadSafeDeque<T, Container>::pop_back(bool _wait,
+                                             uint64_t _timeout_millis) {
+    ScopedLock lock(mtx_);
+    if (_wait) {
+        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+    }
+    if (!container_.empty()) {
+        container_.pop_back();
         return true;
     }
     return false;
 }
 
 
-template<class T>
+template<class T, class Container>
 bool
-ThreadSafeQueue<T>::pop_front(T &_t, bool _wait /*= true*/,
-                              uint64_t _timeout_millis /*= 1000*/) {
+ThreadSafeDeque<T, Container>::pop_front_to(T &_t,
+                                            bool _wait /*= true*/,
+                                            uint64_t _timeout_millis /*= 1000*/) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        cond_.wait_for(lock,
-                       std::chrono::milliseconds(_timeout_millis),
-                       [this] { return !queue_.empty(); });
+        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
     }
-    if (!queue_.empty()) {
-        _t = queue_.front();
-        queue_.pop();
+    if (!container_.empty()) {
+        _t = container_.front();
+        container_.pop_front();
         return true;
     }
     return false;
+}
+
+
+template<class T, class Container>
+bool
+ThreadSafeDeque<T, Container>::pop_back_to(T &_t,
+                                           bool _wait /*= true*/,
+                                           uint64_t _timeout_millis /*= 1000*/) {
+    ScopedLock lock(mtx_);
+    if (_wait) {
+        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+    }
+    if (!container_.empty()) {
+        _t = container_.back();
+        container_.pop_back();
+        return true;
+    }
+    return false;
+}
+
+template<class T, class Container>
+bool
+ThreadSafeDeque<T, Container>::front(T &_t, bool _wait /*= true*/,
+                                     uint64_t _timeout_millis /*= 1000*/) {
+    ScopedLock lock(mtx_);
+    if (_wait) {
+        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+    }
+    if (!container_.empty()) {
+        _t = container_.front();
+        return true;
+    }
+    return false;
+}
+
+template<class T, class Container>
+bool
+ThreadSafeDeque<T, Container>::back(T &_t, bool _wait /*= true*/,
+                                    uint64_t _timeout_millis /*= 1000*/) {
+    ScopedLock lock(mtx_);
+    if (_wait) {
+        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+    }
+    if (!container_.empty()) {
+        _t = container_.back();
+        return true;
+    }
+    return false;
+}
+
+template<class T, class Container>
+bool
+ThreadSafeDeque<T, Container>::get(T &_t,
+                                   size_t _pos,
+                                   bool _wait /* = true*/,
+                                   uint64_t _timeout_millis /* = 1000*/) {
+    ScopedLock lock(mtx_);
+    if (_wait) {
+        __WaitSizeGreaterOrEqual(_pos + 1, lock, _timeout_millis);
+    }
+    if (container_.size() > _pos) {
+        _t = container_[_pos];
+        return true;
+    }
+    return false;
+}
+
+template<class T, class Container>
+size_t ThreadSafeDeque<T, Container>::size() {
+    ScopedLock lock(mtx_);
+    return container_.size();
+}
+
+template<class T, class Container>
+void ThreadSafeDeque<T, Container>::clear() {
+    ScopedLock lock(mtx_);
+    container_.clear();
+}
+
+template<class T, class Container>
+void ThreadSafeDeque<T, Container>::__WaitSizeGreaterOrEqual(const size_t _than,
+                                                             ThreadSafeDeque::ScopedLock &_lock,
+                                                             uint64_t _timeout_millis) {
+    cond_.wait_for(_lock,
+                   std::chrono::milliseconds(_timeout_millis),
+                   [&, this] { return container_.size() >= _than; });
 }
 
 }

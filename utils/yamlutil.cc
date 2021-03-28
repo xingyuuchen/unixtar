@@ -26,6 +26,10 @@ int _ParseYaml(const char *_path, YamlDescriptor _desc) {
         if (s.empty() || s[0] == '#') {
             continue;
         }
+        std::string::size_type find = s.find('#');
+        if (find != std::string::npos) {
+            s = s.substr(0, find);
+        }
         oi::split(s, ": ", line);
         if (line.size() != 2) {
             LogI(__FILE__, "[_ParseYaml] %s: incorrect yaml formula, line: %s",
@@ -62,7 +66,7 @@ YamlDescriptor Load(const char *_path) {
     return NULL;
 }
 
-int GetInt(YamlDescriptor _desc, std::string &_field, int &_res) {
+int Get(YamlDescriptor _desc, std::string &_field, int &_res) {
     if (IsOpen(_desc)) {
         std::string cache;
         _GetFromCache(_desc, _field, cache);
@@ -75,20 +79,20 @@ int GetInt(YamlDescriptor _desc, std::string &_field, int &_res) {
     return -1;
 }
 
-int GetUShort(YamlDescriptor _desc, std::string &_field, uint16_t &_res) {
+int Get(YamlDescriptor _desc, std::string &_field, uint16_t &_res) {
     if (IsOpen(_desc)) {
         std::string cache;
         _GetFromCache(_desc, _field, cache);
         if (cache.empty()) {
             return -1;
         }
-        _res = (int) strtol(cache.c_str(), NULL, 10);
+        _res = (uint16_t) strtol(cache.c_str(), NULL, 10);
         return 0;
     }
     return -1;
 }
 
-int GetString(YamlDescriptor _desc, std::string &_field, std::string &_res) {
+int Get(YamlDescriptor _desc, std::string &_field, std::string &_res) {
     if (IsOpen(_desc)) {
         std::string cache;
         _GetFromCache(_desc, _field, cache);
@@ -101,7 +105,7 @@ int GetString(YamlDescriptor _desc, std::string &_field, std::string &_res) {
     return -1;
 }
 
-int GetDouble(YamlDescriptor _desc, std::string &_field, double &_res) {
+int Get(YamlDescriptor _desc, std::string &_field, double &_res) {
     if (IsOpen(_desc)) {
         std::string cache;
         _GetFromCache(_desc, _field, cache);

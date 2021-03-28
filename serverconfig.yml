@@ -1,0 +1,6 @@
+port: 5002
+
+# number of threads who process network events,
+# by default one NetThread corresponds to one WorkerThread.
+net_thread_cnt: 4
+

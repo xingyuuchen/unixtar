@@ -4,6 +4,7 @@
 #include "netscene_getindexpage.h"
 #include "netscene_hellosvr.h"
 #include "log.h"
+#include "timeutil.h"
 #include "http/httpresponse.h"
 
 
@@ -29,7 +30,7 @@ NetSceneBase *NetSceneDispatcher::__MakeNetScene(int _type) {
     if (iter == selectors_.end()) {
         LogE(__FILE__, "[__MakeNetScene] NO such NetScene:"
              " type=%d, give up processing this request.", _type)
-        return NULL;
+        return nullptr;
     }
     return (*iter)->NewInstance();
 }
@@ -82,9 +83,11 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx)
         return;
     }
     net_scene->SetSocket(fd);
+    
     uint64_t start = ::gettickcount();
     net_scene->DoScene(req_buffer);
-    LogI(__FILE__, "[HandleImpl] type:%d, cost: %llu ms", type, ::gettickcount() - start)
+    uint64_t cost = ::gettickcount() - start;
+    LogI(__FILE__, "[HandleImpl] type:%d, cost: %llu ms", type, cost)
     
     AutoBuffer &http_resp_msg = _recv_ctx->send_context->buffer;
     __PackHttpResp(net_scene, http_resp_msg);
@@ -92,8 +95,8 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx)
     delete net_scene, net_scene = nullptr;
     
     Server::SendQueue *send_queue = net_thread_->GetSendQueue();
+    send_queue->push_back(_recv_ctx->send_context);
     
-    send_queue->push(_recv_ctx->send_context);
     net_thread_->NotifyEpoll();
     
 }
