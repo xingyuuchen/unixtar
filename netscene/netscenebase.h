@@ -21,7 +21,7 @@
  *      2. Generating http body.
  * Note:
  *      1. NOT responsible for any network operation(recv, send, etc.);
- *      2. Business logic is Implemented the by subclasses by overriding DoSceneImpl.
+ *      2. Business logic is implemented by subclasses overriding DoSceneImpl;
  *      3. Refer to NetSceneHelloSvr.cc/.h as an example for detail.
  */
  
@@ -29,12 +29,12 @@ class NetSceneBase {
   public:
     
     /**
-     * The default way to serial/parse customized data structure is by protobuf,
+     * The default way to serial/parse customized data structure is protobuf,
      * so the content type of http is set to application/octet-stream.
      *
      * Otherwise, If you want to use other ways to transform data,
      * set _use_protobuf to false, and edit content-type to your own way, by default
-     * it is plain-text, And override these two functions: {@link Data()}, {@link Length()}
+     * it is plain-text, then override these two functions: {@link Data()}, {@link Length()}
      *
      */
     explicit NetSceneBase(bool _use_protobuf = true);
@@ -51,7 +51,7 @@ class NetSceneBase {
     
     /**
      *
-     * @return: The Unique NetScene Type. Declare it outside the framework.
+     * @return: The unique NetScene Type. Declare it outside the framework.
      */
     virtual int GetType() = 0;
     
@@ -79,13 +79,9 @@ class NetSceneBase {
      */
     virtual RespMessage *GetRespMessage() = 0;
     
-    virtual void SetSocket(SOCKET _socket) final;
-    
     virtual int DoScene(const std::string &_in_buffer) final;
     
-    std::string &GetHttpBody();
-    
-    virtual SOCKET GetSocket() const final;
+    std::string &GetRespBuffer();
     
     bool UseProtobuf() const;
     
@@ -98,20 +94,14 @@ class NetSceneBase {
     static void __ShowHttpHeader(AutoBuffer &_out);
     
   protected:
-    SOCKET                              socket_;
     int                                 errcode_;
     std::string                         errmsg_;
     
   private:
     BaseNetSceneResp::BaseNetSceneResp  base_resp_;
-    std::string                         http_body_;
+    std::string                         resp_buffer_;
     bool                                use_protobuf_;
     
-    // http fields
-    int                                 status_code_;
-    std::string                         status_desc_;
-    std::map <std::string, std::string> http_headers_;
-
 };
 
 

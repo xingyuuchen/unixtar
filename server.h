@@ -22,6 +22,8 @@ class Server {
     
     void Serve();
     
+    void NotifyStop();
+    
     ~Server();
     
     class ServerConfig {
@@ -43,43 +45,21 @@ class Server {
     
         void BindNetThread(NetThread *_net_thread);
     
-        void Stop();
-    
-        void Notify();
+        void NotifyStop();
     
         /**
-         * @return: whether @param _recv_ctx is a notification
+         * @return: whether @param _recv_ctx is the notification
          * from another thread to terminate this worker thread.
          */
-        bool IsNotification(Tcp::RecvContext *_recv_ctx);
+        bool IsNotifyExit(Tcp::RecvContext *_recv_ctx);
         
         ~WorkerThread() override;
 
       protected:
         NetThread *             net_thread_;
       
-    private:
-        Tcp::RecvContext *      notifier_;
-    };
-    
-    /**
-     * Actively notify the epoll from waiting.
-     */
-    class EpollNotifier {
-      public:
-        EpollNotifier();
-    
-        void SetSocketEpoll(SocketEpoll *_epoll);
-    
-        void NotifyEpoll();
-    
-        SOCKET GetNotifyFd() const;
-        
-        ~EpollNotifier();
-        
       private:
-        SOCKET          fd_;
-        SocketEpoll *   socket_epoll_;
+        Tcp::RecvContext *      notification_stop_;
     };
     
     
@@ -143,7 +123,9 @@ class Server {
         
         void Run() override;
     
-        void NotifyEpoll();
+        void NotifySend();
+        
+        void NotifyStop();
     
         void AddConnection(SOCKET _fd);
     
@@ -157,12 +139,14 @@ class Server {
     
         SendQueue *GetSendQueue();
     
-        void Stop();
-
         void HandleException(std::exception &ex) override;
 
       private:
         
+        bool __IsNotifySend(const void *_notification) const;
+    
+        bool __IsNotifyStop(const void *_notification) const;
+    
         int __OnReadEvent(SOCKET _fd);
     
         int __OnWriteEvent(Tcp::SendContext *_send_ctx, bool _mod_write);
@@ -174,12 +158,18 @@ class Server {
       private:
         SocketEpoll             socket_epoll_;
         ConnectionManager       connection_manager_;
-        EpollNotifier           notifier_;
+        EpollNotifier           epoll_notifier_;
+        const void *            notification_send_;
+        const void *            notification_stop_;
         RecvQueue               recv_queue_;
         SendQueue               send_queue_;
         
         friend class Server;
     };
+    
+    void __NotifyWorkerNetThreadsStop();
+    
+    bool __IsNotifyStop(const void *_notification) const;
     
     int __OnConnect();
     
@@ -196,6 +186,8 @@ class Server {
     std::vector<NetThread *>    net_threads_;
     std::vector<WorkerThread *> worker_threads_;
     SocketEpoll                 socket_epoll_;
+    EpollNotifier               epoll_notifier_;
+    const void *                notification_stop_;
     bool                        running_;
     SOCKET                      listenfd_;
     

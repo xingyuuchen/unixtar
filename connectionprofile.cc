@@ -49,7 +49,7 @@ int ConnectionProfile::Receive() {
             
         } else if (n == 0) {
             // A read event is raised when conn closed by peer
-            LogI(__FILE__, "[Receive] Conn closed by peer")
+            LogI(__FILE__, "[Receive] conn(%d) closed by peer", fd_)
             break;
             
         } else if (n > 0) {

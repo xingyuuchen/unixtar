@@ -82,7 +82,6 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx)
         LogE(__FILE__, "[HandleImpl] !net_scene")
         return;
     }
-    net_scene->SetSocket(fd);
     
     uint64_t start = ::gettickcount();
     net_scene->DoScene(req_buffer);
@@ -97,7 +96,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx)
     Server::SendQueue *send_queue = net_thread_->GetSendQueue();
     send_queue->push_back(_recv_ctx->send_context);
     
-    net_thread_->NotifyEpoll();
+    net_thread_->NotifySend();
     
 }
 
@@ -122,7 +121,7 @@ void NetSceneDispatcher::NetSceneWorker::__PackHttpResp(
     int resp_code = 200;
     
     http::response::Pack(http::kHTTP_1_1, resp_code,status_desc,
-                         headers, _http_msg, _net_scene->GetHttpBody());
+                         headers, _http_msg, _net_scene->GetRespBuffer());
     
 }
 

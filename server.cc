@@ -23,6 +23,7 @@ bool Server::ServerConfig::is_config_done = false;
 Server::Server()
         : listenfd_(-1)
         , net_thread_cnt_(1)
+        , notification_stop_((void *) &notification_stop_)
         , running_(false) {
     
     Yaml::YamlDescriptor server_config = Yaml::Load("../framework/serverconfig.yml");
@@ -61,8 +62,6 @@ Server::Server()
         }
         
         ServerConfig::is_config_done = true;
-    
-        SignalHandler::Instance().Init();
         
     } while (false);
     
@@ -77,9 +76,13 @@ void Server::Serve() {
         return;
     }
     if (worker_threads_.empty()) {
-        LogE(__FILE__, "[Serve] employ workers first!")
+        LogE(__FILE__, "[Serve] call SetWorker to employ workers first!")
         return;
     }
+    
+    SignalHandler::Instance().RegisterCallback(SIGINT, [this] {
+        NotifyStop();
+    });
     
     running_ = true;
     
@@ -99,13 +102,25 @@ void Server::Serve() {
         int n_events = socket_epoll_.EpollWait();
         
         if (n_events < 0) {
-            if (socket_epoll_.GetErrNo() == EINTR) {
+            int epoll_errno = socket_epoll_.GetErrNo();
+            if (epoll_errno == EINTR) {
                 continue;
             }
+            LogE(__FILE__, "[Serve] break serve, errno(%d): %s",
+                 epoll_errno, strerror(epoll_errno))
             running_ = false;
+            break;
         }
         
         for (int i = 0; i < n_events; ++i) {
+            void *probable_notification = socket_epoll_.GetEpollDataPtr(i);
+            
+            if (__IsNotifyStop(probable_notification)) {
+                LogI(__FILE__, "[Serve] recv notification_stop, break")
+                running_ = false;
+                break;
+            }
+            
             if (socket_epoll_.IsNewConnect(i)) {
                 __OnConnect();
                 
@@ -114,38 +129,32 @@ void Server::Serve() {
             }
         }
     }
-}
-
-Server::~Server() {
-    running_ = false;
+    
     if (listenfd_ != -1) {
-        LogI(__FILE__, "[~Server] close listenfd")
-        ::close(listenfd_);
-    }
-    for (auto & net_thread : net_threads_) {
-        net_thread->Stop();
-        delete net_thread, net_thread = nullptr;
-        LogI(__FILE__, "NetThread dead")
+        LogI(__FILE__, "[Serve] close listenfd")
+        ::close(listenfd_), listenfd_ = -1;
     }
     
-    for (auto & worker_thread : worker_threads_) {
-        worker_thread->Stop();
-        delete worker_thread, worker_thread = nullptr;
-        LogI(__FILE__, "WorkerThread dead")
-    }
+    __NotifyWorkerNetThreadsStop();
 }
 
+void Server::NotifyStop() {
+    running_ = false;
+    epoll_notifier_.NotifyEpoll(notification_stop_);
+}
+
+Server::~Server() = default;
 
 Server::WorkerThread::WorkerThread()
         : net_thread_(nullptr)
-        , notifier_(nullptr) {
+        , notification_stop_(nullptr) {
     
     /**
-     * points to itself, this pointer only serves as
+     * Points to itself, this pointer only serves as
      * a flag for inter-thread-communication.
-     * Do not use it as a normal {@class Tcp::RecvContext}.
+     * Do not use it as a normal RecvContext.
      */
-    notifier_ = (Tcp::RecvContext *) &notifier_;
+    notification_stop_ = (Tcp::RecvContext *) &notification_stop_;
 }
 
 void Server::WorkerThread::Run() {
@@ -163,9 +172,8 @@ void Server::WorkerThread::Run() {
         Tcp::RecvContext *recv_ctx;
         
         if (recv_queue->pop_front_to(recv_ctx)) {
-            if (IsNotification(recv_ctx)) {
+            if (IsNotifyExit(recv_ctx)) {
                 running_ = false;
-                LogI(__FILE__, "[WorkerThread::Run] Worker terminate!")
                 size_t left = recv_queue->size();
                 if (left > 0) {
                     LogI(__FILE__, "[WorkerThread::Run] %zu tasks left", left)
@@ -176,6 +184,7 @@ void Server::WorkerThread::Run() {
             HandleImpl(recv_ctx);
         }
     }
+    LogI(__FILE__, "[WorkerThread::Run] Worker terminate!")
 }
 
 void Server::WorkerThread::BindNetThread(Server::NetThread *_net_thread) {
@@ -184,71 +193,21 @@ void Server::WorkerThread::BindNetThread(Server::NetThread *_net_thread) {
     }
 }
 
-void Server::WorkerThread::Stop() {
+void Server::WorkerThread::NotifyStop() {
     running_ = false;
-    Notify();
-}
-
-void Server::WorkerThread::Notify() {
     if (!net_thread_) {
         LogE(__FILE__, "[Notify] !net_thread_, notify failed")
         return;
     }
     auto recv_queue = net_thread_->GetRecvQueue();
-    recv_queue->push_front(notifier_);
+    recv_queue->push_front(notification_stop_);
 }
 
-bool Server::WorkerThread::IsNotification(Tcp::RecvContext *_recv_ctx) {
-    return _recv_ctx == notifier_;
+bool Server::WorkerThread::IsNotifyExit(Tcp::RecvContext *_recv_ctx) {
+    return _recv_ctx == notification_stop_;
 }
 
-Server::WorkerThread::~WorkerThread() {
-
-}
-
-Server::EpollNotifier::EpollNotifier()
-        : fd_(INVALID_SOCKET)
-        , socket_epoll_(nullptr) {
-    
-    fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_ < 0) {
-        LogE(__FILE__, "[EpollNotifier] create socket error: %s, errno: %d",
-             strerror(errno), errno);
-        return;
-    }
-    LogI(__FILE__, "[EpollNotifier] notify fd: %d", fd_)
-    SetNonblocking(fd_);
-}
-
-void Server::EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
-    if (socket_epoll_) {
-        LogE(__FILE__, "[SetSocketEpoll] socket_epoll_ already set!")
-        return;
-    }
-    if (_epoll) {
-        socket_epoll_ = _epoll;
-        socket_epoll_->AddSocketRead(fd_);
-    }
-}
-
-void Server::EpollNotifier::NotifyEpoll() {
-    if (socket_epoll_) {
-        void *epoll_data = (void *) (uint64_t) fd_;
-        socket_epoll_->ModSocketWrite(fd_, epoll_data);
-    }
-}
-
-SOCKET Server::EpollNotifier::GetNotifyFd() const { return fd_; }
-
-Server::EpollNotifier::~EpollNotifier() {
-    if (fd_ != INVALID_SOCKET) {
-        if (socket_epoll_) {
-            socket_epoll_->DelSocket(fd_);
-        }
-        ::close(fd_);
-        fd_ = INVALID_SOCKET;
-    }
-}
+Server::WorkerThread::~WorkerThread() = default;
 
 
 Server::ConnectionManager::ConnectionManager()
@@ -297,9 +256,10 @@ void Server::ConnectionManager::DelConnection(SOCKET _fd) {
         socket_epoll_->DelSocket(_fd);
     }
     if (conn) {
+        LogI(__FILE__, "[DelConnection] fd(%d)", _fd)
         conn->CloseSelf();
     } else {
-        LogE(__FILE__, "[DelConnection] Bug here!!")
+        LogE(__FILE__, "[DelConnection] fd(%d) Bug here!!", _fd)
     }
     connections_.erase(_fd);
     delete conn, conn = nullptr;
@@ -326,9 +286,12 @@ Server::ConnectionManager::~ConnectionManager() {
 
 
 Server::NetThread::NetThread()
-        : Thread() {
+        : Thread()
+        , notification_send_(&notification_send_)
+        , notification_stop_(&notification_stop_) {
+    
     connection_manager_.SetEpoll(&socket_epoll_);
-    notifier_.SetSocketEpoll(&socket_epoll_);
+    epoll_notifier_.SetSocketEpoll(&socket_epoll_);
 }
 
 void Server::NetThread::Run() {
@@ -351,17 +314,16 @@ void Server::NetThread::Run() {
             break;
         }
     
-        static uint64_t last_clear_ts = 0;
-        uint64_t now = ::gettickcount();
-        if (now - last_clear_ts > 3000) {
-            last_clear_ts = now;
-            ClearTimeout();
-        }
-    
         for (int i = 0; i < n_events; ++i) {
-            if (socket_epoll_.GetSocket(i) == notifier_.GetNotifyFd()) {
+            void *probable_notification = socket_epoll_.GetEpollDataPtr(i);
+            if (__IsNotifySend(probable_notification)) {
                 HandleSend();
                 continue;
+                
+            } else if (__IsNotifyStop(probable_notification)) {
+                LogI(__FILE__, "[NetThread::Run] notification-stop, break")
+                running_ = false;
+                break;
             }
             
             if (SOCKET fd = socket_epoll_.IsReadSet(i)) {
@@ -374,15 +336,25 @@ void Server::NetThread::Run() {
             } else if ((fd = socket_epoll_.IsErrSet(i))) {
                 __OnErrEvent(fd);
                 
-            } else {
-                LogE(__FILE__, "[NetThread::Run] did Not process this event!")
             }
+        }
+    
+        static uint64_t last_clear_ts = 0;
+        uint64_t now = ::gettickcount();
+        if (now - last_clear_ts > 3000) {
+            last_clear_ts = now;
+            ClearTimeout();
         }
     }
     
 }
 
-void Server::NetThread::NotifyEpoll() { notifier_.NotifyEpoll(); }
+void Server::NetThread::NotifySend() { epoll_notifier_.NotifyEpoll(notification_send_); }
+
+void Server::NetThread::NotifyStop() {
+    running_ = false;
+    epoll_notifier_.NotifyEpoll(notification_stop_);
+}
 
 void Server::NetThread::AddConnection(int _fd) {
     if (_fd < 0) {
@@ -404,7 +376,7 @@ void Server::NetThread::DelConnection(int _fd) {
 void Server::NetThread::HandleSend() {
     Tcp::SendContext *send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
-        LogI(__FILE__, "[NetThread::HandleSend] handle")
+        LogI(__FILE__, "[NetThread::HandleSend] doing send task")
         __OnWriteEvent(send_ctx, true);
     }
 }
@@ -415,13 +387,16 @@ Server::RecvQueue *Server::NetThread::GetRecvQueue() { return &recv_queue_; }
 
 Server::SendQueue *Server::NetThread::GetSendQueue() { return &send_queue_; }
 
-void Server::NetThread::Stop() {
-    running_ = false;
-    notifier_.NotifyEpoll();
-}
-
 void Server::NetThread::HandleException(std::exception &ex) {
     LogE(__FILE__, "[HandleException] %s", ex.what())
+}
+
+bool Server::NetThread::__IsNotifySend(const void *_notification) const {
+    return _notification == notification_send_;
+}
+
+bool Server::NetThread::__IsNotifyStop(const void *_notification) const {
+    return _notification == notification_stop_;
 }
 
 int Server::NetThread::__OnReadEvent(SOCKET _fd) {
@@ -478,12 +453,13 @@ int Server::NetThread::__OnWriteEvent(Tcp::SendContext *_send_ctx, bool _mod_wri
             return 0;
         }
         if (nsend < 0) {
-            LogE(__FILE__, "[__OnWriteEvent] nsend(%zu), errno(%d): %s",
-                 nsend, errno, strerror(errno));
+            LogE(__FILE__, "[__OnWriteEvent] fd(%d) nsend(%zu), errno(%d): %s",
+                 fd, nsend, errno, strerror(errno));
         }
     } while (false);
     
-    connection_manager_.DelConnection(fd);
+    DelConnection(fd);
+    
     return nsend < 0 ? -1 : 0;
 }
 
@@ -521,8 +497,25 @@ int Server::NetThread::__OnReadEventTest(SOCKET _fd) {
     return 0;
 }
 
-Server::NetThread::~NetThread() {
+Server::NetThread::~NetThread() = default;
 
+void Server::__NotifyWorkerNetThreadsStop() {
+    for (auto & net_thread : net_threads_) {
+        net_thread->NotifyStop();
+        net_thread->Join();
+        delete net_thread, net_thread = nullptr;
+        LogI(__FILE__, "NetThread dead")
+    }
+    for (auto & worker_thread : worker_threads_) {
+        worker_thread->NotifyStop();
+        worker_thread->Join();
+        delete worker_thread, worker_thread = nullptr;
+        LogI(__FILE__, "WorkerThread dead")
+    }
+}
+
+bool Server::__IsNotifyStop(const void *_notification) const {
+    return _notification == notification_stop_;
 }
 
 int Server::__OnConnect() {

@@ -24,7 +24,7 @@ class _Connection {
     };
     
     ~_Connection() {
-        LogI(__FILE__, "[_Connection] disconnect database.")
+        LogI(__FILE__, "[~_Connection] disconnect database.")
         conn_.disconnect();
     }
     

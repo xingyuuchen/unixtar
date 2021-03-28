@@ -12,10 +12,7 @@ void OpenLog(const char *_ident) {
 #ifdef DAEMON
 #ifdef __linux__
     openlog(_ident, LOG_PID, LOG_USER);
-    SignalHandler::Instance().RegisterExitCallback(
-            new IProcessExitListener([] {
-        closelog();
-    }));
+    SignalHandler::Instance().RegisterCallback(SIGINT, [] { closelog(); });
 #endif
 #endif
 }

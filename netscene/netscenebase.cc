@@ -7,10 +7,7 @@
 
 
 NetSceneBase::NetSceneBase(bool _use_protobuf)
-        : status_code_(200)
-        , status_desc_("OK")
-        , use_protobuf_(_use_protobuf)
-        , socket_(-1) {
+        : use_protobuf_(_use_protobuf) {
     errcode_ = kOK;
     errmsg_ = "OK";
     
@@ -18,10 +15,6 @@ NetSceneBase::NetSceneBase(bool _use_protobuf)
 
 
 int NetSceneBase::DoScene(const std::string &_in_buffer) {
-    if (socket_ < 0) {
-        LogE(__FILE__, "[DoScene] did NOT set socket!")
-        return -1;
-    }
     int ret = DoSceneImpl(_in_buffer);
 
     RespMessage *resp = GetRespMessage();
@@ -32,9 +25,9 @@ int NetSceneBase::DoScene(const std::string &_in_buffer) {
     }
     
     if (use_protobuf_) {
-        base_resp_.SerializeToString(&http_body_);
+        base_resp_.SerializeToString(&resp_buffer_);
     } else {
-        http_body_ = std::string((const char *) Data(), Length());
+        resp_buffer_ = std::string((const char *) Data(), Length());
     }
 //    __ShowHttpHeader(out_buff);
     return ret;
@@ -51,15 +44,7 @@ void NetSceneBase::__ShowHttpHeader(AutoBuffer &_out) {
     }
 }
 
-std::string &NetSceneBase::GetHttpBody() { return http_body_; }
-
-int NetSceneBase::GetSocket() const { return socket_; }
-
-void NetSceneBase::SetSocket(SOCKET _socket) {
-    if (_socket > 0) {
-        socket_ = _socket;
-    }
-}
+std::string &NetSceneBase::GetRespBuffer() { return resp_buffer_; }
 
 bool NetSceneBase::UseProtobuf() const { return use_protobuf_; }
 

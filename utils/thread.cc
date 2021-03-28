@@ -1,4 +1,5 @@
 #include "thread.h"
+#include "log.h"
 
 
 Thread::Thread()
@@ -25,6 +26,7 @@ void Thread::Start() {
 void Thread::Join() {
     if (thread_) {
         if (std::this_thread::get_id() == thread_->get_id()) {
+            LogE(__FILE__, "[Join] cannot call join in the same thread")
             return;
         }
         if (thread_->joinable()) {

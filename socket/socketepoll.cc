@@ -106,10 +106,10 @@ bool SocketEpoll::IsNewConnect(int _idx) {
 
 void *SocketEpoll::IsWriteSet(int _idx) {
 #ifdef __linux__
-    epoll_data_t *ret = __IsFlagSet(_idx, EPOLLOUT);
-    return ret == NULL ? NULL : ret->ptr;
+    epoll_data *ret = __IsFlagSet(_idx, EPOLLOUT);
+    return ret == nullptr ? nullptr : ret->ptr;
 #else
-    return NULL;
+    return nullptr;
 #endif
 }
 
@@ -124,9 +124,20 @@ SOCKET SocketEpoll::GetSocket(int _idx) {
     return INVALID_SOCKET;
 }
 
+void *SocketEpoll::GetEpollDataPtr(int _idx) {
+#ifdef __linux__
+    if (_idx < 0 || _idx >= kMaxFds) {
+        LogE(__FILE__, "[GetSocket] invalid _idx: %d", _idx)
+        return nullptr;
+    }
+    return epoll_events_[_idx].data.ptr;
+#endif
+    return nullptr;
+}
+
 int SocketEpoll::IsReadSet(int _idx) {
 #ifdef __linux__
-    epoll_data_t *ret = __IsFlagSet(_idx, EPOLLIN);
+    epoll_data *ret = __IsFlagSet(_idx, EPOLLIN);
     return ret == NULL ? 0 : ret->fd;
 #else
     return 0;
@@ -135,14 +146,14 @@ int SocketEpoll::IsReadSet(int _idx) {
 
 int SocketEpoll::IsErrSet(int _idx) {
 #ifdef __linux__
-    epoll_data_t *ret = __IsFlagSet(_idx, EPOLLERR);
+    epoll_data *ret = __IsFlagSet(_idx, EPOLLERR);
     return ret == NULL ? 0 : ret->fd;
 #else
     return 0;
 #endif
 }
 
-epoll_data_t *SocketEpoll::__IsFlagSet(int _idx, int _flag) {
+epoll_data *SocketEpoll::__IsFlagSet(int _idx, int _flag) {
 #ifdef __linux__
     if (_idx < 0 || _idx >= kMaxFds) {
         LogE(__FILE__, "[__IsFlagSet] invalid _idx: %d", _idx)
@@ -152,7 +163,7 @@ epoll_data_t *SocketEpoll::__IsFlagSet(int _idx, int _flag) {
         return &epoll_events_[_idx].data;
     }
 #endif
-    return NULL;
+    return nullptr;
 }
 
 
@@ -181,3 +192,51 @@ SocketEpoll::~SocketEpoll() {
     }
 #endif
 }
+
+
+EpollNotifier::EpollNotifier()
+        : fd_(INVALID_SOCKET)
+        , socket_epoll_(nullptr) {
+    
+    fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
+    if (fd_ < 0) {
+        LogE(__FILE__, "[EpollNotifier] create socket error: %s, errno: %d",
+             strerror(errno), errno);
+        return;
+    }
+    LogI(__FILE__, "[EpollNotifier] notify fd: %d", fd_)
+    SetNonblocking(fd_);
+}
+
+void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
+    if (socket_epoll_) {
+        LogE(__FILE__, "[SetSocketEpoll] socket_epoll_ already set!")
+        return;
+    }
+    if (_epoll) {
+        socket_epoll_ = _epoll;
+        socket_epoll_->AddSocketRead(fd_);
+    }
+}
+
+void EpollNotifier::NotifyEpoll(const void *_notification) {
+    if (_notification == nullptr) {
+        LogW(__FILE__, "[NotifyEpoll] try not to use NULL, because "
+                       "it may be a potential conflict in other circumstances")
+    }
+    if (socket_epoll_) {
+        socket_epoll_->ModSocketWrite(fd_, const_cast<void *>(_notification));
+    }
+}
+
+SOCKET EpollNotifier::GetNotifyFd() const { return fd_; }
+
+EpollNotifier::~EpollNotifier() {
+    if (fd_ != INVALID_SOCKET) {
+        if (socket_epoll_) {
+            socket_epoll_->DelSocket(fd_);
+        }
+        ::close(fd_), fd_ = INVALID_SOCKET;
+    }
+}
+
