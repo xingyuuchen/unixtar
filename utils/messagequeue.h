@@ -40,7 +40,7 @@ class ThreadSafeDeque {
     void clear();
 
   private:
-    void __WaitSizeGreaterOrEqual(size_t _than, ScopedLock &_lock, uint64_t _timeout_millis);
+    void __WaitSizeGreaterThan(size_t _than, ScopedLock &_lock, uint64_t _timeout_millis);
 
   private:
     size_t                      max_size_;
@@ -88,7 +88,7 @@ bool ThreadSafeDeque<T, Container>::pop_front(bool _wait,
                                               uint64_t _timeout_millis) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+        __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
     if (!container_.empty()) {
         container_.pop_front();
@@ -102,7 +102,7 @@ bool ThreadSafeDeque<T, Container>::pop_back(bool _wait,
                                              uint64_t _timeout_millis) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+        __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
     if (!container_.empty()) {
         container_.pop_back();
@@ -119,7 +119,7 @@ ThreadSafeDeque<T, Container>::pop_front_to(T &_t,
                                             uint64_t _timeout_millis /*= 1000*/) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+        __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
     if (!container_.empty()) {
         _t = container_.front();
@@ -137,7 +137,7 @@ ThreadSafeDeque<T, Container>::pop_back_to(T &_t,
                                            uint64_t _timeout_millis /*= 1000*/) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+        __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
     if (!container_.empty()) {
         _t = container_.back();
@@ -153,7 +153,7 @@ ThreadSafeDeque<T, Container>::front(T &_t, bool _wait /*= true*/,
                                      uint64_t _timeout_millis /*= 1000*/) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+        __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
     if (!container_.empty()) {
         _t = container_.front();
@@ -168,7 +168,7 @@ ThreadSafeDeque<T, Container>::back(T &_t, bool _wait /*= true*/,
                                     uint64_t _timeout_millis /*= 1000*/) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        __WaitSizeGreaterOrEqual(0, lock, _timeout_millis);
+        __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
     if (!container_.empty()) {
         _t = container_.back();
@@ -185,7 +185,7 @@ ThreadSafeDeque<T, Container>::get(T &_t,
                                    uint64_t _timeout_millis /* = 1000*/) {
     ScopedLock lock(mtx_);
     if (_wait) {
-        __WaitSizeGreaterOrEqual(_pos + 1, lock, _timeout_millis);
+        __WaitSizeGreaterThan(_pos, lock, _timeout_millis);
     }
     if (container_.size() > _pos) {
         _t = container_[_pos];
@@ -207,12 +207,12 @@ void ThreadSafeDeque<T, Container>::clear() {
 }
 
 template<class T, class Container>
-void ThreadSafeDeque<T, Container>::__WaitSizeGreaterOrEqual(const size_t _than,
+void ThreadSafeDeque<T, Container>::__WaitSizeGreaterThan(const size_t _than,
                                                              ThreadSafeDeque::ScopedLock &_lock,
                                                              uint64_t _timeout_millis) {
     cond_.wait_for(_lock,
                    std::chrono::milliseconds(_timeout_millis),
-                   [&, this] { return container_.size() >= _than; });
+                   [&, this] { return container_.size() > _than; });
 }
 
 }

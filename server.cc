@@ -6,7 +6,6 @@
 #include "signalhandler.h"
 #include "timeutil.h"
 #include <unistd.h>
-#include <iostream>
 #include <string.h>
 
 
@@ -106,7 +105,7 @@ void Server::Serve() {
             running_ = false;
         }
         
-        for (int i = 0; i < n_events; i++) {
+        for (int i = 0; i < n_events; ++i) {
             if (socket_epoll_.IsNewConnect(i)) {
                 __OnConnect();
                 
@@ -139,8 +138,14 @@ Server::~Server() {
 
 Server::WorkerThread::WorkerThread()
         : net_thread_(nullptr)
-        , notifier_((Tcp::RecvContext *) &notifier_) {
+        , notifier_(nullptr) {
     
+    /**
+     * points to itself, this pointer only serves as
+     * a flag for inter-thread-communication.
+     * Do not use it as a normal {@class Tcp::RecvContext}.
+     */
+    notifier_ = (Tcp::RecvContext *) &notifier_;
 }
 
 void Server::WorkerThread::Run() {
@@ -163,7 +168,7 @@ void Server::WorkerThread::Run() {
                 LogI(__FILE__, "[WorkerThread::Run] Worker terminate!")
                 size_t left = recv_queue->size();
                 if (left > 0) {
-                    LogI(__FILE__, "[WorkerThread::Run] %zu task left", left)
+                    LogI(__FILE__, "[WorkerThread::Run] %zu tasks left", left)
                 }
                 return;
             }

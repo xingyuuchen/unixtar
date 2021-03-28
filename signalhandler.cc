@@ -16,6 +16,7 @@ void SignalHandlerBridge(int _sig) {
 
 SignalHandler::SignalHandler() {
     LogI(__FILE__, "[SignalHandler]")
+    ScopedLock lock(mutex_);
     
     ::signal(SIGINT, SignalHandlerBridge);
     ::signal(SIGQUIT, SignalHandlerBridge);
@@ -26,6 +27,7 @@ SignalHandler::SignalHandler() {
 }
 
 int SignalHandler::RegisterExitCallback(IProcessExitListener *_listener) {
+    ScopedLock lock(mutex_);
     process_exit_listeners_.push_back(_listener);
     LogI(__FILE__, "[RegisterExitCallback] n_callbacks: %zd",
          process_exit_listeners_.size())
@@ -51,6 +53,7 @@ void SignalHandler::Handle(int _sig) {
 
 void SignalHandler::__InvokeCallbacks() {
     LogI(__FILE__, "[__InvokeCallbacks]")
+    ScopedLock lock(mutex_);
     static bool invoked = false;
     if (!invoked) {
         LogI(__FILE__, "[__InvokeCallbacks] n_callbacks: %zd", process_exit_listeners_.size())
@@ -81,6 +84,6 @@ SignalHandler::~SignalHandler() {
     LogI(__FILE__, "[~SignalHandler]")
     __InvokeCallbacks();
     for (IProcessExitListener *p : process_exit_listeners_) {
-        delete p, p = NULL;
+        delete p, p = nullptr;
     }
 }

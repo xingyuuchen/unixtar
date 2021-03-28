@@ -2,6 +2,7 @@
 #define OI_SVR_SIGNALHANDLER_H
 #include "singleton.h"
 #include <vector>
+#include <mutex>
 
 
 class IProcessExitListener {
@@ -32,6 +33,8 @@ class SignalHandler {
     
     
   private:
+    using ScopedLock = std::unique_lock<std::mutex>;
+    std::mutex                              mutex_;
     std::vector<IProcessExitListener *>     process_exit_listeners_;
     
 };
