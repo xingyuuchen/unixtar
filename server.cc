@@ -90,6 +90,8 @@ void Server::Serve() {
     
     socket_epoll_.SetListenFd(listenfd_);
     
+    epoll_notifier_.SetSocketEpoll(&socket_epoll_);
+    
     for (auto &net_thread : net_threads_) {
         net_thread->Start();
     }
@@ -103,9 +105,6 @@ void Server::Serve() {
         
         if (n_events < 0) {
             int epoll_errno = socket_epoll_.GetErrNo();
-            if (epoll_errno == EINTR) {
-                continue;
-            }
             LogE(__FILE__, "[Serve] break serve, errno(%d): %s",
                  epoll_errno, strerror(epoll_errno))
             running_ = false;
@@ -139,6 +138,7 @@ void Server::Serve() {
 }
 
 void Server::NotifyStop() {
+    LogI(__FILE__, "[Server::NotifyStop]")
     running_ = false;
     epoll_notifier_.NotifyEpoll(notification_stop_);
 }
@@ -299,9 +299,11 @@ void Server::NetThread::Run() {
     running_ = true;
     int epoll_retry = 3;
     
+    const uint64_t clear_timeout_period = 3000;
+    
     while (running_) {
         
-        int n_events = socket_epoll_.EpollWait(3000);
+        int n_events = socket_epoll_.EpollWait(clear_timeout_period);
         
         if (n_events < 0) {
             if (socket_epoll_.GetErrNo() == EINTR) {
@@ -341,7 +343,7 @@ void Server::NetThread::Run() {
     
         static uint64_t last_clear_ts = 0;
         uint64_t now = ::gettickcount();
-        if (now - last_clear_ts > 3000) {
+        if (now - last_clear_ts > clear_timeout_period) {
             last_clear_ts = now;
             ClearTimeout();
         }
@@ -349,7 +351,9 @@ void Server::NetThread::Run() {
     
 }
 
-void Server::NetThread::NotifySend() { epoll_notifier_.NotifyEpoll(notification_send_); }
+void Server::NetThread::NotifySend() {
+    epoll_notifier_.NotifyEpoll(notification_send_);
+}
 
 void Server::NetThread::NotifyStop() {
     running_ = false;

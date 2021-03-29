@@ -69,7 +69,7 @@ class Server {
      * by default one WorkerThread corresponds to one NetThread.
      *
      * The workers' life cycle is managed by Server,
-     * just implement WorkerThread's @func HandleImpl and register here.
+     * just implement WorkerThread's @func HandleImpl and register it here.
      *
      */
     template<class WorkerImpl/* : public WorkerThread*/, class ...Args>

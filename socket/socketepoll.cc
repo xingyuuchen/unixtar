@@ -81,12 +81,20 @@ int SocketEpoll::EpollWait(int _timeout_mills/* = -1*/,
 #ifdef __linux__
     if (_timeout_mills < -1) { _timeout_mills = -1; }
     
-    int nfds = ::epoll_wait(epoll_fd_, epoll_events_, _max_events, _timeout_mills);
-    if (nfds < 0) {
-        errno_ = errno;
-        LogE(__FILE__, "[EpollWait] errno(%d): %s", errno_, strerror(errno))
+    int retry = 3;
+    while (--retry) {
+        int nfds = ::epoll_wait(epoll_fd_, epoll_events_, _max_events, _timeout_mills);
+        if (nfds < 0) {
+            if (errno == EINTR) {
+                LogE(__FILE__, "[EpollWait] just EINTR, continue...")
+                continue;
+            }
+            errno_ = errno;
+            LogE(__FILE__, "[EpollWait] errno(%d): %s", errno_, strerror(errno))
+        }
+        return nfds;
     }
-    return nfds;
+    return -1;
 #else
     return 0;
 #endif

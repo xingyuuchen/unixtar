@@ -3,6 +3,7 @@
 
 #include <syslog.h>
 #include <execinfo.h>
+#include <string.h>
 #ifndef DAEMON
 #include "timeutil.h"
 #include <stdio.h>
@@ -39,28 +40,28 @@ void LogPrintStacktraceImpl(int _size = 8);
         syslog(LOG_ERR, _fmt, ##__VA_ARGS__); \
     } while (false);
     
-#define LogD(TAG, _fmt, ...) __LogD("%s: " _fmt, TAG, ##__VA_ARGS__)
-#define LogI(TAG, _fmt, ...) __LogI("%s: " _fmt, TAG, ##__VA_ARGS__)
-#define LogW(TAG, _fmt, ...) __LogW("%s: " _fmt, TAG, ##__VA_ARGS__)
-#define LogE(TAG, _fmt, ...) __LogE("%s: " _fmt, TAG, ##__VA_ARGS__)
+#define LogD(TAG, _fmt, ...) __LogD("%s: " _fmt, strrchr(TAG, '/') + 1, ##__VA_ARGS__)
+#define LogI(TAG, _fmt, ...) __LogI("%s: " _fmt, strrchr(TAG, '/') + 1, ##__VA_ARGS__)
+#define LogW(TAG, _fmt, ...) __LogW("%s: " _fmt, strrchr(TAG, '/') + 1, ##__VA_ARGS__)
+#define LogE(TAG, _fmt, ...) __LogE("%s: " _fmt, strrchr(TAG, '/') + 1, ##__VA_ARGS__)
 
 #endif
 #else
 
 #define LogD(TAG, ...) printcurrtime(); \
-    printf(" D/%s: ", TAG); \
+    printf(" D/%s: ", strrchr(TAG, '/') + 1); \
     printf(__VA_ARGS__); \
     printf("\n");
 #define LogI(TAG, ...) printcurrtime(); \
-    printf(" I/%s: ", TAG); \
+    printf(" I/%s: ", strrchr(TAG, '/') + 1); \
     printf(__VA_ARGS__); \
     printf("\n");
 #define LogW(TAG, ...) printcurrtime(); \
-    printf(" W/%s: ", TAG); \
+    printf(" W/%s: ", strrchr(TAG, '/') + 1); \
     printf(__VA_ARGS__); \
     printf("\n");
 #define LogE(TAG, ...) printcurrtime(); \
-    printf(" E/%s: ", TAG); \
+    printf(" E/%s: ", strrchr(TAG, '/') + 1); \
     printf(__VA_ARGS__); \
     printf("\n");
 #endif
