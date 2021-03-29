@@ -11,8 +11,8 @@ template<class T, class Container = std::deque<T>>
 class ThreadSafeDeque {
   public:
     
-    using ScopedLock = std::unique_lock<std::mutex>;
-    
+    using UniqueLock = std::unique_lock<std::mutex>;
+    using LockGuard = std::lock_guard<std::mutex>;
     using refrence = typename Container::reference;  // T&
     
     explicit ThreadSafeDeque(size_t _max_size = 10240);
@@ -40,7 +40,7 @@ class ThreadSafeDeque {
     void clear();
 
   private:
-    void __WaitSizeGreaterThan(size_t _than, ScopedLock &_lock, uint64_t _timeout_millis);
+    void __WaitSizeGreaterThan(size_t _than, UniqueLock &_lock, uint64_t _timeout_millis);
 
   private:
     size_t                      max_size_;
@@ -57,7 +57,7 @@ ThreadSafeDeque<T, Container>::ThreadSafeDeque(size_t _max_size)
 
 template<class T, class Container>
 bool ThreadSafeDeque<T, Container>::push_front(const T &_v, bool _notify) {
-    ScopedLock lock(mtx_);
+    LockGuard lock(mtx_);
     if (container_.size() > max_size_) {
         return false;
     }
@@ -72,7 +72,7 @@ bool ThreadSafeDeque<T, Container>::push_front(const T &_v, bool _notify) {
 template<class T, class Container>
 bool
 ThreadSafeDeque<T, Container>::push_back(const T &_v, bool _notify /*= true*/) {
-    ScopedLock lock(mtx_);
+    LockGuard lock(mtx_);
     if (container_.size() > max_size_) {
         return false;
     }
@@ -86,7 +86,7 @@ ThreadSafeDeque<T, Container>::push_back(const T &_v, bool _notify /*= true*/) {
 template<class T, class Container>
 bool ThreadSafeDeque<T, Container>::pop_front(bool _wait,
                                               uint64_t _timeout_millis) {
-    ScopedLock lock(mtx_);
+    UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
@@ -100,7 +100,7 @@ bool ThreadSafeDeque<T, Container>::pop_front(bool _wait,
 template<class T, class Container>
 bool ThreadSafeDeque<T, Container>::pop_back(bool _wait,
                                              uint64_t _timeout_millis) {
-    ScopedLock lock(mtx_);
+    UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
@@ -117,7 +117,7 @@ bool
 ThreadSafeDeque<T, Container>::pop_front_to(T &_t,
                                             bool _wait /*= true*/,
                                             uint64_t _timeout_millis /*= 1000*/) {
-    ScopedLock lock(mtx_);
+    UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
@@ -135,7 +135,7 @@ bool
 ThreadSafeDeque<T, Container>::pop_back_to(T &_t,
                                            bool _wait /*= true*/,
                                            uint64_t _timeout_millis /*= 1000*/) {
-    ScopedLock lock(mtx_);
+    UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
@@ -151,7 +151,7 @@ template<class T, class Container>
 bool
 ThreadSafeDeque<T, Container>::front(T &_t, bool _wait /*= true*/,
                                      uint64_t _timeout_millis /*= 1000*/) {
-    ScopedLock lock(mtx_);
+    UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
@@ -166,7 +166,7 @@ template<class T, class Container>
 bool
 ThreadSafeDeque<T, Container>::back(T &_t, bool _wait /*= true*/,
                                     uint64_t _timeout_millis /*= 1000*/) {
-    ScopedLock lock(mtx_);
+    UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
@@ -183,7 +183,7 @@ ThreadSafeDeque<T, Container>::get(T &_t,
                                    size_t _pos,
                                    bool _wait /* = true*/,
                                    uint64_t _timeout_millis /* = 1000*/) {
-    ScopedLock lock(mtx_);
+    UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(_pos, lock, _timeout_millis);
     }
@@ -196,20 +196,21 @@ ThreadSafeDeque<T, Container>::get(T &_t,
 
 template<class T, class Container>
 size_t ThreadSafeDeque<T, Container>::size() {
-    ScopedLock lock(mtx_);
+    LockGuard lock(mtx_);
     return container_.size();
 }
 
 template<class T, class Container>
 void ThreadSafeDeque<T, Container>::clear() {
-    ScopedLock lock(mtx_);
+    LockGuard lock(mtx_);
     container_.clear();
 }
 
 template<class T, class Container>
-void ThreadSafeDeque<T, Container>::__WaitSizeGreaterThan(const size_t _than,
-                                                             ThreadSafeDeque::ScopedLock &_lock,
-                                                             uint64_t _timeout_millis) {
+void
+ThreadSafeDeque<T, Container>::__WaitSizeGreaterThan(const size_t _than,
+                                                     ThreadSafeDeque::UniqueLock &_lock,
+                                                     uint64_t _timeout_millis) {
     cond_.wait_for(_lock,
                    std::chrono::milliseconds(_timeout_millis),
                    [&, this] { return container_.size() > _than; });

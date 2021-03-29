@@ -27,6 +27,8 @@ class ConnectionProfile {
     
     explicit ConnectionProfile(SOCKET _fd);
     
+    ~ConnectionProfile();
+    
     int Receive();
     
     /**

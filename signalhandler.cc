@@ -17,20 +17,22 @@ int SignalHandler::RegisterCallback(int _sig, std::function<void()> _callback) {
         return -1;
     }
     ScopedLock lock(mutex_);
-    auto find = callbacks_.find(_sig);
-    if (find == callbacks_.end()) {
+    auto find = callback_map_.find(_sig);
+    if (find == callback_map_.end()) {
         ::signal(_sig, SignalHandlerBridge);
     }
-    callbacks_[_sig].push_back(_callback);
+    callback_map_[_sig].push(_callback);
     return 0;
 }
 
 void SignalHandler::Handle(int _sig) {
     ScopedLock lock(mutex_);
-    auto find = callbacks_.find(_sig);
-    if (find != callbacks_.end()) {
-        for (auto &callback : find->second) {
-            callback();
+    auto find = callback_map_.find(_sig);
+    if (find != callback_map_.end()) {
+        std::stack<std::function<void()>> &callbacks = find->second;
+        while (!callbacks.empty()) {
+            callbacks.top()();
+            callbacks.pop();
         }
     }
 }

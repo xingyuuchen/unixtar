@@ -2,7 +2,7 @@
 #define OI_SVR_SIGNALHANDLER_H
 #include "singleton.h"
 #include <signal.h>
-#include <vector>
+#include <stack>
 #include <map>
 #include <mutex>
 #include <functional>
@@ -27,7 +27,7 @@ class SignalHandler {
   private:
     using ScopedLock = std::unique_lock<std::mutex>;
     std::mutex                                          mutex_;
-    std::map<int, std::vector<std::function<void()>>>   callbacks_;
+    std::map<int, std::stack<std::function<void()>>>   callback_map_;
     
 };
 

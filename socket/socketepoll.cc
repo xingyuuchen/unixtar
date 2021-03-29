@@ -227,7 +227,7 @@ void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
     }
 }
 
-void EpollNotifier::NotifyEpoll(const void *_notification) {
+void EpollNotifier::NotifyEpoll(Notification _notification) {
     if (_notification == nullptr) {
         LogW(__FILE__, "[NotifyEpoll] try not to use NULL, because "
                        "it may be a potential conflict in other circumstances")

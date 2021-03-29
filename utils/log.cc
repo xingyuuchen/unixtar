@@ -12,7 +12,10 @@ void OpenLog(const char *_ident) {
 #ifdef DAEMON
 #ifdef __linux__
     openlog(_ident, LOG_PID, LOG_USER);
-    SignalHandler::Instance().RegisterCallback(SIGINT, [] { closelog(); });
+    SignalHandler::Instance().RegisterCallback(SIGINT, [] {
+        LogI(__FILE__, "[closelog] log is closed!")
+        closelog();
+    });
 #endif
 #endif
 }

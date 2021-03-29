@@ -45,12 +45,12 @@ int ConnectionProfile::Receive() {
         }
         if (n < 0) {
             LogE(__FILE__, "[Receive] n<0, errno(%d): %s", errno, strerror(errno))
-            break;
+            return -1;
             
         } else if (n == 0) {
             // A read event is raised when conn closed by peer
             LogI(__FILE__, "[Receive] conn(%d) closed by peer", fd_)
-            break;
+            return -1;
             
         } else if (n > 0) {
             recv_buff->AddLength(n);
@@ -61,9 +61,9 @@ int ConnectionProfile::Receive() {
         if (ret == -1) {
             LogE(__FILE__, "[Receive] Please override func: ParseProtocol "
                            "when using other protocol than Http1.1")
-            break;
+            return -1;
         } else if (ret == -2) {
-            break;
+            return -1;
         }
     
         if (IsParseDone()) {
@@ -75,9 +75,6 @@ int ConnectionProfile::Receive() {
             return 0;
         }
     }
-    
-    CloseSelf();
-    return -1;
 }
 
 
@@ -152,6 +149,10 @@ void ConnectionProfile::__MakeRecvContext() {
     
     send_ctx_.fd = fd_;
     recv_ctx_.send_context = &send_ctx_;
+}
+
+ConnectionProfile::~ConnectionProfile() {
+    CloseSelf();
 }
 
 }
