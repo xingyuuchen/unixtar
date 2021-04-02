@@ -49,12 +49,6 @@ class Server {
     
         int GetWorkerSeqNum() const;
         
-        /**
-         * @return: whether @param _recv_ctx is the notification
-         * from another thread to terminate this worker thread.
-         */
-        bool IsNotifyExit(Tcp::RecvContext *_recv_ctx);
-        
         ~WorkerThread() override;
 
       private:
@@ -65,7 +59,6 @@ class Server {
       
       private:
         const int               thread_seq_;
-        Tcp::RecvContext *      notification_stop_;
     };
     
     

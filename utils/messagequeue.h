@@ -38,6 +38,10 @@ class ThreadSafeDeque {
     size_t size();
     
     void clear();
+    
+    void Terminate();
+    
+    bool IsTerminated();
 
   private:
     void __WaitSizeGreaterThan(size_t _than, UniqueLock &_lock, uint64_t _timeout_millis);
@@ -47,11 +51,13 @@ class ThreadSafeDeque {
     std::mutex                  mtx_;
     std::condition_variable     cond_;
     Container                   container_;
+    bool                        terminated_;
 };
 
 template<class T, class Container>
 ThreadSafeDeque<T, Container>::ThreadSafeDeque(size_t _max_size)
-        : max_size_(_max_size) {
+        : max_size_(_max_size)
+        , terminated_(false) {
 }
 
 
@@ -90,11 +96,11 @@ bool ThreadSafeDeque<T, Container>::pop_front(bool _wait,
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
-    if (!container_.empty()) {
-        container_.pop_front();
-        return true;
+    if (container_.empty() || terminated_) {
+        return false;
     }
-    return false;
+    container_.pop_front();
+    return true;
 }
 
 template<class T, class Container>
@@ -104,11 +110,11 @@ bool ThreadSafeDeque<T, Container>::pop_back(bool _wait,
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
-    if (!container_.empty()) {
-        container_.pop_back();
-        return true;
+    if (container_.empty() || terminated_) {
+        return false;
     }
-    return false;
+    container_.pop_back();
+    return true;
 }
 
 
@@ -121,12 +127,12 @@ ThreadSafeDeque<T, Container>::pop_front_to(T &_t,
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
-    if (!container_.empty()) {
-        _t = container_.front();
-        container_.pop_front();
-        return true;
+    if (container_.empty() || terminated_) {
+        return false;
     }
-    return false;
+    _t = container_.front();
+    container_.pop_front();
+    return true;
 }
 
 
@@ -139,12 +145,12 @@ ThreadSafeDeque<T, Container>::pop_back_to(T &_t,
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
-    if (!container_.empty()) {
-        _t = container_.back();
-        container_.pop_back();
-        return true;
+    if (container_.empty() || terminated_) {
+        return false;
     }
-    return false;
+    _t = container_.back();
+    container_.pop_back();
+    return true;
 }
 
 template<class T, class Container>
@@ -155,11 +161,11 @@ ThreadSafeDeque<T, Container>::front(T &_t, bool _wait /*= true*/,
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
-    if (!container_.empty()) {
-        _t = container_.front();
-        return true;
+    if (container_.empty() || terminated_) {
+        return false;
     }
-    return false;
+    _t = container_.front();
+    return true;
 }
 
 template<class T, class Container>
@@ -170,11 +176,11 @@ ThreadSafeDeque<T, Container>::back(T &_t, bool _wait /*= true*/,
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
     }
-    if (!container_.empty()) {
-        _t = container_.back();
-        return true;
+    if (container_.empty() || terminated_) {
+        return false;
     }
-    return false;
+    _t = container_.back();
+    return true;
 }
 
 template<class T, class Container>
@@ -187,11 +193,11 @@ ThreadSafeDeque<T, Container>::get(T &_t,
     if (_wait) {
         __WaitSizeGreaterThan(_pos, lock, _timeout_millis);
     }
-    if (container_.size() > _pos) {
-        _t = container_[_pos];
-        return true;
+    if (container_.size() <= _pos || terminated_) {
+        return false;
     }
-    return false;
+    _t = container_[_pos];
+    return true;
 }
 
 template<class T, class Container>
@@ -207,13 +213,26 @@ void ThreadSafeDeque<T, Container>::clear() {
 }
 
 template<class T, class Container>
+void ThreadSafeDeque<T, Container>::Terminate() {
+    LockGuard lock(mtx_);
+    terminated_ = true;
+    cond_.notify_all();
+}
+
+template<class T, class Container>
+bool ThreadSafeDeque<T, Container>::IsTerminated() {
+    LockGuard lock(mtx_);
+    return terminated_;
+}
+
+template<class T, class Container>
 void
 ThreadSafeDeque<T, Container>::__WaitSizeGreaterThan(const size_t _than,
                                                      ThreadSafeDeque::UniqueLock &_lock,
                                                      uint64_t _timeout_millis) {
     cond_.wait_for(_lock,
                    std::chrono::milliseconds(_timeout_millis),
-                   [&, this] { return container_.size() > _than; });
+                   [&, this] { return container_.size() > _than || terminated_; });
 }
 
 }

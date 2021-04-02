@@ -148,15 +148,8 @@ Server::~Server() = default;
 
 Server::WorkerThread::WorkerThread()
         : net_thread_(nullptr)
-        , thread_seq_(__MakeWorkerThreadSeq())
-        , notification_stop_(nullptr) {
+        , thread_seq_(__MakeWorkerThreadSeq()) {
     
-    /**
-     * Points to itself, this pointer only serves as
-     * a flag for inter-thread-communication.
-     * Do not use it as a normal RecvContext.
-     */
-    notification_stop_ = (Tcp::RecvContext *) &notification_stop_;
 }
 
 void Server::WorkerThread::Run() {
@@ -174,16 +167,17 @@ void Server::WorkerThread::Run() {
         Tcp::RecvContext *recv_ctx;
         
         if (recv_queue->pop_front_to(recv_ctx)) {
-            if (IsNotifyExit(recv_ctx)) {
-                running_ = false;
-                size_t left = recv_queue->size();
-                if (left > 0) {
-                    LogI(__FILE__, "[WorkerThread::Run] %zu tasks left", left)
-                }
-                break;
-            }
-            
             HandleImpl(recv_ctx);
+            continue;
+        }
+        
+        if (recv_queue->IsTerminated()) {
+            running_ = false;
+            size_t left = recv_queue->size();
+            if (left > 0) {
+                LogI(__FILE__, "[WorkerThread::Run] %zu tasks left", left)
+            }
+            break;
         }
     }
     
@@ -197,18 +191,13 @@ void Server::WorkerThread::BindNetThread(Server::NetThread *_net_thread) {
 }
 
 void Server::WorkerThread::NotifyStop() {
-    running_ = false;
     if (!net_thread_) {
         LogE(__FILE__, "[Notify] !net_thread_, notify failed")
         return;
     }
-    auto recv_queue = net_thread_->GetRecvQueue();
     LogI(__FILE__, "[WorkerThread::NotifyStop] notify worker%d stop", thread_seq_)
-    recv_queue->push_front(notification_stop_);
-}
-
-bool Server::WorkerThread::IsNotifyExit(Tcp::RecvContext *_recv_ctx) {
-    return _recv_ctx == notification_stop_;
+    
+    net_thread_->GetRecvQueue()->Terminate();
 }
 
 int Server::WorkerThread::__MakeWorkerThreadSeq() {
