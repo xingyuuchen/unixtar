@@ -227,13 +227,9 @@ void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
     }
 }
 
-void EpollNotifier::NotifyEpoll(Notification _notification) {
-    if (_notification == nullptr) {
-        LogW(__FILE__, "[NotifyEpoll] try not to use NULL, because "
-                       "it may be a potential conflict in other circumstances")
-    }
+void EpollNotifier::NotifyEpoll(Notification &_notification) {
     if (socket_epoll_) {
-        socket_epoll_->ModSocketWrite(fd_, const_cast<void *>(_notification));
+        socket_epoll_->ModSocketWrite(fd_, const_cast<void *>(_notification.notify_id_));
     }
 }
 
@@ -248,3 +244,14 @@ EpollNotifier::~EpollNotifier() {
     }
 }
 
+EpollNotifier::Notification::Notification()
+        : notify_id_(&notify_id_) {
+}
+
+EpollNotifier::Notification::Notification(void *_notify_id)
+        : notify_id_(_notify_id) {
+}
+
+bool EpollNotifier::Notification::operator==(const EpollNotifier::Notification &another) {
+    return notify_id_ == another.notify_id_;
+}

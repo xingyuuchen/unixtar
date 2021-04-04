@@ -142,9 +142,9 @@ class Server {
 
       private:
         
-        bool __IsNotifySend(EpollNotifier::Notification _notification) const;
+        bool __IsNotifySend(EpollNotifier::Notification &) const;
     
-        bool __IsNotifyStop(EpollNotifier::Notification _notification) const;
+        bool __IsNotifyStop(EpollNotifier::Notification &) const;
     
         int __OnReadEvent(SOCKET _fd);
     
@@ -158,8 +158,8 @@ class Server {
         SocketEpoll                         socket_epoll_;
         ConnectionManager                   connection_manager_;
         EpollNotifier                       epoll_notifier_;
-        const EpollNotifier::Notification   notification_send_;
-        const EpollNotifier::Notification   notification_stop_;
+        EpollNotifier::Notification         notification_send_;
+        EpollNotifier::Notification         notification_stop_;
         RecvQueue                           recv_queue_;
         SendQueue                           send_queue_;
         
@@ -168,7 +168,7 @@ class Server {
     
     void __NotifyWorkerNetThreadsStop();
     
-    bool __IsNotifyStop(EpollNotifier::Notification) const;
+    bool __IsNotifyStop(EpollNotifier::Notification &) const;
     
     int __OnConnect();
     
@@ -186,7 +186,7 @@ class Server {
     std::vector<WorkerThread *>         worker_threads_;
     SocketEpoll                         socket_epoll_;
     EpollNotifier                       epoll_notifier_;
-    const EpollNotifier::Notification   notification_stop_;
+    EpollNotifier::Notification         notification_stop_;
     bool                                running_;
     SOCKET                              listenfd_;
     

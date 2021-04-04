@@ -23,7 +23,6 @@ bool Server::ServerConfig::is_config_done = false;
 Server::Server()
         : listenfd_(-1)
         , net_thread_cnt_(1)
-        , notification_stop_((EpollNotifier::Notification) &notification_stop_)
         , running_(false) {
     
     Yaml::YamlDescriptor server_config = Yaml::Load("../framework/serverconfig.yml");
@@ -112,8 +111,7 @@ void Server::Serve() {
         }
         
         for (int i = 0; i < n_events; ++i) {
-            EpollNotifier::Notification probable_notification =
-                    socket_epoll_.GetEpollDataPtr(i);
+            EpollNotifier::Notification probable_notification(socket_epoll_.GetEpollDataPtr(i));
             
             if (__IsNotifyStop(probable_notification)) {
                 LogI(__FILE__, "[Serve] recv notification_stop, break")
@@ -162,7 +160,7 @@ void Server::WorkerThread::Run() {
     
     auto recv_queue = net_thread_->GetRecvQueue();
     
-    while (running_) {
+    while (true) {
         
         Tcp::RecvContext *recv_ctx;
         
@@ -285,9 +283,7 @@ Server::ConnectionManager::~ConnectionManager() {
 
 
 Server::NetThread::NetThread()
-        : Thread()
-        , notification_send_((EpollNotifier::Notification) &notification_send_)
-        , notification_stop_((EpollNotifier::Notification) &notification_stop_) {
+        : Thread() {
     
     connection_manager_.SetEpoll(&socket_epoll_);
     epoll_notifier_.SetSocketEpoll(&socket_epoll_);
@@ -316,8 +312,8 @@ void Server::NetThread::Run() {
         }
     
         for (int i = 0; i < n_events; ++i) {
-            EpollNotifier::Notification probable_notification =
-                    socket_epoll_.GetEpollDataPtr(i);
+            EpollNotifier::Notification probable_notification(socket_epoll_.GetEpollDataPtr(i));
+            
             if (__IsNotifySend(probable_notification)) {
                 HandleSend();
                 continue;
@@ -395,11 +391,11 @@ void Server::NetThread::HandleException(std::exception &ex) {
     LogE(__FILE__, "[HandleException] %s", ex.what())
 }
 
-bool Server::NetThread::__IsNotifySend(EpollNotifier::Notification _notification) const {
+bool Server::NetThread::__IsNotifySend(EpollNotifier::Notification &_notification) const {
     return _notification == notification_send_;
 }
 
-bool Server::NetThread::__IsNotifyStop(EpollNotifier::Notification _notification) const {
+bool Server::NetThread::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
     return _notification == notification_stop_;
 }
 
@@ -519,7 +515,7 @@ void Server::__NotifyWorkerNetThreadsStop() {
     LogI(__FILE__, "[__NotifyWorkerNetThreadsStop] All Threads Joined!")
 }
 
-bool Server::__IsNotifyStop(EpollNotifier::Notification _notification) const {
+bool Server::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
     return _notification == notification_stop_;
 }
 

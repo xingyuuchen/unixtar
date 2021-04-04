@@ -83,21 +83,30 @@ class SocketEpoll {
 class EpollNotifier {
   public:
     
-    /**
-     * Notification is merely a flag for you to tell
-     * which notification it is,
-     * and does not signify any other thing.
-     *
-     * Make sure that this address is not occupied
-     * by any other content throughout the process.
-     */
-    using Notification = void *;
+    class Notification {
+        friend class EpollNotifier;
+        
+      public:
+        Notification();
+        
+        explicit Notification(void *_notify_id);
+        
+        bool operator==(const Notification &another);
+        
+      private:
+        /**
+         * This is merely a flag for you to tell
+         * which notification it is, and
+         * the address it points to does not signify any other thing.
+         */
+        const void *  notify_id_;
+    };
     
     EpollNotifier();
     
     void SetSocketEpoll(SocketEpoll *_epoll);
     
-    void NotifyEpoll(Notification _notification);
+    void NotifyEpoll(Notification &_notification);
     
     SOCKET GetNotifyFd() const;
     
