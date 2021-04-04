@@ -23,7 +23,7 @@ ssize_t BlockSocketSend(SOCKET _socket,
                 _send_buff.Pos() + nsend), ntotal - nsend);
 
         if (n <= 0) {
-            LogE(__FILE__, "nsend: %d", n)
+            LogE("nsend: %d", n)
             return -1;
         }
 
@@ -70,10 +70,10 @@ ssize_t BlockSocketReceive(SOCKET _socket, AutoBuffer &_recv_buff,
         
         if (ret < 0) {
             int errno_ = _socket_poll.GetErrno();
-            LogE(__FILE__, "[BlockSocketReceive] poll errno: %d", errno_)
+            LogE("poll errno: %d", errno_)
             return -1;
         } else if (ret == 0) {
-            LogE(__FILE__, "[BlockSocketReceive] timeout, nrecv = %zd, poll_timeout = %d", nrecv, poll_timeout)
+            LogE("timeout, nrecv = %zd, poll_timeout = %d", nrecv, poll_timeout)
             return nrecv;
         } else {
             
@@ -94,14 +94,14 @@ ssize_t BlockSocketReceive(SOCKET _socket, AutoBuffer &_recv_buff,
                         orderly shutdown, the value 0 is
                         returned.
                      */
-                    LogI(__FILE__, "[BlockSocketReceive] n = 0, nrecv:%zd", nrecv)
+                    LogI("n = 0, nrecv:%zd", nrecv)
                     return 0;
                 } else {
-                    LogI(__FILE__, "[BlockSocketReceive] n:%zd, nrecv:%zd", n, nrecv)
+                    LogI("n:%zd, nrecv:%zd", n, nrecv)
                     return nrecv;
                 }
             } else if (_socket_poll.IsErrSet(_socket)) {
-                LogI(__FILE__, "[BlockSocketReceive] POLLERR, nrecv:%zd", nrecv)
+                LogI("POLLERR, nrecv:%zd", nrecv)
                 return nrecv;
             }
         }

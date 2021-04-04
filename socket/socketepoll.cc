@@ -20,7 +20,7 @@ SocketEpoll::SocketEpoll(int _max_fds)
     
     int ret = ::epoll_create1(0);
     if (ret < 0) {
-        LogE(__FILE__, "[SocketEpoll] epoll_create, ret = %d", ret)
+        LogE("epoll_create, ret = %d", ret)
         return;
     }
     epoll_fd_ = ret;
@@ -61,13 +61,13 @@ int SocketEpoll::DelSocket(int _fd) {
 int SocketEpoll::__EpollCtl(int _op, int _fd, struct epoll_event *_event/* = NULL*/) {
 #ifdef __linux__
     if (_fd < 0) {
-        LogE(__FILE__, "[__EpollCtl] fd_ < 0")
+        LogE("fd_ < 0")
         return -1;
     }
     int ret = ::epoll_ctl(epoll_fd_, _op, _fd, _event);
     if (ret < 0) {
         errno_ = errno;
-        LogE(__FILE__, "[__EpollCtl] errno(%d): %s", errno_, strerror(errno))
+        LogE("errno(%d): %s", errno_, strerror(errno))
     }
     return ret;
 #else
@@ -86,11 +86,11 @@ int SocketEpoll::EpollWait(int _timeout_mills/* = -1*/,
         int nfds = ::epoll_wait(epoll_fd_, epoll_events_, _max_events, _timeout_mills);
         if (nfds < 0) {
             if (errno == EINTR) {
-                LogE(__FILE__, "[EpollWait] just EINTR, continue...")
+                LogE("just EINTR, continue...")
                 continue;
             }
             errno_ = errno;
-            LogE(__FILE__, "[EpollWait] errno(%d): %s", errno_, strerror(errno))
+            LogE("errno(%d): %s", errno_, strerror(errno))
         }
         return nfds;
     }
@@ -103,7 +103,7 @@ int SocketEpoll::EpollWait(int _timeout_mills/* = -1*/,
 bool SocketEpoll::IsNewConnect(int _idx) {
 #ifdef __linux__
     if (_idx < 0 || _idx >= kMaxFds) {
-        LogE(__FILE__, "[IsNewConnect] invalid _idx: %d", _idx)
+        LogE("invalid _idx: %d", _idx)
         return false;
     }
     return epoll_events_[_idx].data.fd == listen_fd_;
@@ -124,7 +124,7 @@ void *SocketEpoll::IsWriteSet(int _idx) {
 SOCKET SocketEpoll::GetSocket(int _idx) {
 #ifdef __linux__
     if (_idx < 0 || _idx >= kMaxFds) {
-        LogE(__FILE__, "[GetSocket] invalid _idx: %d", _idx)
+        LogE("invalid _idx: %d", _idx)
         return INVALID_SOCKET;
     }
     return epoll_events_[_idx].data.fd;
@@ -135,7 +135,7 @@ SOCKET SocketEpoll::GetSocket(int _idx) {
 void *SocketEpoll::GetEpollDataPtr(int _idx) {
 #ifdef __linux__
     if (_idx < 0 || _idx >= kMaxFds) {
-        LogE(__FILE__, "[GetSocket] invalid _idx: %d", _idx)
+        LogE("invalid _idx: %d", _idx)
         return nullptr;
     }
     return epoll_events_[_idx].data.ptr;
@@ -164,7 +164,7 @@ int SocketEpoll::IsErrSet(int _idx) {
 epoll_data *SocketEpoll::__IsFlagSet(int _idx, int _flag) {
 #ifdef __linux__
     if (_idx < 0 || _idx >= kMaxFds) {
-        LogE(__FILE__, "[__IsFlagSet] invalid _idx: %d", _idx)
+        LogE("invalid _idx: %d", _idx)
         return NULL;
     }
     if (epoll_events_[_idx].events & _flag) {
@@ -178,7 +178,7 @@ epoll_data *SocketEpoll::__IsFlagSet(int _idx, int _flag) {
 void SocketEpoll::SetListenFd(int _listen_fd) {
 #ifdef __linux__
     if (_listen_fd < 0) {
-        LogE(__FILE__, "[SetListenFd] _listen_fd: %d", _listen_fd)
+        LogE("_listen_fd: %d", _listen_fd)
         return;
     }
     AddSocketRead(_listen_fd);
@@ -194,7 +194,7 @@ SocketEpoll::~SocketEpoll() {
         delete[] epoll_events_, epoll_events_ = NULL;
     }
     if (epoll_fd_ != -1) {
-        LogI(__FILE__, "[~SocketEpoll] close epfd")
+        LogI("close epfd")
         ::close(epoll_fd_);
         epoll_fd_ = -1;
     }
@@ -208,17 +208,17 @@ EpollNotifier::EpollNotifier()
     
     fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
     if (fd_ < 0) {
-        LogE(__FILE__, "[EpollNotifier] create socket error: %s, errno: %d",
+        LogE("create socket error: %s, errno: %d",
              strerror(errno), errno);
         return;
     }
-    LogI(__FILE__, "[EpollNotifier] notify fd: %d", fd_)
+    LogI("notify fd: %d", fd_)
     SetNonblocking(fd_);
 }
 
 void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
     if (socket_epoll_) {
-        LogE(__FILE__, "[SetSocketEpoll] socket_epoll_ already set!")
+        LogE("socket_epoll_ already set!")
         return;
     }
     if (_epoll) {

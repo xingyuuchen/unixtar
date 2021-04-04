@@ -15,7 +15,7 @@ static std::map<YamlDescriptor, std::map<std::string, std::string>> sg_yaml_cach
 int _ParseYaml(const char *_path, YamlDescriptor _desc) {
     std::ifstream fin(_path);
     if (!fin) {
-        LogE(__FILE__, "[_ParseYaml] !fin: %s", _path)
+        LogE("!fin: %s", _path)
         return -1;
     }
     
@@ -32,7 +32,7 @@ int _ParseYaml(const char *_path, YamlDescriptor _desc) {
         }
         oi::split(s, ": ", line);
         if (line.size() != 2) {
-            LogI(__FILE__, "[_ParseYaml] %s: incorrect yaml formula, line: %s",
+            LogI("%s: incorrect yaml formula, line: %s",
                  _path, s.c_str())
             return -1;
         }
@@ -44,12 +44,12 @@ int _ParseYaml(const char *_path, YamlDescriptor _desc) {
 
 void _GetFromCache(YamlDescriptor _desc, std::string &_field, std::string &_res) {
     if (sg_yaml_cache.find(_desc) == sg_yaml_cache.end()) {
-        LogI(__FILE__, "[_GetFromCache] (%p) not in sg_yaml_cache", _desc)
+        LogI("(%p) not in sg_yaml_cache", _desc)
         return;
     }
     std::map<std::string, std::string> &kv = sg_yaml_cache[_desc];
     if (kv.find(_field) == kv.end()) {
-        LogI(__FILE__, "[_GetFromCache] field(%s) not in sg_yaml_cache", _field.c_str())
+        LogI("field(%s) not in sg_yaml_cache", _field.c_str())
         return;
     }
     _res = kv[_field];
@@ -62,7 +62,7 @@ YamlDescriptor Load(const char *_path) {
         _ParseYaml(_path, fp);
         return fp;
     }
-    LogE(__FILE__, "[Load] fp == NULL")
+    LogE("fp == NULL")
     return NULL;
 }
 

@@ -37,9 +37,9 @@ int NetSceneBase::DoScene(const std::string &_in_buffer) {
 void NetSceneBase::__ShowHttpHeader(AutoBuffer &_out) {
     for (size_t i = 0; i < _out.Length(); ++i) {
         if (*_out.Ptr(i) == 0x0d || *_out.Ptr(i) == 0x0a) {
-            LogI(__FILE__, "0x%x ", *_out.Ptr(i))
+            LogI("0x%x ", *_out.Ptr(i))
         } else {
-            LogI(__FILE__, "0x%x %c", *_out.Ptr(i), *_out.Ptr(i))
+            LogI("0x%x %c", *_out.Ptr(i), *_out.Ptr(i))
         }
     }
 }

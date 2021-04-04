@@ -106,7 +106,7 @@ class Server {
         void ClearTimeout();
         
       private:
-        using ScopedLock = std::unique_lock<std::mutex>;
+        using ScopedLock = std::lock_guard<std::mutex>;
         std::unordered_map<SOCKET, Tcp::ConnectionProfile *> connections_;
         SocketEpoll *                                        socket_epoll_;
         std::mutex                                           mutex_;

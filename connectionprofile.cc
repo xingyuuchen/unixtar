@@ -40,16 +40,16 @@ int ConnectionProfile::Receive() {
                 recv_buff->Length()), kBuffSize);
         
         if (n == -1 && IS_EAGAIN(errno)) {
-            LogI(__FILE__, "[Receive] EAGAIN")
+            LogI("EAGAIN")
             return 0;
         }
         if (n < 0) {
-            LogE(__FILE__, "[Receive] n<0, errno(%d): %s", errno, strerror(errno))
+            LogE("n<0, errno(%d): %s", errno, strerror(errno))
             return -1;
             
         } else if (n == 0) {
             // A read event is raised when conn closed by peer
-            LogI(__FILE__, "[Receive] conn(%d) closed by peer", fd_)
+            LogI("conn(%d) closed by peer", fd_)
             return -1;
             
         } else if (n > 0) {
@@ -59,7 +59,7 @@ int ConnectionProfile::Receive() {
         int ret = ParseProtocol();
         
         if (ret == -1) {
-            LogE(__FILE__, "[Receive] Please override func: ParseProtocol "
+            LogE("Please override func: ParseProtocol "
                            "when using other protocol than Http1.1")
             return -1;
         } else if (ret == -2) {
@@ -88,7 +88,7 @@ int ConnectionProfile::ParseProtocol() {
     http_parser_.DoParse();
     
     if (http_parser_.IsErr()) {
-        LogE(__FILE__, "[__HandleRead] parser error")
+        LogE("parser error")
         return -2;
     }
     
@@ -105,7 +105,7 @@ bool ConnectionProfile::IsParseDone() {
 
 void ConnectionProfile::CloseSelf() {
     if (fd_ > 0) {
-        LogI(__FILE__, "[CloseSelf] %d", fd_)
+        LogI("%d", fd_)
         ::shutdown(fd_, SHUT_RDWR);
         fd_ = INVALID_SOCKET;
     }
@@ -138,14 +138,13 @@ void ConnectionProfile::__MakeRecvContext() {
         return;
     }
     if (!IsParseDone()) {
-        LogE(__FILE__, "[__MakeRecvContext] recv ctx cannot be made "
-                       "when the parsing hasn't done")
+        LogE("recv ctx cannot be made when the parsing hasn't done")
         return;
     }
     recv_ctx_.fd = fd_;
     recv_ctx_.buffer.SetPtr(http_parser_.GetBody());
     recv_ctx_.buffer.SetLength(http_parser_.GetContentLength());
-    recv_ctx_.buffer.ShareFromOther(true);
+    recv_ctx_.buffer.ShallowCopy(true);
     
     send_ctx_.fd = fd_;
     recv_ctx_.send_context = &send_ctx_;

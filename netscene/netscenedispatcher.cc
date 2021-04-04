@@ -28,7 +28,7 @@ NetSceneBase *NetSceneDispatcher::__MakeNetScene(int _type) {
     auto iter = std::find_if(selectors_.begin(), selectors_.end(),
                         [=] (NetSceneBase *find) { return find->GetType() == _type; });
     if (iter == selectors_.end()) {
-        LogE(__FILE__, "[__MakeNetScene] NO such NetScene:"
+        LogE("NO such NetScene:"
              " type=%d, give up processing this request.", _type)
         return nullptr;
     }
@@ -44,7 +44,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx)
         return;
     }
     if (!net_thread_) {
-        LogE(__FILE__, "[HandleImpl] wtf? No net_thread!")
+        LogE("wtf? No net_thread!")
         return;
     }
     SOCKET fd = _recv_ctx->fd;
@@ -54,39 +54,39 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx)
     std::string req_buffer;
     do {
         if (!buffer.Ptr()) {
-            LogI(__FILE__, "[HandleImpl] return index page.")
+            LogI("return index page.")
             type = 0;
             break;
         }
-        LogI(__FILE__, "[HandleImpl] _in_buffer.len: %zd", buffer.Length());
+        LogI("_in_buffer.len: %zd", buffer.Length());
     
         BaseNetSceneReq::BaseNetSceneReq base_req;
         base_req.ParseFromArray(buffer.Ptr(), buffer.Length());
     
         if (!base_req.has_net_scene_type()) {
-            LogI(__FILE__, "[HandleImpl] base_req.has_net_scene_type(): false")
+            LogI("base_req.has_net_scene_type(): false")
             return;
         }
         type = base_req.net_scene_type();
         if (!base_req.has_net_scene_req_buff()) {
-            LogI(__FILE__, "[HandleImpl] type(%d), base_req.has_net_scene_req_buff(): false", type)
+            LogI("type(%d), base_req.has_net_scene_req_buff(): false", type)
             return;
         }
         req_buffer = base_req.net_scene_req_buff();
     } while (false);
     
-    LogI(__FILE__, "[HandleImpl] dispatch to type %d", type)
+    LogI("dispatch to type %d", type)
     
     NetSceneBase *net_scene = NetSceneDispatcher::Instance().__MakeNetScene(type);
     if (!net_scene) {
-        LogE(__FILE__, "[HandleImpl] !net_scene")
+        LogE("!net_scene")
         return;
     }
     
     uint64_t start = ::gettickcount();
     net_scene->DoScene(req_buffer);
     uint64_t cost = ::gettickcount() - start;
-    LogI(__FILE__, "[HandleImpl] type:%d, cost: %llu ms", type, cost)
+    LogI("type:%d, cost: %llu ms", type, cost)
     
     AutoBuffer &http_resp_msg = _recv_ctx->send_context->buffer;
     __PackHttpResp(net_scene, http_resp_msg);
@@ -101,7 +101,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx)
 }
 
 void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
-    LogE(__FILE__, "[HandleException] %s", ex.what())
+    LogE("%s", ex.what())
     running_ = false;
 }
 

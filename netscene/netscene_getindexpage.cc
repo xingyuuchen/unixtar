@@ -34,6 +34,6 @@ void *NetSceneGetIndexPage::Data() {
 }
 
 size_t NetSceneGetIndexPage::Length() {
-    LogI(__FILE__, "[Length] %lu", strlen(resp_))
+    LogI("%lu", strlen(resp_))
     return strlen(resp_);
 }

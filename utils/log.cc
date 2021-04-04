@@ -13,7 +13,7 @@ void OpenLog(const char *_ident) {
 #ifdef __linux__
     openlog(_ident, LOG_PID, LOG_USER);
     SignalHandler::Instance().RegisterCallback(SIGINT, [] {
-        LogI(__FILE__, "[closelog] log is closed!")
+        LogI("log is closed!")
         closelog();
     });
 #endif

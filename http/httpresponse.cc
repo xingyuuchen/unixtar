@@ -90,14 +90,14 @@ void Parser::__ResolveResponseHeaders(AutoBuffer &_buff) {
         }
     } else {
         position_ = kError;
-        LogE(__FILE__, "[__ResolveResponseHeaders] headers_.ParseFromString Err")
+        LogE("headers_.ParseFromString Err")
     }
 }
 
 void Parser::__ResolveBody(AutoBuffer &_buff) {
     uint64_t content_length = headers_.GetContentLength();
     if (content_length == 0) {
-        LogI(__FILE__, "[__ResolveBody] content_length = 0")
+        LogI("content_length = 0")
         position_ = kError;
         return;
     }
@@ -106,7 +106,7 @@ void Parser::__ResolveBody(AutoBuffer &_buff) {
     resolved_len_ += new_size;
     
     if (content_length < body_->Length()) {
-        LogI(__FILE__, "[__ResolveBody] recv more %zd bytes than Content-Length(%lld)",
+        LogI("recv more %zd bytes than Content-Length(%lld)",
              body_->Length(), content_length)
         position_ = kError;
     } else if (content_length == body_->Length()) {
@@ -118,33 +118,33 @@ void Parser::Recv(AutoBuffer &_buff) {
     if (_buff.Length() <= 0) { return; }
     size_t unresolved_len = _buff.Length() - resolved_len_;
     if (unresolved_len <= 0) {
-        LogI(__FILE__, "[resp::Parser::Recv] no bytes need to be resolved: %zd", unresolved_len)
+        LogI("no bytes need to be resolved: %zd", unresolved_len)
         return;
     }
     
     if (position_ == kNone) {
-        LogI(__FILE__, "[Recv] kNone")
+        LogI("kNone")
         if (resolved_len_ == 0 && _buff.Length() > 0) {
             position_ = kStatusLine;
             __ResolveStatusLine(_buff);
         }
         
     } else if (position_ == kStatusLine) {
-        LogI(__FILE__, "[Recv] kRequestLine")
+        LogI("kRequestLine")
         __ResolveStatusLine(_buff);
         
     } else if (position_ == kResponseHeaders) {
-        LogI(__FILE__, "[Recv] kRequestHeaders")
+        LogI("kRequestHeaders")
         __ResolveResponseHeaders(_buff);
         
     } else if (position_ == kBody) {
         __ResolveBody(_buff);
         
     } else if (position_ == kEnd) {
-        LogI(__FILE__, "[Recv] kEnd")
+        LogI("kEnd")
         
     } else if (position_ == kError) {
-        LogI(__FILE__, "[Recv] error already occurred, do nothing.")
+        LogI("error already occurred, do nothing.")
     }
 }
 

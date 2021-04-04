@@ -41,7 +41,7 @@ uint64_t HeaderField::GetContentLength() const {
             return strtoul(header_field.second.c_str(), NULL, 10);
         }
     }
-    LogI(__FILE__, "[GetContentLength] No such field: Content-Length")
+    LogI("No such field: Content-Length")
     return 0;
 }
 
@@ -63,7 +63,7 @@ bool HeaderField::ParseFromString(std::string &_from) {
         std::vector<std::string> header_pair;
         oi::split(header_str, ": ", header_pair);
         if (header_pair.size() != 2) {
-            LogE(__FILE__, "[ParseFromString] err header pair: %s", header_str.c_str())
+            LogE("err header pair: %s", header_str.c_str())
             return false;
         }
         InsertOrUpdate(header_pair[0], header_pair[1]);

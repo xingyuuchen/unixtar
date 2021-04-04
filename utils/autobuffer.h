@@ -21,7 +21,7 @@ class AutoBuffer {
     
     void AddLength(size_t _len);
     
-    char *Ptr(const size_t _offset = 0) const;
+    char *Ptr(size_t _offset = 0) const;
     
     void SetPtr(char *_ptr);
     
@@ -31,15 +31,15 @@ class AutoBuffer {
     
     void AddCapacity(size_t _size);
     
-    void Seek(const size_t _pos);
+    void Seek(size_t _pos);
     
     void Reset();
     
-    void ShareFromOther(bool _val);
+    void ShallowCopy(bool _val);
 
   private:
     char *              byte_array_;
-    bool                share_from_other_;
+    bool                is_shallow_copy_;
     size_t              pos_;
     size_t              length_;
     size_t              capacity_;

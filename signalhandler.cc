@@ -40,11 +40,11 @@ void SignalHandler::Handle(int _sig) {
 // deprecated
 void SignalHandler::__ProcessCrash() {
     // FIXME: LogI is not-reentrant
-    LogI(__FILE__, "[__ProcessCrash] Process Crash!")
+    LogI("Process Crash!")
     exit(EXIT_FAILURE);
 }
 
 SignalHandler::~SignalHandler() {
-    LogI(__FILE__, "[~SignalHandler]")
+    LogI("[~SignalHandler]")
     
 }

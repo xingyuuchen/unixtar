@@ -16,7 +16,7 @@ std::string &DBItem::equal_list() const {
 
 void DBItem::__Format(std::vector<std::string> &_in, std::string&_out) {
     if (_in.empty()) {
-        LogE(__FILE__, "func: PopulateXXXList Not Implemented!")
+        LogE("func: PopulateXXXList Not Implemented!")
         return;
     }
     for (auto &it : _in) {
@@ -31,13 +31,13 @@ void DBItem::OnDataPrepared() {
     std::vector<std::string> field_list;
     PopulateFieldList(field_list);
     __Format(field_list, field_list_str_);
-    LogI(__FILE__, "[OnDataPrepared] field_list: %s", field_list_str_.c_str())
+    LogI("field_list: %s", field_list_str_.c_str())
     
     // parse value list
     std::vector<std::string> value_list;
     PopulateValueList(value_list);
     __Format(value_list, value_list_str_);
-    LogI(__FILE__, "[OnDataPrepared] value_list: %s", value_list_str_.c_str())
+    LogI("value_list: %s", value_list_str_.c_str())
     
     // parse equal list
     std::map<std::string, std::string> kv;
@@ -51,5 +51,5 @@ void DBItem::OnDataPrepared() {
         }
         equal_list_str_ = equal_list_str_.substr(0, equal_list_str_.length() - 5);
     }
-    LogI(__FILE__, "[OnDataPrepared] equal_list: %s", equal_list_str_.c_str())
+    LogI("equal_list: %s", equal_list_str_.c_str())
 }

@@ -8,7 +8,7 @@
 
 AutoBuffer::AutoBuffer(size_t _malloc_unit_size)
         : byte_array_(NULL)
-        , share_from_other_(false)
+        , is_shallow_copy_(false)
         , pos_(0)
         , length_(0)
         , capacity_(0)
@@ -46,7 +46,7 @@ void AutoBuffer::SetPtr(char *_ptr) {
 
 void AutoBuffer::AddCapacity(size_t _size_to_add) {
     if (_size_to_add <= 0) {
-        LogE(__FILE__, "[AddCapacity] Illegal arg _size_to_add:%zd", _size_to_add);
+        LogE("Illegal arg _size_to_add:%zd", _size_to_add);
         return;
     }
     if (_size_to_add % malloc_unit_size_ != 0) {
@@ -54,8 +54,8 @@ void AutoBuffer::AddCapacity(size_t _size_to_add) {
     }
     
     void *p = realloc(byte_array_, capacity_ + _size_to_add);
-    if (p == NULL) {
-        LogE(__FILE__, "[AddCapacity] realloc failed, errno(%d): %s", errno, strerror(errno));
+    if (!p) {
+        LogE("realloc failed, errno(%d): %s", errno, strerror(errno));
         free(byte_array_);
         byte_array_ = NULL;
         capacity_ = 0;
@@ -77,12 +77,12 @@ AutoBuffer::~AutoBuffer() {
     Reset();
 }
 
-void AutoBuffer::ShareFromOther(bool _val) {
-    share_from_other_ = _val;
+void AutoBuffer::ShallowCopy(bool _val) {
+    is_shallow_copy_ = _val;
 }
 
 void AutoBuffer::Reset() {
-    if (share_from_other_) { return; }
+    if (is_shallow_copy_) { return; }
     capacity_ = 0;
     length_ = 0;
     pos_ = 0;
