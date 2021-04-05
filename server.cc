@@ -124,7 +124,7 @@ void Server::Serve() {
                 __OnConnect();
                 
             } else if (SOCKET fd = socket_epoll_.IsErrSet(i)) {
-                __HandleErr(fd);
+                __OnEpollErr(fd);
             }
         }
     }
@@ -228,9 +228,8 @@ Tcp::ConnectionProfile *Server::ConnectionManager::GetConnection(SOCKET _fd) {
     return find->second;
 }
 
-void Server::ConnectionManager::AddConnection(SOCKET _fd,
-                                              Tcp::ConnectionProfile *_conn) {
-    if (!_conn || _fd < 0) {
+void Server::ConnectionManager::AddConnection(SOCKET _fd) {
+    if (_fd < 0) {
         LogE("%d", _fd)
         LogPrintStacktrace()
         return;
@@ -240,7 +239,7 @@ void Server::ConnectionManager::AddConnection(SOCKET _fd,
         LogE("already got %d", _fd)
         return;
     }
-    connections_[_fd] = _conn;
+    connections_.emplace(_fd, new Tcp::ConnectionProfile(_fd));
     if (socket_epoll_) {
         // While one thread is blocked in a call to epoll_wait(), it is
         // possible for another thread to add a file descriptor to the
@@ -252,7 +251,7 @@ void Server::ConnectionManager::AddConnection(SOCKET _fd,
 
 void Server::ConnectionManager::DelConnection(SOCKET _fd) {
     ScopedLock lock(mutex_);
-    auto conn = connections_[_fd];
+    auto &conn = connections_[_fd];
     if (socket_epoll_) {
         socket_epoll_->DelSocket(_fd);
     }
@@ -261,19 +260,24 @@ void Server::ConnectionManager::DelConnection(SOCKET _fd) {
     } else {
         LogE("fd(%d) Bug here!!", _fd)
     }
-    connections_.erase(_fd);
     delete conn, conn = nullptr;
+    connections_.erase(_fd);
     
 }
 
 void Server::ConnectionManager::ClearTimeout() {
     uint64_t now = ::gettickcount();
     ScopedLock lock(mutex_);
-    for (auto &it : connections_) {
-        if (it.second->IsTimeout(now)) {
-            LogI("clear timeout fd: %d", it.first)
-            DelConnection(it.first);
+    auto it = connections_.begin();
+    while (it != connections_.end()) {
+        if (it->second->IsTimeout(now)) {
+            LogI("clear fd: %d", it->first)
+            socket_epoll_->DelSocket(it->first);
+            delete it->second, it->second = nullptr;
+            it = connections_.erase(it);
+            continue;
         }
+        ++it;
     }
 }
 
@@ -297,16 +301,14 @@ void Server::NetThread::Run() {
     int epoll_retry = 3;
     
     const uint64_t clear_timeout_period = 3000;
+    uint64_t last_clear_ts = 0;
     
     while (true) {
         
         int n_events = socket_epoll_.EpollWait(clear_timeout_period);
         
         if (n_events < 0) {
-            if (socket_epoll_.GetErrNo() == EINTR) {
-                continue;
-            }
-            if (--epoll_retry > 0) {
+            if (socket_epoll_.GetErrNo() == EINTR || --epoll_retry > 0) {
                 continue;
             }
             break;
@@ -339,7 +341,6 @@ void Server::NetThread::Run() {
             }
         }
     
-        static uint64_t last_clear_ts = 0;
         uint64_t now = ::gettickcount();
         if (now - last_clear_ts > clear_timeout_period) {
             last_clear_ts = now;
@@ -363,8 +364,7 @@ void Server::NetThread::AddConnection(int _fd) {
         LogE("invalid fd: %d", _fd)
         return;
     }
-    auto neo = new Tcp::ConnectionProfile(_fd);
-    connection_manager_.AddConnection(_fd, neo);
+    connection_manager_.AddConnection(_fd);
 }
 
 void Server::NetThread::DelConnection(int _fd) {
@@ -527,7 +527,6 @@ bool Server::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
 }
 
 int Server::__OnConnect() {
-    LogI("IsNewConnect")
     SOCKET fd;
     while (true) {
         fd = ::accept(listenfd_, (struct sockaddr *) nullptr, nullptr);
@@ -538,7 +537,6 @@ int Server::__OnConnect() {
             return -1;
         }
         SetNonblocking(fd);
-        LogI("new connect, fd: %d", fd);
         __AddConnection(fd);
     }
 }
@@ -547,11 +545,13 @@ void Server::__AddConnection(SOCKET _fd) {
     if (_fd < 0) {
         return;
     }
-    NetThread *owner_thread = net_threads_[_fd % net_thread_cnt_];
+    unsigned int net_thread_idx = _fd % net_thread_cnt_;
+    NetThread *owner_thread = net_threads_[net_thread_idx];
     if (!owner_thread) {
         LogE("wtf???")
         return;
     }
+    LogI("new connect, fd(%d), owner net thread %d", _fd, net_thread_idx);
     owner_thread->AddConnection(_fd);
     
 }
@@ -589,7 +589,7 @@ int Server::__Bind(uint16_t _port) const {
     return 0;
 }
 
-int Server::__HandleErr(int _fd) {
+int Server::__OnEpollErr(int _fd) {
     LogE("fd: %d", _fd)
     return 0;
 }

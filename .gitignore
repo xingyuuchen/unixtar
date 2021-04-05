@@ -1,5 +1,6 @@
 .idea/
 testclient.cc
+testclient
 build/
 autogen/
 logs/

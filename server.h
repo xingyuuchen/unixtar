@@ -99,7 +99,7 @@ class Server {
         
         Tcp::ConnectionProfile *GetConnection(SOCKET _fd);
         
-        void AddConnection(SOCKET _fd, Tcp::ConnectionProfile *_conn);
+        void AddConnection(SOCKET _fd);
         
         void DelConnection(SOCKET _fd);
         
@@ -178,7 +178,7 @@ class Server {
     
     int __Bind(uint16_t _port) const;
     
-    int __HandleErr(SOCKET _fd);
+    int __OnEpollErr(SOCKET _fd);
     
   private:
     size_t                              net_thread_cnt_;
