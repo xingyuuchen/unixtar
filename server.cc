@@ -414,9 +414,7 @@ int Server::NetThread::__OnReadEvent(SOCKET _fd) {
         return -1;
     }
     
-    int ret = conn->Receive();
-    
-    if (ret < 0) {
+    if (conn->Receive() < 0) {
         DelConnection(_fd);
         return -1;
     }
@@ -459,7 +457,11 @@ int Server::NetThread::__OnWriteEvent(Tcp::SendContext *_send_ctx, bool _mod_wri
             return 0;
         }
         if (nsend < 0) {
-            LogE("fd(%d) nsend(%zu), errno(%d): %s",
+            if (errno == EPIPE) {
+                LogI("fd(%d) closed by peer, send nothing", fd)
+                return 0;
+            }
+            LogE("fd(%d) nsend(%zd), errno(%d): %s",
                  fd, nsend, errno, strerror(errno));
         }
     } while (false);
@@ -545,13 +547,13 @@ void Server::__AddConnection(SOCKET _fd) {
     if (_fd < 0) {
         return;
     }
-    unsigned int net_thread_idx = _fd % net_thread_cnt_;
+    uint net_thread_idx = _fd % net_thread_cnt_;
     NetThread *owner_thread = net_threads_[net_thread_idx];
     if (!owner_thread) {
         LogE("wtf???")
         return;
     }
-    LogI("new connect, fd(%d), owner net thread %d", _fd, net_thread_idx);
+    LogI("new connect, fd(%d), owner net thread: %d", _fd, net_thread_idx);
     owner_thread->AddConnection(_fd);
     
 }
