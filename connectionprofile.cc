@@ -11,7 +11,7 @@ namespace Tcp {
 
 const int ConnectionProfile::kBuffSize = 1024;
 
-const uint64_t ConnectionProfile::kDefaultTimeout = 30 * 1000;
+const uint64_t ConnectionProfile::kDefaultTimeout = 60 * 1000;
 
 ConnectionProfile::ConnectionProfile(int _fd)
         : fd_(_fd)
@@ -106,8 +106,7 @@ bool ConnectionProfile::IsParseDone() {
 void ConnectionProfile::CloseSelf() {
     if (fd_ > 0) {
         LogI("%d", fd_)
-        ::shutdown(fd_, SHUT_RDWR);
-        fd_ = INVALID_SOCKET;
+        ::shutdown(fd_, SHUT_RDWR), fd_ = INVALID_SOCKET;
     }
 }
 

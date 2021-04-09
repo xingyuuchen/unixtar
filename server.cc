@@ -75,7 +75,7 @@ void Server::Serve() {
         return;
     }
     if (worker_threads_.empty()) {
-        LogE("call SetWorker to employ workers first!")
+        LogE("call SetWorker() to employ workers first!")
         return;
     }
     
@@ -458,7 +458,8 @@ int Server::NetThread::__OnWriteEvent(Tcp::SendContext *_send_ctx, bool _mod_wri
         }
         if (nsend < 0) {
             if (errno == EPIPE) {
-                LogI("fd(%d) closed by peer, send nothing", fd)
+                // fd probably closed by peer, or cleared because of timeout.
+                LogI("fd(%d) already closed, send nothing", fd)
                 return 0;
             }
             LogE("fd(%d) nsend(%zd), errno(%d): %s",

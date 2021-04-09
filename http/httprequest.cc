@@ -103,8 +103,7 @@ void Parser::__ResolveBody() {
     
     size_t curr_body_len = buff_.Length() - request_line_len_ - request_header_len_;
     if (content_length < curr_body_len) {
-        LogI("recv more bytes than"
-             " Content-Length(%lld)", content_length)
+        LogI("recv more bytes than Content-Length(%lld)", content_length)
         position_ = kError;
     } else if (content_length == curr_body_len) {
         position_ = kEnd;

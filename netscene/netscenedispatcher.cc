@@ -9,35 +9,37 @@
 
 
 NetSceneDispatcher::NetSceneDispatcher() {
-    std::unique_lock<std::mutex> lock(mutex_);
+    std::lock_guard<std::mutex> lock(mutex_);
     selectors_.push_back(new NetSceneGetIndexPage());
     selectors_.push_back(new NetSceneHelloSvr());
     
 }
 
 void NetSceneDispatcher::RegisterNetScene(NetSceneBase *_net_scene) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    if (_net_scene) {
-        selectors_.push_back(_net_scene);
+    if (!_net_scene) {
+        LogE("_net_scene nullptr")
+        return;
     }
+    int type = _net_scene->GetType();
+    std::lock_guard<std::mutex> lock(mutex_);
+    assert(selectors_.size() == type);
+    selectors_.push_back(_net_scene);
 }
 
 
 NetSceneBase *NetSceneDispatcher::__MakeNetScene(int _type) {
-    std::unique_lock<std::mutex> lock(mutex_);
-    auto iter = std::find_if(selectors_.begin(), selectors_.end(),
-                        [=] (NetSceneBase *find) { return find->GetType() == _type; });
-    if (iter == selectors_.end()) {
-        LogE("NO such NetScene:"
-             " type=%d, give up processing this request.", _type)
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (selectors_.size() <= _type) {
+        LogE("NO such NetScene: "
+             "type=%d, give up processing this request.", _type)
         return nullptr;
     }
-    return (*iter)->NewInstance();
+    NetSceneBase *select = selectors_[_type];
+    assert(select->GetType() == _type);
+    return select->NewInstance();
 }
 
-NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() {
-
-}
+NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() = default;
 
 void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx) {
     if (!_recv_ctx) {
@@ -86,7 +88,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(Tcp::RecvContext *_recv_ctx)
     uint64_t start = ::gettickcount();
     net_scene->DoScene(req_buffer);
     uint64_t cost = ::gettickcount() - start;
-    LogI("type:%d, cost: %llu ms", type, cost)
+    LogI("type(%d), cost %llu ms", type, cost)
     
     AutoBuffer &http_resp_msg = _recv_ctx->send_context->buffer;
     __PackHttpResp(net_scene, http_resp_msg);
@@ -127,8 +129,8 @@ void NetSceneDispatcher::NetSceneWorker::__PackHttpResp(
 
 
 NetSceneDispatcher::~NetSceneDispatcher() {
-    std::unique_lock<std::mutex> lock(mutex_);
-    for (auto iter = selectors_.begin(); iter != selectors_.end(); iter++) {
-        delete *iter, *iter = NULL;
+    std::lock_guard<std::mutex> lock(mutex_);
+    for (auto &selector : selectors_) {
+        delete selector, selector = nullptr;
     }
 }
