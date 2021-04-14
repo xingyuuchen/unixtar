@@ -239,13 +239,14 @@ void Server::ConnectionManager::AddConnection(SOCKET _fd) {
         LogE("already got %d", _fd)
         return;
     }
-    connections_.emplace(_fd, new Tcp::ConnectionProfile(_fd));
+    auto *neo = new Tcp::ConnectionProfile(_fd);
+    connections_.emplace(_fd, neo);
     if (socket_epoll_) {
         // While one thread is blocked in a call to epoll_wait(), it is
         // possible for another thread to add a file descriptor to the
         // waited-upon epoll instance.  If the new file descriptor becomes
         // ready, it will cause the epoll_wait() call to unblock.
-        socket_epoll_->AddSocketRead(_fd);
+        socket_epoll_->AddSocketReadWrite(_fd, (uint64_t) neo);
     }
 }
 
@@ -328,14 +329,17 @@ void Server::NetThread::Run() {
                 return;
             }
             
-            if (SOCKET fd = socket_epoll_.IsReadSet(i)) {
+            void *ptr;
+            if ((ptr = (void *) socket_epoll_.IsReadSet(i))) {
+                SOCKET fd = ((Tcp::ConnectionProfile *) ptr)->FD();
                 __OnReadEvent(fd);
-
-            } else if (void *ptr = socket_epoll_.IsWriteSet(i)) {
-                auto send_ctx = (Tcp::SendContext *) ptr;
-                __OnWriteEvent(send_ctx, false);
-
-            } else if ((fd = socket_epoll_.IsErrSet(i))) {
+        
+            } else if ((ptr = (void *) socket_epoll_.IsWriteSet(i))) {
+                auto send_ctx = ((Tcp::ConnectionProfile *) ptr)->GetSendContext();
+                __OnWriteEvent(send_ctx);
+        
+            } else if ((ptr = (void *) socket_epoll_.IsErrSet(i))) {
+                SOCKET fd = ((Tcp::ConnectionProfile *) ptr)->FD();
                 __OnErrEvent(fd);
                 
             }
@@ -379,7 +383,7 @@ void Server::NetThread::HandleSend() {
     Tcp::SendContext *send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogI("doing send task")
-        __OnWriteEvent(send_ctx, true);
+        __OnWriteEvent(send_ctx);
     }
 }
 
@@ -426,7 +430,7 @@ int Server::NetThread::__OnReadEvent(SOCKET _fd) {
     return 0;
 }
 
-int Server::NetThread::__OnWriteEvent(Tcp::SendContext *_send_ctx, bool _mod_write) {
+int Server::NetThread::__OnWriteEvent(Tcp::SendContext *_send_ctx) {
     if (!_send_ctx) {
         LogE("!_send_ctx")
         return -1;
@@ -436,24 +440,22 @@ int Server::NetThread::__OnWriteEvent(Tcp::SendContext *_send_ctx, bool _mod_wri
     size_t ntotal = resp.Length() - pos;
     SOCKET fd = _send_ctx->fd;
     
+    if (ntotal == 0 || fd < 0) {
+        LogI("fd(%d), nothing to send", fd)
+        return 0;
+    }
+    
     ssize_t nsend = ::write(fd, resp.Ptr(pos), ntotal);
     
     do {
         if (nsend == ntotal) {
-            if (_mod_write) {
-                LogI("send %zd/%zu B without epoll", nsend, ntotal)
-            } else {
-                LogI("send %zd/%zu B, done", nsend, ntotal)
-            }
+            LogI("send %zd/%zu B, done", nsend, ntotal)
             break;
         }
         if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
             nsend = nsend > 0 ? nsend : 0;
             LogI("fd(%d): send %zd/%zu B", fd, nsend, ntotal)
             resp.Seek(pos + nsend);
-            if (_mod_write) {
-                socket_epoll_.ModSocketWrite(fd, (void *)_send_ctx);
-            }
             return 0;
         }
         if (nsend < 0) {
@@ -534,9 +536,10 @@ int Server::__OnConnect() {
     while (true) {
         fd = ::accept(listenfd_, (struct sockaddr *) nullptr, nullptr);
         if (fd < 0) {
-            if (IS_EAGAIN(errno)) { return 0; }
-            LogE("errno(%d): %s",
-                 errno, strerror(errno));
+            if (IS_EAGAIN(errno)) {
+                return 0;
+            }
+            LogE("errno(%d): %s", errno, strerror(errno));
             return -1;
         }
         SetNonblocking(fd);

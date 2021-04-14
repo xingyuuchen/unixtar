@@ -64,7 +64,7 @@ class Server {
     
     /**
      *
-     * Sets the Worker-class who handles the business logic of each request,
+     * Sets the Worker-class who handles the business logic of all request,
      * by default one WorkerThread corresponds to one NetThread.
      *
      * The workers' life cycle is managed by Server,
@@ -148,7 +148,7 @@ class Server {
     
         int __OnReadEvent(SOCKET _fd);
     
-        int __OnWriteEvent(Tcp::SendContext *_send_ctx, bool _mod_write);
+        int __OnWriteEvent(Tcp::SendContext *_send_ctx);
     
         int __OnErrEvent(SOCKET _fd);
         

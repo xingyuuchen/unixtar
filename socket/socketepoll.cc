@@ -10,7 +10,7 @@ const int SocketEpoll::kMaxFds = 1024;
 SocketEpoll::SocketEpoll(int _max_fds)
         : epoll_fd_(-1)
         , listen_fd_(-1)
-        , epoll_events_(NULL)
+        , epoll_events_(nullptr)
         , errno_(0)
 {
 #ifdef __linux__
@@ -29,6 +29,10 @@ SocketEpoll::SocketEpoll(int _max_fds)
 
 
 int SocketEpoll::AddSocketRead(int _fd) {
+    return AddSocketReadWrite(_fd, _fd);
+}
+
+int SocketEpoll::AddSocketRead(int _fd, uint64_t _data) {
 #ifdef __linux__
     struct epoll_event event;
     event.events = EPOLLIN | EPOLLET;
@@ -39,11 +43,22 @@ int SocketEpoll::AddSocketRead(int _fd) {
 #endif
 }
 
-int SocketEpoll::ModSocketWrite(int _fd, void *_ptr) {
+int SocketEpoll::AddSocketReadWrite(int _fd, uint64_t _data) {
+#ifdef __linux__
+    struct epoll_event event;
+    event.events = EPOLLIN | EPOLLET;
+    event.data.u64 = _data;
+    return __EpollCtl(EPOLL_CTL_ADD, _fd, &event);
+#else
+    return 0;
+#endif
+}
+
+int SocketEpoll::ModSocketWrite(int _fd, uint64_t _data) {
 #ifdef __linux__
     struct epoll_event event;
     event.events |= EPOLLOUT;
-    event.data.ptr = _ptr;
+    event.data.u64 = _data;
     return __EpollCtl(EPOLL_CTL_MOD, _fd, &event);
 #else
     return 0;
@@ -58,7 +73,7 @@ int SocketEpoll::DelSocket(int _fd) {
 #endif
 }
 
-int SocketEpoll::__EpollCtl(int _op, int _fd, struct epoll_event *_event/* = NULL*/) {
+int SocketEpoll::__EpollCtl(int _op, int _fd, struct epoll_event *_event/* = nullptr*/) {
 #ifdef __linux__
     if (_fd < 0) {
         LogE("fd_ < 0")
@@ -100,27 +115,6 @@ int SocketEpoll::EpollWait(int _timeout_mills/* = -1*/,
 #endif
 }
 
-bool SocketEpoll::IsNewConnect(int _idx) {
-#ifdef __linux__
-    if (_idx < 0 || _idx >= kMaxFds) {
-        LogE("invalid _idx: %d", _idx)
-        return false;
-    }
-    return epoll_events_[_idx].data.fd == listen_fd_;
-#else
-    return false;
-#endif
-}
-
-void *SocketEpoll::IsWriteSet(int _idx) {
-#ifdef __linux__
-    epoll_data *ret = __IsFlagSet(_idx, EPOLLOUT);
-    return ret == nullptr ? nullptr : ret->ptr;
-#else
-    return nullptr;
-#endif
-}
-
 SOCKET SocketEpoll::GetSocket(int _idx) {
 #ifdef __linux__
     if (_idx < 0 || _idx >= kMaxFds) {
@@ -143,19 +137,40 @@ void *SocketEpoll::GetEpollDataPtr(int _idx) {
     return nullptr;
 }
 
-int SocketEpoll::IsReadSet(int _idx) {
+uint64_t SocketEpoll::IsReadSet(int _idx) {
 #ifdef __linux__
     epoll_data *ret = __IsFlagSet(_idx, EPOLLIN);
-    return ret == NULL ? 0 : ret->fd;
+    return ret == nullptr ? 0 : ret->u64;
 #else
     return 0;
 #endif
 }
 
-int SocketEpoll::IsErrSet(int _idx) {
+uint64_t SocketEpoll::IsWriteSet(int _idx) {
+#ifdef __linux__
+    epoll_data *ret = __IsFlagSet(_idx, EPOLLOUT);
+    return ret == nullptr ? 0 : ret->u64;
+#else
+    return 0;
+#endif
+}
+
+bool SocketEpoll::IsNewConnect(int _idx) {
+#ifdef __linux__
+    if (_idx < 0 || _idx >= kMaxFds) {
+        LogE("invalid _idx: %d", _idx)
+        return false;
+    }
+    return epoll_events_[_idx].data.fd == listen_fd_;
+#else
+    return false;
+#endif
+}
+
+uint64_t SocketEpoll::IsErrSet(int _idx) {
 #ifdef __linux__
     epoll_data *ret = __IsFlagSet(_idx, EPOLLERR);
-    return ret == NULL ? 0 : ret->fd;
+    return ret == nullptr ? 0 : ret->u64;
 #else
     return 0;
 #endif
@@ -165,7 +180,7 @@ epoll_data *SocketEpoll::__IsFlagSet(int _idx, int _flag) {
 #ifdef __linux__
     if (_idx < 0 || _idx >= kMaxFds) {
         LogE("invalid _idx: %d", _idx)
-        return NULL;
+        return nullptr;
     }
     if (epoll_events_[_idx].events & _flag) {
         return &epoll_events_[_idx].data;
@@ -190,8 +205,8 @@ int SocketEpoll::GetErrNo() const { return errno_; }
 
 SocketEpoll::~SocketEpoll() {
 #ifdef __linux__
-    if (epoll_events_ != NULL) {
-        delete[] epoll_events_, epoll_events_ = NULL;
+    if (epoll_events_) {
+        delete[] epoll_events_, epoll_events_ = nullptr;
     }
     if (epoll_fd_ != -1) {
         LogI("close epfd")
@@ -229,7 +244,7 @@ void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
 
 void EpollNotifier::NotifyEpoll(Notification &_notification) {
     if (socket_epoll_) {
-        socket_epoll_->ModSocketWrite(fd_, const_cast<void *>(_notification.notify_id_));
+        socket_epoll_->ModSocketWrite(fd_, (uint64_t) _notification.notify_id_);
     }
 }
 
@@ -248,7 +263,7 @@ EpollNotifier::Notification::Notification()
         : notify_id_(&notify_id_) {
 }
 
-EpollNotifier::Notification::Notification(void *_notify_id)
+EpollNotifier::Notification::Notification(EpollNotifier::Notification::NotifyId _notify_id)
         : notify_id_(_notify_id) {
 }
 

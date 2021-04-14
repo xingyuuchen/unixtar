@@ -47,7 +47,7 @@ class _Connection {
     }
     
     int Insert(DBItem &_row) {
-        if (!IsConnected()) {
+        if (!__CheckConnection()) {
             LogE("kNotConnected")
             return -1;
         }
@@ -67,7 +67,7 @@ class _Connection {
     }
     
     int Query(const char *_sql, std::vector<std::string> &_res, int _col_cnt) {
-        if (!IsConnected()) {
+        if (!__CheckConnection()) {
             LogE("kNotConnected")
             return -1;
         }
@@ -96,7 +96,7 @@ class _Connection {
     }
     
     int Update(DBItem &_o, DBItem &_n) {
-        if (!IsConnected()) {
+        if (!__CheckConnection()) {
             LogE("kNotConnected")
             return -1;
         }
@@ -116,8 +116,17 @@ class _Connection {
     }
     
   private:
+    bool __CheckConnection() {
+        status_ = conn_.connected() ? kConnected : kNotConnected;
+        if (status_ == kConnected) {
+            return true;
+        }
+        return __TryConnect() == 0;
+    }
+    
     int __TryConnect() {
-        while (retry_cnt_--) {
+        int retry = 3;
+        while (retry--) {
             try {
                 if (conn_.connect(db_.c_str(), svr_.empty() ? "localhost" : svr_.c_str(),
                                   usr_.c_str(), pwd_.c_str())) {
@@ -141,7 +150,6 @@ class _Connection {
     
   private:
     mysqlpp::Connection     conn_;
-    int                     retry_cnt_;
     std::string             db_;
     std::string             usr_;
     std::string             pwd_;
@@ -151,8 +159,7 @@ class _Connection {
 
 _Connection::_Connection()
         : status_(kNotConnected)
-        , conn_(false)
-        , retry_cnt_(3) {
+        , conn_(false) {
     Config();
 }
 

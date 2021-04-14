@@ -12,7 +12,7 @@
 namespace Logger {
 
 /**
- * Advanced configuration is necessary:
+ * Advance configuration is necessary:
  *      1. Append your log configuration(log file location, priority, etc.) to /etc/rsyslog.conf;
  *      2. systemctl restart rsyslog.
  *

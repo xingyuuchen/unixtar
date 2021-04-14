@@ -17,7 +17,7 @@ NetSceneDispatcher::NetSceneDispatcher() {
 
 void NetSceneDispatcher::RegisterNetScene(NetSceneBase *_net_scene) {
     if (!_net_scene) {
-        LogE("_net_scene nullptr")
+        LogE("!_net_scene")
         return;
     }
     int type = _net_scene->GetType();
@@ -30,8 +30,8 @@ void NetSceneDispatcher::RegisterNetScene(NetSceneBase *_net_scene) {
 NetSceneBase *NetSceneDispatcher::__MakeNetScene(int _type) {
     std::lock_guard<std::mutex> lock(mutex_);
     if (selectors_.size() <= _type) {
-        LogE("NO such NetScene: "
-             "type=%d, give up processing this request.", _type)
+        LogE("No such NetScene: type=%d, "
+             "give up processing this request.", _type)
         return nullptr;
     }
     NetSceneBase *select = selectors_[_type];

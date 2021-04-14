@@ -29,7 +29,11 @@ class SocketEpoll {
     
     int AddSocketRead(SOCKET _fd);
     
-    int ModSocketWrite(SOCKET _fd, void *_ptr);
+    int AddSocketRead(SOCKET _fd, uint64_t _data);
+    
+    int AddSocketReadWrite(SOCKET _fd, uint64_t _data);
+    
+    int ModSocketWrite(SOCKET _fd, uint64_t _data);
     
     int DelSocket(SOCKET _fd);
     
@@ -40,15 +44,23 @@ class SocketEpoll {
      */
     void *GetEpollDataPtr(int _idx);
     
-    int IsReadSet(int _idx);
+    /**
+     * @return: 0 if EPOLLIN not set,
+     *          else epoll_data_t.u64
+     */
+    uint64_t IsReadSet(int _idx);
     
     /**
-     * @return: NULL if EPOLLOUT not set,
-     *          else epoll_data_t.ptr
+     * @return: 0 if EPOLLOUT not set,
+     *          else epoll_data_t.u64
      */
-    void *IsWriteSet(int _idx);
+    uint64_t IsWriteSet(int _idx);
     
-    int IsErrSet(int _idx);
+    /**
+     * @return: 0 if EPOLLERR not set,
+     *          else epoll_data_t.u64
+     */
+    uint64_t IsErrSet(int _idx);
     
     bool IsNewConnect(int _idx);
     
@@ -87,19 +99,23 @@ class EpollNotifier {
         friend class EpollNotifier;
         
       public:
+        /**
+         * NotifyId is merely a flag for you to tell
+         * which notification it is, and the address it points to
+         * does not signify anything else.
+         *
+         * See {@code Notification()}
+         */
+        using NotifyId = void const *;
+    
         Notification();
         
-        explicit Notification(void *_notify_id);
+        explicit Notification(NotifyId _notify_id);
         
         bool operator==(const Notification &another);
         
       private:
-        /**
-         * This is merely a flag for you to tell
-         * which notification it is, and
-         * the address it points to does not signify any other thing.
-         */
-        const void *  notify_id_;
+        NotifyId notify_id_;
     };
     
     EpollNotifier();
