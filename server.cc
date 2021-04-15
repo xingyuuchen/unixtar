@@ -533,15 +533,28 @@ bool Server::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
 
 int Server::__OnConnect() {
     SOCKET fd;
+    struct sockaddr_in sock_in{};
+    socklen_t socklen = sizeof(sockaddr_in);
+    char ip_str[INET_ADDRSTRLEN] = {0, };
+    uint16_t port = 0;
+    
     while (true) {
-        fd = ::accept(listenfd_, (struct sockaddr *) nullptr, nullptr);
+        fd = ::accept(listenfd_, (struct sockaddr *) &sock_in, &socklen);
         if (fd < 0) {
+            if (errno == EINTR) {
+                continue;
+            }
             if (IS_EAGAIN(errno)) {
                 return 0;
             }
             LogE("errno(%d): %s", errno, strerror(errno));
             return -1;
         }
+        if (!inet_ntop(AF_INET, &sock_in.sin_addr, ip_str, sizeof(ip_str))) {
+            LogE("inet_ntop errno(%d): %s", errno, strerror(errno))
+        }
+        port = ntohs(sock_in.sin_port);
+        LogI("new connect: fd(%d), address: [%s:%d]", fd, ip_str, port);
         SetNonblocking(fd);
         __AddConnection(fd);
     }
@@ -557,7 +570,6 @@ void Server::__AddConnection(SOCKET _fd) {
         LogE("wtf???")
         return;
     }
-    LogI("new connect, fd(%d), owner net thread: %d", _fd, net_thread_idx);
     owner_thread->AddConnection(_fd);
     
 }

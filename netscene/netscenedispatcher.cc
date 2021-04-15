@@ -25,6 +25,10 @@ void NetSceneDispatcher::RegisterNetScene(NetSceneBase *_net_scene) {
     assert(selectors_.size() == type);
     selectors_.push_back(_net_scene);
     if (_net_scene->Route()) {
+        if (route_map_.find(_net_scene->Route()) != route_map_.end()) {
+            LogE("url route \"%s\" CONFLICT, check NetScene type %d",
+                 _net_scene->Route(), route_map_[_net_scene->Route()])
+        }
         route_map_[_net_scene->Route()] = _net_scene->GetType();
     }
 }
