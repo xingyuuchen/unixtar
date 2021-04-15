@@ -1,5 +1,4 @@
-#ifndef OI_SVR_NETSCENEBASE_H
-#define OI_SVR_NETSCENEBASE_H
+#pragma once
 #include <string>
 #include <string.h>
 #include <map>
@@ -28,6 +27,8 @@
 class NetSceneBase {
   public:
     
+    explicit NetSceneBase();
+    
     /**
      * The default way to serial/parse customized data structure is protobuf,
      * so the content type of http is set to application/octet-stream.
@@ -37,15 +38,15 @@ class NetSceneBase {
      * it is plain-text, then override these two functions: {@link Data()}, {@link Length()}
      *
      */
-    explicit NetSceneBase(bool _use_protobuf = true);
+    virtual bool IsUseProtobuf();
     
     /**
      * If you use your custom message transform way other than protobuf,
      * override these two functions, informing the framework the pointer of
      * your data and how long it is.
      */
-    virtual void *Data() { return nullptr; }
-    virtual size_t Length() { return 0; }
+    virtual void *Data();
+    virtual size_t Length();
     
     virtual ~NetSceneBase() { }
     
@@ -54,6 +55,12 @@ class NetSceneBase {
      * @return: The unique NetScene Type. Declare it outside the framework.
      */
     virtual int GetType() = 0;
+    
+    /**
+     * A NetScene can choose to bind a url route.
+     * This will be used when the request-body does not specify the NetScene type.
+     */
+    virtual char *Route();
     
     /**
      *
@@ -77,13 +84,11 @@ class NetSceneBase {
      * @return: Your response to front-end, the framework will use it
      *          to populate the http response.
      */
-    virtual RespMessage *GetRespMessage() = 0;
+    virtual RespMessage *GetRespMessage();
     
     virtual int DoScene(const std::string &_in_buffer) final;
     
-    std::string &GetRespBuffer();
-    
-    bool UseProtobuf() const;
+    virtual std::string &GetRespBuffer() final;
     
     
   private:
@@ -100,9 +105,6 @@ class NetSceneBase {
   private:
     BaseNetSceneResp::BaseNetSceneResp  base_resp_;
     std::string                         resp_buffer_;
-    bool                                use_protobuf_;
     
 };
 
-
-#endif //OI_SVR_NETSCENEBASE_H

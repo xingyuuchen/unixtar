@@ -46,7 +46,7 @@ void AutoBuffer::SetPtr(char *_ptr) {
 
 void AutoBuffer::AddCapacity(size_t _size_to_add) {
     if (_size_to_add <= 0) {
-        LogE("Illegal arg _size_to_add:%zd", _size_to_add);
+        LogE("Illegal arg _size_to_add: %zd", _size_to_add);
         return;
     }
     if (_size_to_add % malloc_unit_size_ != 0) {
@@ -56,8 +56,7 @@ void AutoBuffer::AddCapacity(size_t _size_to_add) {
     void *p = realloc(byte_array_, capacity_ + _size_to_add);
     if (!p) {
         LogE("realloc failed, errno(%d): %s", errno, strerror(errno));
-        free(byte_array_);
-        byte_array_ = NULL;
+        free(byte_array_), byte_array_ = nullptr;
         capacity_ = 0;
         return;
     }

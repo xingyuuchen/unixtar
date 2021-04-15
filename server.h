@@ -41,7 +41,7 @@ class Server {
         
         void Run() final;
     
-        virtual void HandleImpl(Tcp::RecvContext *_recv_ctx) = 0;
+        virtual void HandleImpl(http::RecvContext *_recv_ctx) = 0;
     
         void BindNetThread(NetThread *_net_thread);
     
@@ -84,8 +84,8 @@ class Server {
         }
     }
     
-    using RecvQueue = MessageQueue::ThreadSafeDeque<Tcp::RecvContext *>;
-    using SendQueue = MessageQueue::ThreadSafeDeque<Tcp::SendContext *>;
+    using RecvQueue = MessageQueue::ThreadSafeDeque<http::RecvContext *>;
+    using SendQueue = MessageQueue::ThreadSafeDeque<tcp::SendContext *>;
     
   private:
     
@@ -97,7 +97,7 @@ class Server {
         
         void SetEpoll(SocketEpoll *_epoll);
         
-        Tcp::ConnectionProfile *GetConnection(SOCKET _fd);
+        tcp::ConnectionProfile *GetConnection(SOCKET _fd);
         
         void AddConnection(SOCKET _fd);
         
@@ -107,7 +107,7 @@ class Server {
         
       private:
         using ScopedLock = std::lock_guard<std::mutex>;
-        std::unordered_map<SOCKET, Tcp::ConnectionProfile *> connections_;
+        std::unordered_map<SOCKET, tcp::ConnectionProfile *> connections_;
         SocketEpoll *                                        socket_epoll_;
         std::mutex                                           mutex_;
     };
@@ -148,7 +148,7 @@ class Server {
     
         int __OnReadEvent(SOCKET _fd);
     
-        int __OnWriteEvent(Tcp::SendContext *_send_ctx);
+        int __OnWriteEvent(tcp::SendContext *_send_ctx);
     
         int __OnErrEvent(SOCKET _fd);
         

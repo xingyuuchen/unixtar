@@ -6,8 +6,7 @@
 #include <errno.h>
 
 
-NetSceneBase::NetSceneBase(bool _use_protobuf)
-        : use_protobuf_(_use_protobuf) {
+NetSceneBase::NetSceneBase() {
     errcode_ = kOK;
     errmsg_ = "OK";
     
@@ -18,13 +17,13 @@ int NetSceneBase::DoScene(const std::string &_in_buffer) {
     int ret = DoSceneImpl(_in_buffer);
 
     RespMessage *resp = GetRespMessage();
-    if (use_protobuf_ && resp) {
+    if (IsUseProtobuf() && resp) {
         base_resp_.set_errcode(errcode_);
         base_resp_.set_errmsg(errmsg_);
         base_resp_.set_net_scene_resp_buff(resp->SerializeAsString());
     }
     
-    if (use_protobuf_) {
+    if (IsUseProtobuf()) {
         base_resp_.SerializeToString(&resp_buffer_);
     } else {
         resp_buffer_ = std::string((const char *) Data(), Length());
@@ -46,5 +45,13 @@ void NetSceneBase::__ShowHttpHeader(AutoBuffer &_out) {
 
 std::string &NetSceneBase::GetRespBuffer() { return resp_buffer_; }
 
-bool NetSceneBase::UseProtobuf() const { return use_protobuf_; }
+bool NetSceneBase::IsUseProtobuf() { return true; }
+
+NetSceneBase::RespMessage *NetSceneBase::GetRespMessage() { return nullptr; }
+
+void *NetSceneBase::Data() { return nullptr; }
+
+size_t NetSceneBase::Length() { return 0; }
+
+char *NetSceneBase::Route() { return nullptr; }
 

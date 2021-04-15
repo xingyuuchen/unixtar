@@ -7,7 +7,7 @@
 #include "socket/unix_socket.h"
 
 
-namespace Tcp {
+namespace tcp {
 
 const int ConnectionProfile::kBuffSize = 1024;
 
@@ -119,7 +119,7 @@ http::request::Parser *ConnectionProfile::GetHttpParser() { return &http_parser_
 
 SOCKET ConnectionProfile::FD() const { return fd_; }
 
-RecvContext *ConnectionProfile::GetRecvContext() { return &recv_ctx_; }
+http::RecvContext *ConnectionProfile::GetRecvContext() { return &recv_ctx_; }
 
 SendContext *ConnectionProfile::GetSendContext() { return &send_ctx_; }
 
@@ -141,10 +141,15 @@ void ConnectionProfile::__MakeRecvContext() {
         return;
     }
     recv_ctx_.fd = fd_;
-    recv_ctx_.buffer.SetPtr(http_parser_.GetBody());
-    recv_ctx_.buffer.SetLength(http_parser_.GetContentLength());
-    recv_ctx_.buffer.ShallowCopy(true);
     
+    recv_ctx_.is_post = http_parser_.IsMethodPost();
+    if (recv_ctx_.is_post) {
+        recv_ctx_.http_body.SetPtr(http_parser_.GetBody());
+        recv_ctx_.http_body.SetLength(http_parser_.GetContentLength());
+        recv_ctx_.http_body.ShallowCopy(true);
+    }
+    std::string &url = http_parser_.GetRequestUrl();
+    recv_ctx_.url_route = std::string(url);
     send_ctx_.fd = fd_;
     recv_ctx_.send_context = &send_ctx_;
 }
