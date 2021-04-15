@@ -73,6 +73,7 @@ THttpMethod RequestLine::GetMethod() const { return method_; }
 
 THttpVersion RequestLine::GetVersion() const { return version_; }
 
+std::string &RequestLine::GetUrl() { return url_; }
 
 
 StatusLine::StatusLine()
@@ -107,7 +108,7 @@ bool StatusLine::ParseFromString(std::string &_from) {
         return false;
     }
     version_ = GetHttpVersion(res[0]);
-    status_desc_ = GetHttpVersion(res[2]);
+    status_desc_ = res[2];
     
     status_code_ = std::stoi(res[1]);
     return !(status_code_ < 0 || status_code_ > 1000);

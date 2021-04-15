@@ -34,9 +34,13 @@ class Parser {
     
     bool IsErr() const;
     
+    bool IsMethodPost() const;
+    
     TPosition GetPosition() const;
     
     char *GetBody();
+    
+    std::string &GetRequestUrl();
     
     AutoBuffer *GetBuff();
     

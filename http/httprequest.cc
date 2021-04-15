@@ -147,9 +147,15 @@ bool Parser::IsEnd() const { return position_ == kEnd; }
 
 bool Parser::IsErr() const { return position_ == kError; }
 
+bool Parser::IsMethodPost() const {
+    return request_line_.GetMethod() == THttpMethod::kPOST;
+}
+
 Parser::TPosition Parser::GetPosition() const { return position_; }
 
 AutoBuffer *Parser::GetBuff() { return &buff_; }
+
+std::string &Parser::GetRequestUrl() { return request_line_.GetUrl(); }
 
 char *Parser::GetBody() {
     if (request_line_.GetMethod() == http::THttpMethod::kGET) {

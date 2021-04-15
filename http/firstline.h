@@ -55,6 +55,8 @@ class RequestLine {
     
     void SetUrl(const std::string &_url);
     
+    std::string &GetUrl();
+    
     void SetMethod(THttpMethod _method);
     
     THttpMethod GetMethod() const;

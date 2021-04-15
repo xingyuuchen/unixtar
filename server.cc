@@ -163,7 +163,7 @@ void Server::WorkerThread::Run() {
     
     while (true) {
         
-        Tcp::RecvContext *recv_ctx;
+        http::RecvContext *recv_ctx;
         
         if (recv_queue->pop_front_to(recv_ctx)) {
             HandleImpl(recv_ctx);
@@ -219,7 +219,7 @@ void Server::ConnectionManager::SetEpoll(SocketEpoll *_epoll) {
     }
 }
 
-Tcp::ConnectionProfile *Server::ConnectionManager::GetConnection(SOCKET _fd) {
+tcp::ConnectionProfile *Server::ConnectionManager::GetConnection(SOCKET _fd) {
     ScopedLock lock(mutex_);
     auto find = connections_.find(_fd);
     if (find == connections_.end()) {
@@ -239,7 +239,7 @@ void Server::ConnectionManager::AddConnection(SOCKET _fd) {
         LogE("already got %d", _fd)
         return;
     }
-    auto *neo = new Tcp::ConnectionProfile(_fd);
+    auto *neo = new tcp::ConnectionProfile(_fd);
     connections_.emplace(_fd, neo);
     if (socket_epoll_) {
         // While one thread is blocked in a call to epoll_wait(), it is
@@ -329,17 +329,17 @@ void Server::NetThread::Run() {
                 return;
             }
             
-            void *ptr;
-            if ((ptr = (void *) socket_epoll_.IsReadSet(i))) {
-                SOCKET fd = ((Tcp::ConnectionProfile *) ptr)->FD();
+            tcp::ConnectionProfile *profile;
+            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
+                SOCKET fd = profile->FD();
                 __OnReadEvent(fd);
         
-            } else if ((ptr = (void *) socket_epoll_.IsWriteSet(i))) {
-                auto send_ctx = ((Tcp::ConnectionProfile *) ptr)->GetSendContext();
+            } else if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
+                auto send_ctx = profile->GetSendContext();
                 __OnWriteEvent(send_ctx);
         
-            } else if ((ptr = (void *) socket_epoll_.IsErrSet(i))) {
-                SOCKET fd = ((Tcp::ConnectionProfile *) ptr)->FD();
+            } else if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
+                SOCKET fd = profile->FD();
                 __OnErrEvent(fd);
                 
             }
@@ -380,9 +380,9 @@ void Server::NetThread::DelConnection(int _fd) {
 }
 
 void Server::NetThread::HandleSend() {
-    Tcp::SendContext *send_ctx;
+    tcp::SendContext *send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
-        LogI("doing send task")
+        LogI("fd(%d) doing send task", send_ctx->fd)
         __OnWriteEvent(send_ctx);
     }
 }
@@ -412,7 +412,7 @@ int Server::NetThread::__OnReadEvent(SOCKET _fd) {
     }
     LogI("fd: %d", _fd)
     
-    Tcp::ConnectionProfile *conn = connection_manager_.GetConnection(_fd);
+    tcp::ConnectionProfile *conn = connection_manager_.GetConnection(_fd);
     if (!conn) {
         LogE("conn == NULL, fd: %d", _fd)
         return -1;
@@ -424,13 +424,13 @@ int Server::NetThread::__OnReadEvent(SOCKET _fd) {
     }
     
     if (conn->IsParseDone()) {
-        LogI("http parse succeed")
+        LogI("fd(%d) http parse succeed", _fd)
         recv_queue_.push_back(conn->GetRecvContext());
     }
     return 0;
 }
 
-int Server::NetThread::__OnWriteEvent(Tcp::SendContext *_send_ctx) {
+int Server::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
     if (!_send_ctx) {
         LogE("!_send_ctx")
         return -1;

@@ -4,6 +4,7 @@
 #include "singleton.h"
 #include "server.h"
 #include <vector>
+#include <map>
 #include <mutex>
 
 
@@ -23,7 +24,7 @@ class NetSceneDispatcher final {
       public:
         ~NetSceneWorker() override;
         
-        void HandleImpl(Tcp::RecvContext *_recv_ctx) override;
+        void HandleImpl(http::RecvContext *_recv_ctx) override;
         
         void HandleException(std::exception &ex) override;
 
@@ -36,9 +37,13 @@ class NetSceneDispatcher final {
     
     NetSceneBase *__MakeNetScene(int _type);
     
+    int __GetNetSceneTypeByRoute(std::string &_route);
+    
   private:
     std::vector<NetSceneBase *>     selectors_;
-    std::mutex                      mutex_;
+    std::mutex                      selector_mutex_;
+    std::map<std::string, int>      route_map_;
+    std::mutex                      map_mutex_;
     
 };
 

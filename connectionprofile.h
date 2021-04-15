@@ -2,20 +2,25 @@
 #include "http/httprequest.h"
 #include "socket/unix_socket.h"
 
-
-namespace Tcp {
-
+namespace tcp {
 struct SendContext {
     SOCKET          fd;
     AutoBuffer      buffer;
 };
+}
 
+namespace http {
 struct RecvContext {
-    SOCKET          fd;
-    SendContext *   send_context;
-    AutoBuffer      buffer;
+    SOCKET              fd;
+    tcp::SendContext *  send_context;
+    bool                is_post;
+    std::string         url_route;
+    AutoBuffer          http_body;
 };
+}
 
+
+namespace tcp {
 class ConnectionProfile {
   public:
     
@@ -54,7 +59,7 @@ class ConnectionProfile {
     
     http::request::Parser *GetHttpParser();
     
-    RecvContext *GetRecvContext();
+    http::RecvContext *GetRecvContext();
     
     SendContext *GetSendContext();
 
@@ -71,8 +76,8 @@ class ConnectionProfile {
     uint64_t                timeout_millis_;
     uint64_t                timeout_ts_;
     TApplicationProtocol    application_protocol_;
-    SendContext             send_ctx_{INVALID_SOCKET};
-    RecvContext             recv_ctx_{INVALID_SOCKET, nullptr};
+    tcp::SendContext        send_ctx_{INVALID_SOCKET};
+    http::RecvContext       recv_ctx_{INVALID_SOCKET, nullptr};
     
 };
 
