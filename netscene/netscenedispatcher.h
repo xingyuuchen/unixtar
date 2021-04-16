@@ -37,7 +37,9 @@ class NetSceneDispatcher final {
     
     NetSceneBase *__MakeNetScene(int _type);
     
-    int __GetNetSceneTypeByRoute(std::string &_route);
+    int __GetNetSceneTypeByRoute(std::string &_full_url);
+    
+    bool __DynamicRouteMatch(std::string &_dynamic, std::string &_route);
     
   private:
     std::vector<NetSceneBase *>     selectors_;

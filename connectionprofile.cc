@@ -149,7 +149,7 @@ void ConnectionProfile::__MakeRecvContext() {
         recv_ctx_.http_body.ShallowCopy(true);
     }
     std::string &url = http_parser_.GetRequestUrl();
-    recv_ctx_.url_route = std::string(url);
+    recv_ctx_.full_url = std::string(url);
     send_ctx_.fd = fd_;
     recv_ctx_.send_context = &send_ctx_;
 }

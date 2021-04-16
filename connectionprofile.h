@@ -14,7 +14,7 @@ struct RecvContext {
     SOCKET              fd;
     tcp::SendContext *  send_context;
     bool                is_post;
-    std::string         url_route;
+    std::string         full_url;
     AutoBuffer          http_body;
 };
 }

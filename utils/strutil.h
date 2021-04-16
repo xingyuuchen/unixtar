@@ -7,7 +7,7 @@
 #include <string>
 
 
-namespace oi {
+namespace str {
 
 inline char *strnstr(const char *_haystack,
                      const char *_needle, size_t _len) {
@@ -35,7 +35,7 @@ inline char *strnstr(const char *_haystack,
 inline void split(const std::string &_src, const std::string &_separator,
                   std::vector<std::string> &_res) {
     _res.clear();
-    if (_src.size() == 0) { return; }
+    if (_src.empty()) { return; }
     size_t size = _separator.size();
     
     std::string::size_type curr, last = 0;

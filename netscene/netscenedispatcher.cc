@@ -29,6 +29,7 @@ void NetSceneDispatcher::RegisterNetScene(NetSceneBase *_net_scene) {
             LogE("url route \"%s\" CONFLICT, check NetScene type %d",
                  _net_scene->Route(), route_map_[_net_scene->Route()])
         }
+        LogI("Register route: %s", _net_scene->Route())
         route_map_[_net_scene->Route()] = _net_scene->GetType();
     }
 }
@@ -39,19 +40,51 @@ NetSceneBase *NetSceneDispatcher::__MakeNetScene(int _type) {
     if (selectors_.size() <= _type) {
         LogE("No such NetScene: type=%d, "
              "give up processing this request.", _type)
-        return nullptr;
+        return selectors_[0]->NewInstance();
     }
     NetSceneBase *select = selectors_[_type];
     assert(select->GetType() == _type);
     return select->NewInstance();
 }
 
-int NetSceneDispatcher::__GetNetSceneTypeByRoute(std::string &_route) {
-    std::lock_guard<std::mutex> lock(map_mutex_);
-    if (route_map_.find(_route) == route_map_.end()) {
-        return 0;
+bool NetSceneDispatcher::__DynamicRouteMatch(std::string &_dynamic, std::string &_route) {
+    // TODO: now only support format like: /xxx/xxx/*
+    if (_dynamic.empty()) { return false; }
+    if (_dynamic.at(_dynamic.size() - 1) != '*') {
+        return false;
     }
-    return route_map_[_route];
+    if (_dynamic.size() > _route.size()) {
+        return false;
+    }
+    for (int i = 0; i < _dynamic.size() - 1; ++i) {
+        if (_dynamic.at(i) != _route.at(i)) {
+            return false;
+        }
+    }
+    return true;
+}
+
+int NetSceneDispatcher::__GetNetSceneTypeByRoute(std::string &_full_url) {
+    std::lock_guard<std::mutex> lock(map_mutex_);
+    std::string route;
+    
+    std::string::size_type route_end = _full_url.find('?');
+    if (route_end == std::string::npos) {
+        route = _full_url;
+    } else {
+        route = _full_url.substr(0, route_end);
+    }
+    if (route_map_.find(route) != route_map_.end()) {
+        return route_map_[route];
+    }
+    for (auto &rou : route_map_) {
+        std::string dynamic = rou.first;
+        if (__DynamicRouteMatch(dynamic, route)) {
+            return rou.second;
+        }
+    }
+    LogI("dynamic route NOT matched: %s", route.c_str())
+    return 0;
 }
 
 NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() = default;
@@ -61,7 +94,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
         return;
     }
     if (!net_thread_) {
-        LogE("wtf? No net_thread!")
+        LogE("WTF? No net_thread!")
         return;
     }
     SOCKET fd = _recv_ctx->fd;
@@ -71,9 +104,9 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     std::string req_buffer;
     do {
         if (!_recv_ctx->is_post) {
-            std::string &url_route = _recv_ctx->url_route;
-            LogI("fd(%d) GET, route: %s", fd, url_route.c_str())
-            type = NetSceneDispatcher::Instance().__GetNetSceneTypeByRoute(url_route);
+            std::string &full_url = _recv_ctx->full_url;
+            LogI("fd(%d) GET, full_url: %s", fd, full_url.c_str())
+            type = NetSceneDispatcher::Instance().__GetNetSceneTypeByRoute(full_url);
             break;
         }
         if (!http_body.Ptr() || http_body.Length() <= 0) {
@@ -109,7 +142,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     if (_recv_ctx->is_post) {
         net_scene->DoScene(req_buffer);
     } else {
-        net_scene->DoScene(_recv_ctx->url_route);
+        net_scene->DoScene(_recv_ctx->full_url);
     }
     uint64_t cost = ::gettickcount() - start;
     LogI("fd(%d) type(%d), cost %llu ms", fd, type, cost)

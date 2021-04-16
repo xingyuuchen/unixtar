@@ -47,7 +47,7 @@ Parser::Parser()
 void Parser::__ResolveRequestLine() {
     LogI("[__ResolveRequestLine]")
     char *start = buff_.Ptr();
-    char *crlf = oi::strnstr(start, "\r\n", buff_.Length());
+    char *crlf = str::strnstr(start, "\r\n", buff_.Length());
     if (crlf) {
         std::string req_line(start, crlf - start);
         if (request_line_.ParseFromString(req_line)) {
@@ -69,9 +69,9 @@ void Parser::__ResolveRequestLine() {
 
 void Parser::__ResolveRequestHeaders() {
     LogI("[__ResolveRequestHeaders]")
-    char *ret = oi::strnstr(buff_.Ptr(resolved_len_),
+    char *ret = str::strnstr(buff_.Ptr(resolved_len_),
                     "\r\n\r\n", buff_.Length() - resolved_len_);
-    if (ret == NULL) { return; }
+    if (!ret) { return; }
     
     std::string headers_str(buff_.Ptr(resolved_len_), ret - buff_.Ptr(resolved_len_));
     

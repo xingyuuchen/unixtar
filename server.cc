@@ -333,15 +333,14 @@ void Server::NetThread::Run() {
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
                 SOCKET fd = profile->FD();
                 __OnReadEvent(fd);
-        
-            } else if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
+            }
+            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
                 auto send_ctx = profile->GetSendContext();
                 __OnWriteEvent(send_ctx);
-        
-            } else if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
+            }
+            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
                 SOCKET fd = profile->FD();
                 __OnErrEvent(fd);
-                
             }
         }
     

@@ -53,7 +53,7 @@ Parser::TPosition Parser::GetPosition() const { return position_; }
 
 void Parser::__ResolveStatusLine(AutoBuffer &_buff) {
     char *start = _buff.Ptr();
-    char *crlf = oi::strnstr(start, "\r\n", _buff.Length());
+    char *crlf = str::strnstr(start, "\r\n", _buff.Length());
     if (crlf) {
         std::string req_line(start, crlf - start);
         if (status_line_.ParseFromString(req_line)) {
@@ -74,7 +74,7 @@ void Parser::__ResolveStatusLine(AutoBuffer &_buff) {
 }
 
 void Parser::__ResolveResponseHeaders(AutoBuffer &_buff) {
-    char *ret = oi::strnstr(_buff.Ptr(resolved_len_),
+    char *ret = str::strnstr(_buff.Ptr(resolved_len_),
                             "\r\n\r\n", _buff.Length() - resolved_len_);
     if (!ret) { return; }
     

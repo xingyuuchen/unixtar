@@ -30,7 +30,7 @@ int _ParseYaml(const char *_path, YamlDescriptor _desc) {
         if (find != std::string::npos) {
             s = s.substr(0, find);
         }
-        oi::split(s, ": ", line);
+        str::split(s, ": ", line);
         if (line.size() != 2) {
             LogI("%s: incorrect yaml formula, line: %s",
                  _path, s.c_str())

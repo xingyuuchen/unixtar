@@ -52,7 +52,7 @@ void RequestLine::ToString(std::string &_target) {
 
 bool RequestLine::ParseFromString(std::string &_from) {
     std::vector<std::string> res;
-    oi::split(_from, " ", res);
+    str::split(_from, " ", res);
     if (res.size() != 3) {
         LogI("res.size(): %zd", res.size())
         return false;
@@ -102,7 +102,7 @@ void StatusLine::ToString(std::string &_target) {
 
 bool StatusLine::ParseFromString(std::string &_from) {
     std::vector<std::string> res;
-    oi::split(_from, " ", res);
+    str::split(_from, " ", res);
     if (res.size() != 3) {
         LogI("res.size(): %zd", res.size())
         return false;

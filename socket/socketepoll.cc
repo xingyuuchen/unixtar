@@ -29,7 +29,7 @@ SocketEpoll::SocketEpoll(int _max_fds)
 
 
 int SocketEpoll::AddSocketRead(int _fd) {
-    return AddSocketReadWrite(_fd, _fd);
+    return AddSocketRead(_fd, _fd);
 }
 
 int SocketEpoll::AddSocketRead(int _fd, uint64_t _data) {
@@ -46,7 +46,7 @@ int SocketEpoll::AddSocketRead(int _fd, uint64_t _data) {
 int SocketEpoll::AddSocketReadWrite(int _fd, uint64_t _data) {
 #ifdef __linux__
     struct epoll_event event;
-    event.events = EPOLLIN | EPOLLET;
+    event.events = EPOLLIN | EPOLLOUT | EPOLLET;
     event.data.u64 = _data;
     return __EpollCtl(EPOLL_CTL_ADD, _fd, &event);
 #else
@@ -57,7 +57,7 @@ int SocketEpoll::AddSocketReadWrite(int _fd, uint64_t _data) {
 int SocketEpoll::ModSocketWrite(int _fd, uint64_t _data) {
 #ifdef __linux__
     struct epoll_event event;
-    event.events |= EPOLLOUT;
+    event.events = EPOLLOUT | EPOLLET;
     event.data.u64 = _data;
     return __EpollCtl(EPOLL_CTL_MOD, _fd, &event);
 #else

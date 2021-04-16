@@ -58,10 +58,10 @@ void HeaderField::ToString(std::string &_target) {
 
 bool HeaderField::ParseFromString(std::string &_from) {
     std::vector<std::string> headers;
-    oi::split(_from, "\r\n", headers);
+    str::split(_from, "\r\n", headers);
     for (auto & header_str : headers) {
         std::vector<std::string> header_pair;
-        oi::split(header_str, ": ", header_pair);
+        str::split(header_str, ": ", header_pair);
         if (header_pair.size() != 2) {
             LogE("err header pair: %s", header_str.c_str())
             return false;
