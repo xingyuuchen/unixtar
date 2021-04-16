@@ -7,7 +7,7 @@
 
 
 AutoBuffer::AutoBuffer(size_t _malloc_unit_size)
-        : byte_array_(NULL)
+        : byte_array_(nullptr)
         , is_shallow_copy_(false)
         , pos_(0)
         , length_(0)
@@ -16,7 +16,7 @@ AutoBuffer::AutoBuffer(size_t _malloc_unit_size)
 
 
 void AutoBuffer::Write(const char *_byte_array, size_t _len) {
-    if (_len <= 0 || _byte_array == NULL) { return; }
+    if (_len <= 0 || _byte_array == nullptr) { return; }
     if (capacity_ < length_ + _len) {
         AddCapacity(length_ + _len - capacity_);
     }
@@ -85,9 +85,8 @@ void AutoBuffer::Reset() {
     capacity_ = 0;
     length_ = 0;
     pos_ = 0;
-    if (byte_array_ != NULL) {
-        free(byte_array_);
-        byte_array_ = NULL;
+    if (byte_array_) {
+        free(byte_array_), byte_array_ = nullptr;
     }
 }
 

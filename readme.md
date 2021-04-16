@@ -12,9 +12,9 @@
 ## Unix
 ```bash
 git clone --recursive https://github.com/xingyuuchen/unixtar.git
-cd Unixtar/scripts
+cd unixtar/scripts
 bash autogen.sh   # before this step, make sure Protobuf is installed.
-bash cmake.sh -r -d   # -d: run as a daemon, logs will be redirect to files using linux rsyslog, instead of stdout.
+bash cmake.sh -r -d   # -d: run as a daemon, logs will be redirect to file using linux rsyslog, instead of stdout.
 ```
 
 ## Windows
