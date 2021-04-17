@@ -1,16 +1,17 @@
 #ifndef OI_SVR_NETSCENE_HELLOSVR_H
 #define OI_SVR_NETSCENE_HELLOSVR_H
 
-#include "netscenebase.h"
+#include "netsceneprotobuf.h"
 #include "netscene_hellosvr.pb.h"
 
 
 /**
- * This is an NetScene example.
+ * This is an NetSceneProtobuf example.
  *
  */
-class NetSceneHelloSvr : public NetSceneBase {
+class NetSceneHelloSvr : public NetSceneProtobuf {
   public:
+    
     NetSceneHelloSvr();
     
     /**

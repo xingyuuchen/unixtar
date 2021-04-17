@@ -4,6 +4,8 @@
 #include <map>
 #include <list>
 #include <mutex>
+#include <vector>
+#include <unordered_map>
 #include "netscenebase.h"
 #include "singleton.h"
 #include "thread.h"

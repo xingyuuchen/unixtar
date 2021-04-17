@@ -10,7 +10,7 @@ const char *const NetSceneGetIndexPage::kRespFormat =
 std::mutex NetSceneGetIndexPage::mutex_;
 
 NetSceneGetIndexPage::NetSceneGetIndexPage()
-        : NetSceneBase() {
+        : NetSceneCustom() {
 }
 
 int NetSceneGetIndexPage::GetType() { return kNetSceneTypeGetIndexPage; }
@@ -35,10 +35,6 @@ void *NetSceneGetIndexPage::Data() {
 size_t NetSceneGetIndexPage::Length() {
     LogI("%lu", strlen(resp_))
     return strlen(resp_);
-}
-
-bool NetSceneGetIndexPage::IsUseProtobuf() {
-    return false;
 }
 
 char *NetSceneGetIndexPage::Route() {

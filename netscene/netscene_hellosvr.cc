@@ -4,18 +4,18 @@
 
 
 NetSceneHelloSvr::NetSceneHelloSvr()
-        : NetSceneBase() {
+        : NetSceneProtobuf() {
     
-    // Do Initialization
+    // Do Initialization here
 }
 
-NetSceneBase::RespMessage *NetSceneHelloSvr::GetRespMessage() { return &resp_; }
+NetSceneProtobuf::RespMessage *NetSceneHelloSvr::GetRespMessage() { return &resp_; }
 
 NetSceneBase *NetSceneHelloSvr::NewInstance() { return new NetSceneHelloSvr(); }
 
 
 /**
- * The NetSceneType is the unique key to distinguish different NetScenes
+ * The NetSceneType is the unique key to distinguish different NetScenes.
  */
 int NetSceneHelloSvr::GetType() { return kNetSceneTypeHelloSvr; }
 

@@ -7,6 +7,7 @@
 #include "timeutil.h"
 #include <unistd.h>
 #include <string.h>
+#include <cassert>
 
 
 std::string Server::ServerConfig::field_port("port");
@@ -72,11 +73,11 @@ Server::Server()
 void Server::Serve() {
     if (!ServerConfig::is_config_done) {
         LogE("config me first!")
-        return;
+        assert(false);
     }
     if (worker_threads_.empty()) {
         LogE("call SetWorker() to employ workers first!")
-        return;
+        assert(false);
     }
     
     SignalHandler::Instance().RegisterCallback(SIGINT, [this] {
@@ -122,8 +123,9 @@ void Server::Serve() {
             
             if (socket_epoll_.IsNewConnect(i)) {
                 __OnConnect();
-                
-            } else if (SOCKET fd = socket_epoll_.IsErrSet(i)) {
+            }
+            
+            if (auto fd = (SOCKET) socket_epoll_.IsErrSet(i)) {
                 __OnEpollErr(fd);
             }
         }

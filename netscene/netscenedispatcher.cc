@@ -3,35 +3,22 @@
 #include "basenetscenereq.pb.h"
 #include "netscene_getindexpage.h"
 #include "netscene_hellosvr.h"
-#include "log.h"
+#include "netscene_404notfound.h"
 #include "timeutil.h"
 #include "http/httpresponse.h"
+#include "constantsprotocol.h"
 
 
 NetSceneDispatcher::NetSceneDispatcher() {
-    std::lock_guard<std::mutex> lock(selector_mutex_);
-    selectors_.push_back(new NetSceneGetIndexPage());
-    selectors_.push_back(new NetSceneHelloSvr());
+    RegisterNetScene<NetSceneGetIndexPage>();
+    RegisterNetScene<NetSceneHelloSvr>();
+    RegisterNetScene<NetScene404NotFound>();
     
-}
-
-void NetSceneDispatcher::RegisterNetScene(NetSceneBase *_net_scene) {
-    if (!_net_scene) {
-        LogE("!_net_scene")
-        return;
+    // pad nullptr to unused reserved NetScenes.
+    for (size_t i = selectors_.size(); i <= kReservedTypeOffset; ++i) {
+        selectors_.push_back(nullptr);
     }
-    int type = _net_scene->GetType();
-    std::lock_guard<std::mutex> lock(selector_mutex_);
-    assert(selectors_.size() == type);
-    selectors_.push_back(_net_scene);
-    if (_net_scene->Route()) {
-        if (route_map_.find(_net_scene->Route()) != route_map_.end()) {
-            LogE("url route \"%s\" CONFLICT, check NetScene type %d",
-                 _net_scene->Route(), route_map_[_net_scene->Route()])
-        }
-        LogI("Register route: %s", _net_scene->Route())
-        route_map_[_net_scene->Route()] = _net_scene->GetType();
-    }
+    
 }
 
 
@@ -84,7 +71,8 @@ int NetSceneDispatcher::__GetNetSceneTypeByRoute(std::string &_full_url) {
         }
     }
     LogI("dynamic route NOT matched: %s", route.c_str())
-    return 0;
+    
+    return kNetSceneType404NotFound;
 }
 
 NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() = default;
@@ -100,7 +88,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     SOCKET fd = _recv_ctx->fd;
     AutoBuffer &http_body = _recv_ctx->http_body;
     
-    int type;
+    int type = kNetSceneType404NotFound;
     std::string req_buffer;
     do {
         if (!_recv_ctx->is_post) {
@@ -110,8 +98,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
             break;
         }
         if (!http_body.Ptr() || http_body.Length() <= 0) {
-            LogI("POST but no http body, return index page.")
-            type = 0;
+            LogI("POST but no http body, return 404")
             break;
         }
         LogI("fd(%d) http_body.len: %zd", fd, http_body.Length());
@@ -188,6 +175,8 @@ void NetSceneDispatcher::NetSceneWorker::__PackHttpResp(
 NetSceneDispatcher::~NetSceneDispatcher() {
     std::lock_guard<std::mutex> lock(selector_mutex_);
     for (auto &selector : selectors_) {
-        delete selector, selector = nullptr;
+        if (selector) {
+            delete selector, selector = nullptr;
+        }
     }
 }

@@ -4,9 +4,15 @@
 /**
  * Reserved NetSceneType,
  * which can not be used in your application.
+ *
+ * You should start from {@code kReservedTypeOffset} + 1
  */
+const int kReservedTypeOffset = 10;
+
 const int kNetSceneTypeGetIndexPage     = 0;
 const int kNetSceneTypeHelloSvr         = 1;
+const int kNetSceneType404NotFound      = 2;
+
 
 /**
  * Errcode

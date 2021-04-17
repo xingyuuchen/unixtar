@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.4.1)
-project(oidao)
+project(dao)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
@@ -19,6 +19,6 @@ endif()
 
 add_library(${PROJECT_NAME} SHARED ${SELF_SRC_FILES})
 
-add_dependencies(${PROJECT_NAME} oiutils)
+add_dependencies(${PROJECT_NAME} utils)
 
-target_link_libraries(${PROJECT_NAME} mysqlpp oiutils)
+target_link_libraries(${PROJECT_NAME} mysqlpp utils)

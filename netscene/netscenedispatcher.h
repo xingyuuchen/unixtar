@@ -5,7 +5,9 @@
 #include "server.h"
 #include <vector>
 #include <map>
+#include <cassert>
 #include <mutex>
+#include "log.h"
 
 
 /**
@@ -18,7 +20,26 @@ class NetSceneDispatcher final {
   public:
     ~NetSceneDispatcher();
     
-    void RegisterNetScene(NetSceneBase* _net_scene);
+    
+    template<class NetSceneImpl/* : public NetSceneBase */, class ...Args>
+    void
+    RegisterNetScene(Args &&..._init_args) {
+        NetSceneBase *net_scene = new NetSceneImpl(_init_args...);
+        
+        int type = net_scene->GetType();
+        std::lock_guard<std::mutex> lock(selector_mutex_);
+    
+        assert(selectors_.size() == type);
+        selectors_.push_back(net_scene);
+    
+        if (!net_scene->IsUseProtobuf() && net_scene->Route()) {
+            // Check url route conflict.
+            assert(route_map_.find(net_scene->Route()) == route_map_.end());
+            
+            LogI("Register route: %s", net_scene->Route())
+            route_map_[net_scene->Route()] = net_scene->GetType();
+        }
+    }
     
     class NetSceneWorker : public Server::WorkerThread {
       public:
@@ -28,7 +49,7 @@ class NetSceneDispatcher final {
         
         void HandleException(std::exception &ex) override;
 
-    private:
+      private:
         static void __PackHttpResp(NetSceneBase *_net_scene,
                                    AutoBuffer &_http_msg);
     };

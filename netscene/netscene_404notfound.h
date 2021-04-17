@@ -1,12 +1,12 @@
 #pragma once
 #include "netscenecustom.h"
-#include <mutex>
+#include <string>
 
 
-class NetSceneGetIndexPage : public NetSceneCustom {
+class NetScene404NotFound : public NetSceneCustom {
   public:
     
-    NetSceneGetIndexPage();
+    NetScene404NotFound();
     
     int GetType() override;
     
@@ -19,12 +19,9 @@ class NetSceneGetIndexPage : public NetSceneCustom {
     size_t Length() override;
     
     char *Route() override;
-
-  private:
-    char                        resp_[128] {0, };
     
-    static const char *const    kUrlRoute;
-    static const char *const    kRespFormat;
-    static std::mutex           mutex_;
+  private:
+    static std::string  k404Resp;
     
 };
+
