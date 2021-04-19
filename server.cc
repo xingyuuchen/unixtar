@@ -52,9 +52,9 @@ Server::Server()
         }
         net_thread_cnt_ = ServerConfig::net_thread_cnt;
         
-        if (__CreateListenFd() < 0) { return; }
+        if (__CreateListenFd() < 0) { break; }
         
-        if (__Bind(ServerConfig::port) < 0) { return; }
+        if (__Bind(ServerConfig::port) < 0) { break; }
         
         for (int i = 0; i < net_thread_cnt_; ++i) {
             auto net_thread = new NetThread();
@@ -230,7 +230,7 @@ tcp::ConnectionProfile *Server::ConnectionManager::GetConnection(SOCKET _fd) {
     return find->second;
 }
 
-void Server::ConnectionManager::AddConnection(SOCKET _fd) {
+void Server::ConnectionManager::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     if (_fd < 0) {
         LogE("%d", _fd)
         LogPrintStacktrace()
@@ -241,7 +241,7 @@ void Server::ConnectionManager::AddConnection(SOCKET _fd) {
         LogE("already got %d", _fd)
         return;
     }
-    auto *neo = new tcp::ConnectionProfile(_fd);
+    auto neo = new tcp::ConnectionProfile(_fd, _ip, _port);
     connections_.emplace(_fd, neo);
     if (socket_epoll_) {
         // While one thread is blocked in a call to epoll_wait(), it is
@@ -364,15 +364,15 @@ void Server::NetThread::NotifyStop() {
     epoll_notifier_.NotifyEpoll(notification_stop_);
 }
 
-void Server::NetThread::AddConnection(int _fd) {
+void Server::NetThread::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     if (_fd < 0) {
         LogE("invalid fd: %d", _fd)
         return;
     }
-    connection_manager_.AddConnection(_fd);
+    connection_manager_.AddConnection(_fd, _ip, _port);
 }
 
-void Server::NetThread::DelConnection(int _fd) {
+void Server::NetThread::DelConnection(SOCKET _fd) {
     if (_fd < 0) {
         LogE("invalid fd: %d", _fd)
         return;
@@ -555,13 +555,14 @@ int Server::__OnConnect() {
             LogE("inet_ntop errno(%d): %s", errno, strerror(errno))
         }
         port = ntohs(sock_in.sin_port);
+        std::string ip(ip_str);
         LogI("new connect: fd(%d), address: [%s:%d]", fd, ip_str, port);
         SetNonblocking(fd);
-        __AddConnection(fd);
+        __AddConnection(fd, ip, port);
     }
 }
 
-void Server::__AddConnection(SOCKET _fd) {
+void Server::__AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     if (_fd < 0) {
         return;
     }
@@ -571,7 +572,7 @@ void Server::__AddConnection(SOCKET _fd) {
         LogE("wtf???")
         return;
     }
-    owner_thread->AddConnection(_fd);
+    owner_thread->AddConnection(_fd, _ip, _port);
     
 }
 

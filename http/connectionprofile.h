@@ -30,7 +30,7 @@ class ConnectionProfile {
         kHttp2_0,
     };
     
-    explicit ConnectionProfile(SOCKET _fd);
+    ConnectionProfile(SOCKET _fd, std::string _src_ip, uint16_t _src_port);
     
     ~ConnectionProfile();
     
@@ -55,6 +55,10 @@ class ConnectionProfile {
     
     uint64_t GetTimeoutTs() const;
     
+    std::string &GetSrcIp();
+    
+    uint16_t GetPort() const;
+    
     bool IsTimeout(uint64_t _now = 0) const;
     
     http::request::Parser *GetHttpParser();
@@ -70,6 +74,8 @@ class ConnectionProfile {
   private:
     static const int        kBuffSize;
     static const uint64_t   kDefaultTimeout;
+    std::string             src_ip_;
+    uint16_t                src_port_;
     SOCKET                  fd_;
     http::request::Parser   http_parser_;
     uint64_t                record_;

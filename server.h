@@ -9,7 +9,7 @@
 #include "netscenebase.h"
 #include "singleton.h"
 #include "thread.h"
-#include "connectionprofile.h"
+#include "http/connectionprofile.h"
 #include "socket/socketepoll.h"
 #include "messagequeue.h"
 
@@ -43,7 +43,7 @@ class Server {
         
         void Run() final;
     
-        virtual void HandleImpl(http::RecvContext *_recv_ctx) = 0;
+        virtual void HandleImpl(http::RecvContext *) = 0;
     
         void BindNetThread(NetThread *_net_thread);
     
@@ -99,11 +99,11 @@ class Server {
         
         void SetEpoll(SocketEpoll *_epoll);
         
-        tcp::ConnectionProfile *GetConnection(SOCKET _fd);
+        tcp::ConnectionProfile *GetConnection(SOCKET);
         
-        void AddConnection(SOCKET _fd);
+        void AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
         
-        void DelConnection(SOCKET _fd);
+        void DelConnection(SOCKET);
         
         void ClearTimeout();
         
@@ -128,9 +128,9 @@ class Server {
         
         void NotifyStop();
     
-        void AddConnection(SOCKET _fd);
+        void AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
     
-        void DelConnection(SOCKET _fd);
+        void DelConnection(SOCKET);
     
         void HandleSend();
     
@@ -148,13 +148,13 @@ class Server {
     
         bool __IsNotifyStop(EpollNotifier::Notification &) const;
     
-        int __OnReadEvent(SOCKET _fd);
+        int __OnReadEvent(SOCKET);
     
-        int __OnWriteEvent(tcp::SendContext *_send_ctx);
+        int __OnWriteEvent(tcp::SendContext *);
     
-        int __OnErrEvent(SOCKET _fd);
+        int __OnErrEvent(SOCKET);
         
-        int __OnReadEventTest(SOCKET _fd);
+        int __OnReadEventTest(SOCKET);
         
       private:
         SocketEpoll                         socket_epoll_;
@@ -174,13 +174,13 @@ class Server {
     
     int __OnConnect();
     
-    void __AddConnection(SOCKET _fd);
+    void __AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
     
     int __CreateListenFd();
     
     int __Bind(uint16_t _port) const;
     
-    int __OnEpollErr(SOCKET _fd);
+    int __OnEpollErr(SOCKET);
     
   private:
     size_t                              net_thread_cnt_;

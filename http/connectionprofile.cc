@@ -13,8 +13,10 @@ const int ConnectionProfile::kBuffSize = 1024;
 
 const uint64_t ConnectionProfile::kDefaultTimeout = 60 * 1000;
 
-ConnectionProfile::ConnectionProfile(int _fd)
-        : fd_(_fd)
+ConnectionProfile::ConnectionProfile(int _fd, std::string _src_ip, uint16_t _src_port)
+        : src_ip_(std::move(_src_ip))
+        , src_port_(_src_port)
+        , fd_(_fd)
         , application_protocol_(TApplicationProtocol::kHttp1_1)
         , record_(::gettickcount())
         , timeout_millis_(kDefaultTimeout)
@@ -124,6 +126,10 @@ http::RecvContext *ConnectionProfile::GetRecvContext() { return &recv_ctx_; }
 SendContext *ConnectionProfile::GetSendContext() { return &send_ctx_; }
 
 uint64_t ConnectionProfile::GetTimeoutTs() const { return timeout_ts_; }
+
+std::string &ConnectionProfile::GetSrcIp() { return src_ip_; }
+
+uint16_t ConnectionProfile::GetPort() const { return src_port_; }
 
 bool ConnectionProfile::IsTimeout(uint64_t _now) const {
     if (_now == 0) {
