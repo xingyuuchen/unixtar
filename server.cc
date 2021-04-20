@@ -75,10 +75,6 @@ void Server::Serve() {
         LogE("config me first!")
         assert(false);
     }
-    if (worker_threads_.empty()) {
-        LogE("call SetWorker() to employ workers first!")
-        assert(false);
-    }
     
     SignalHandler::Instance().RegisterCallback(SIGINT, [this] {
         NotifyStop();
@@ -94,10 +90,6 @@ void Server::Serve() {
     
     for (auto &net_thread : net_threads_) {
         net_thread->Start();
-    }
-    
-    for (auto &worker_thread : worker_threads_) {
-        worker_thread->Start();
     }
     
     while (running_) {
@@ -136,7 +128,7 @@ void Server::Serve() {
         ::close(listenfd_), listenfd_ = -1;
     }
     
-    __NotifyWorkerNetThreadsStop();
+    __NotifyNetThreadsStop();
 }
 
 void Server::NotifyStop() {
@@ -159,13 +151,17 @@ void Server::WorkerThread::Run() {
         running_ = false;
         return;
     }
-    LogI("launching WorkerThread %d", thread_seq_)
+    LogI("Launching WorkerThread %d", thread_seq_)
     
     auto recv_queue = net_thread_->GetRecvQueue();
     
     while (true) {
         
         http::RecvContext *recv_ctx;
+    
+//        if (recv_queue->size() > 100) {
+//            net_thread_->OnWorkersHighPressure();
+//        }
         
         if (recv_queue->pop_front_to(recv_ctx)) {
             HandleImpl(recv_ctx);
@@ -328,6 +324,7 @@ void Server::NetThread::Run() {
             } else if (__IsNotifyStop(probable_notification)) {
                 LogI("NetThread notification-stop, break")
                 running_ = false;
+                __NotifyWorkersStop();
                 return;
             }
             
@@ -393,6 +390,13 @@ void Server::NetThread::ClearTimeout() { connection_manager_.ClearTimeout(); }
 Server::RecvQueue *Server::NetThread::GetRecvQueue() { return &recv_queue_; }
 
 Server::SendQueue *Server::NetThread::GetSendQueue() { return &send_queue_; }
+
+void Server::NetThread::BindNewWorker(Server::WorkerThread *_worker) {
+    if (_worker) {
+        workers_.emplace_back(_worker);
+        _worker->BindNetThread(this);
+    }
+}
 
 void Server::NetThread::HandleException(std::exception &ex) {
     LogE("%s", ex.what())
@@ -509,16 +513,40 @@ int Server::NetThread::__OnReadEventTest(SOCKET _fd) {
     return 0;
 }
 
-Server::NetThread::~NetThread() = default;
+void Server::NetThread::OnStarted() {
+    if (workers_.empty()) {
+        LogE("call Server::SetWorker() to employ workers first!")
+        assert(false);
+    }
+    // try launching all workers.
+    for (auto & worker_thread : workers_) {
+        worker_thread->Start();
+    }
+}
 
-void Server::__NotifyWorkerNetThreadsStop() {
-    for (auto & worker_thread : worker_threads_) {
+void Server::NetThread::OnWorkersHighPressure() {
+    // TODO: Redesign strategy.
+    const size_t kThreshHold = 100;
+    if (recv_queue_.size() > kThreshHold) {
+        // hire more workers
+    } else if (workers_.size() > 1) {
+        // stop unnecessary workers
+    }
+}
+
+void Server::NetThread::__NotifyWorkersStop() {
+    recv_queue_.Terminate();
+    for (auto & worker_thread : workers_) {
         int seq = worker_thread->GetWorkerSeqNum();
-        worker_thread->NotifyStop();
         worker_thread->Join();
         delete worker_thread, worker_thread = nullptr;
         LogI("WorkerThread%d dead", seq)
     }
+}
+
+Server::NetThread::~NetThread() = default;
+
+void Server::__NotifyNetThreadsStop() {
     for (auto & net_thread : net_threads_) {
         net_thread->NotifyStop();
         net_thread->Join();
@@ -556,7 +584,7 @@ int Server::__OnConnect() {
         }
         port = ntohs(sock_in.sin_port);
         std::string ip(ip_str);
-        LogI("new connect: fd(%d), address: [%s:%d]", fd, ip_str, port);
+        LogI("fd(%d), address: [%s:%d]", fd, ip_str, port);
         SetNonblocking(fd);
         __AddConnection(fd, ip, port);
     }

@@ -9,7 +9,7 @@
 #include <stdio.h>
 #endif
 
-namespace Logger {
+namespace logger {
 
 /**
  * Advance configuration is necessary:
@@ -66,6 +66,6 @@ void LogPrintStacktraceImpl(int _size = 8);
     printf("\n");
 #endif
 
-#define LogPrintStacktrace(...)  Logger::LogPrintStacktraceImpl(__VA_ARGS__);
+#define LogPrintStacktrace(...)  logger::LogPrintStacktraceImpl(__VA_ARGS__);
 
 #endif //OI_SVR_LOG_H

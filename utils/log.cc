@@ -6,7 +6,7 @@
 #endif
 #endif
 
-namespace Logger {
+namespace logger {
 
 void OpenLog(const char *_ident) {
 #ifdef DAEMON

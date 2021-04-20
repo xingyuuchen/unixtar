@@ -79,10 +79,10 @@ class Server {
             return;
         }
         for (int i = 0; i < net_thread_cnt_; ++i) {
+            // Initially, one network thread is bound to one worker thread.
             auto worker = new WorkerImpl(_init_args...);
-            worker_threads_.push_back(worker);
             auto net_thread = net_threads_[i];
-            worker->BindNetThread(net_thread);
+            net_thread->BindNewWorker(worker);
         }
     }
     
@@ -139,10 +139,17 @@ class Server {
         RecvQueue *GetRecvQueue();
     
         SendQueue *GetSendQueue();
+        
+        void BindNewWorker(WorkerThread *);
+        
+        void OnStarted() override;
+    
+        void OnWorkersHighPressure();
     
         void HandleException(std::exception &ex) override;
 
       private:
+        void __NotifyWorkersStop();
         
         bool __IsNotifySend(EpollNotifier::Notification &) const;
     
@@ -164,11 +171,12 @@ class Server {
         EpollNotifier::Notification         notification_stop_;
         RecvQueue                           recv_queue_;
         SendQueue                           send_queue_;
+        std::list<WorkerThread *>           workers_;
         
         friend class Server;
     };
     
-    void __NotifyWorkerNetThreadsStop();
+    void __NotifyNetThreadsStop();
     
     bool __IsNotifyStop(EpollNotifier::Notification &) const;
     
@@ -185,7 +193,6 @@ class Server {
   private:
     size_t                              net_thread_cnt_;
     std::vector<NetThread *>            net_threads_;
-    std::vector<WorkerThread *>         worker_threads_;
     SocketEpoll                         socket_epoll_;
     EpollNotifier                       epoll_notifier_;
     EpollNotifier::Notification         notification_stop_;
