@@ -20,15 +20,15 @@ void Pack(const std::string &_host, const std::string &_url, const std::map<std:
     request_line.AppendToBuffer(_out_buff);
     
     HeaderField header_field;
-    header_field.InsertOrUpdate(HeaderField::KHost, _host);
-    header_field.InsertOrUpdate(HeaderField::KConnection, HeaderField::KConnectionClose);
+    header_field.InsertOrUpdate(HeaderField::kHost, _host);
+    header_field.InsertOrUpdate(HeaderField::kConnection, HeaderField::kConnectionClose);
     for (auto iter = _headers.begin(); iter != _headers.end(); iter++) {
         header_field.InsertOrUpdate(iter->first, iter->second);
     }
     
     char len_str[9] = {0, };
     snprintf(len_str, sizeof(len_str), "%zu", _send_body.Length());
-    header_field.InsertOrUpdate(HeaderField::KContentLength, len_str);
+    header_field.InsertOrUpdate(HeaderField::kContentLength, len_str);
     
     header_field.AppendToBuffer(_out_buff);
     _out_buff.Write(_send_body.Ptr(), _send_body.Length());

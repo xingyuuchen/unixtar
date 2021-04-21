@@ -445,7 +445,10 @@ int Server::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
     size_t ntotal = resp.Length() - pos;
     SOCKET fd = _send_ctx->fd;
     
-    if (ntotal == 0 || fd < 0) {
+    if (fd < 0) {
+        return 0;
+    }
+    if (ntotal == 0) {
         LogI("fd(%d), nothing to send", fd)
         return 0;
     }

@@ -7,16 +7,18 @@
 namespace http {
 
 
-const char *const HeaderField::KHost = "Host";
-const char *const HeaderField::KContentLength = "Content-Length";
-const char *const HeaderField::KContentType = "Content-Type";
-const char *const HeaderField::KTransferEncoding = "Content-Length";
-const char *const HeaderField::KConnection = "Connection";
+const char *const HeaderField::kHost = "Host";
+const char *const HeaderField::kContentLength = "Content-Length";
+const char *const HeaderField::kContentType = "Content-Type";
+const char *const HeaderField::kTransferEncoding = "Transfer-Encoding";
+const char *const HeaderField::kConnection = "Connection";
 
 
-const char *const HeaderField::KOctetStream = "application/octet-stream";
-const char *const HeaderField::KPlainText = "plain-text";
-const char *const HeaderField::KConnectionClose = "close";
+const char *const HeaderField::kOctetStream = "application/octet-stream";
+const char *const HeaderField::kTextPlain = "text/plain";
+const char *const HeaderField::kTextHtml = "text/html";
+const char *const HeaderField::kTextCss = "text/css";
+const char *const HeaderField::kConnectionClose = "close";
 
 
 void HeaderField::InsertOrUpdate(const std::string &_key,
@@ -37,7 +39,7 @@ size_t HeaderField::GetHeaderSize() {
 
 uint64_t HeaderField::GetContentLength() const {
     for (const auto & header_field : header_fields_) {
-        if (0 == strcmp(header_field.first.c_str(), KContentLength)) {
+        if (0 == strcmp(header_field.first.c_str(), kContentLength)) {
             return strtoul(header_field.second.c_str(), NULL, 10);
         }
     }

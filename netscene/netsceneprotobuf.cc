@@ -1,5 +1,6 @@
 #include "netsceneprotobuf.h"
 #include "constantsprotocol.h"
+#include "http/headerfield.h"
 
 
 NetSceneProtobuf::NetSceneProtobuf()
@@ -20,8 +21,12 @@ size_t NetSceneProtobuf::Length() {
     return 0;
 }
 
-char *NetSceneProtobuf::Route() {
+const char *NetSceneProtobuf::Route() {
     return nullptr;
+}
+
+const char *NetSceneProtobuf::ContentType() {
+    return http::HeaderField::kOctetStream;
 }
 
 int NetSceneProtobuf::DoScene(const std::string &_in_buffer) {

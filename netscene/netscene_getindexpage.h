@@ -18,9 +18,11 @@ class NetSceneGetIndexPage : public NetSceneCustom {
     
     size_t Length() override;
     
-    char *Route() override;
+    const char *Route() override;
+    
+    const char *ContentType() override;
 
-  private:
+private:
     char                        resp_[128] {0, };
     
     static const char *const    kUrlRoute;

@@ -28,7 +28,12 @@ class NetSceneCustom : public NetSceneBase {
      * A NetScene can choose to bind a url route.
      * This will be used when the request-body does not specify the NetScene type.
      */
-    char *Route() override = 0;
+    const char *Route() override = 0;
+    
+    /**
+     * Default is "text/html"
+     */
+    const char *ContentType() override;
 
   private:
     using NetSceneBase::resp_buffer_;

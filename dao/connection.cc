@@ -3,6 +3,7 @@
 #include <string>
 #include "log.h"
 #include "yamlutil.h"
+#include "threadpool/threadpool.h"
 
 
 namespace Dao {
@@ -41,6 +42,12 @@ class _Connection {
             LogI("db: %s, svr: %s, usr: %s, pwd: %s", db_.c_str(),
                  svr_.c_str(), usr_.c_str(), pwd_.c_str())
             __TryConnect();
+    
+            LogI("Register Mysql HeartBeat Task.")
+            const int kHeartBeatPeriod = 4 * 60 * 60 * 1000;    // mysql default wait_timeout is 8 hours.
+            ThreadPool::Instance().ExecutePeriodic(kHeartBeatPeriod, [this] {
+                __SendHeartBeat();
+            });
             return;
         }
         LogE("desc == NULL")
@@ -146,6 +153,23 @@ class _Connection {
             }
         }
         return -1;
+    }
+    
+    void __SendHeartBeat() {
+        LogI("try sending heart beat...")
+        if (!__CheckConnection()) {
+            LogE("SendHeartBeat failed: connection already lost!!")
+            return;
+        }
+        try {
+            mysqlpp::Query query = conn_.query("show tables;");
+            query.exec();
+        } catch (const mysqlpp::BadQuery &er) {
+            LogE("BadQuery: %s", er.what());
+        } catch (const mysqlpp::BadConversion &er) {
+            LogE("Conversion error: %s, retrieved data size: %ld, actual size: %ld",
+                 er.what(), er.retrieved, er.actual_size);
+        }
     }
     
   private:

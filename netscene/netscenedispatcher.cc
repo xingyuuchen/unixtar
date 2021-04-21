@@ -158,11 +158,11 @@ void NetSceneDispatcher::NetSceneWorker::__PackHttpResp(
     std::map<std::string, std::string> headers;
     
     if (_net_scene->IsUseProtobuf()) {
-        headers[http::HeaderField::KContentType] = http::HeaderField::KOctetStream;
+        headers[http::HeaderField::kContentType] = http::HeaderField::kOctetStream;
     } else {
-        headers[http::HeaderField::KContentType] = http::HeaderField::KPlainText;
+        headers[http::HeaderField::kContentType] = _net_scene->ContentType();
     }
-    headers[http::HeaderField::KConnection] = http::HeaderField::KConnectionClose;
+    headers[http::HeaderField::kConnection] = http::HeaderField::kConnectionClose;
     
     std::string status_desc = "OK";
     int resp_code = 200;

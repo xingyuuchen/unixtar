@@ -1,6 +1,8 @@
 #include "netscene_getindexpage.h"
 #include "constantsprotocol.h"
 #include "log.h"
+#include "http/headerfield.h"
+
 
 const char *const NetSceneGetIndexPage::kUrlRoute = "/";
 
@@ -27,6 +29,9 @@ int NetSceneGetIndexPage::DoSceneImpl(const std::string &_in_buffer) {
     return 0;
 }
 
+const char *NetSceneGetIndexPage::ContentType() {
+    return http::HeaderField::kTextPlain;
+}
 
 void *NetSceneGetIndexPage::Data() {
     return resp_;
@@ -37,6 +42,6 @@ size_t NetSceneGetIndexPage::Length() {
     return strlen(resp_);
 }
 
-char *NetSceneGetIndexPage::Route() {
-    return const_cast<char *>(kUrlRoute);
+const char *NetSceneGetIndexPage::Route() {
+    return kUrlRoute;
 }

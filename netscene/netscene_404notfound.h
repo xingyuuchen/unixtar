@@ -18,9 +18,11 @@ class NetScene404NotFound : public NetSceneCustom {
     
     size_t Length() override;
     
-    char *Route() override;
+    const char *Route() override;
     
-  private:
+    const char *ContentType() override;
+
+private:
     static std::string  k404Resp;
     
 };

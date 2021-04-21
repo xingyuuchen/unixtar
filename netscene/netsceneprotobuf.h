@@ -18,6 +18,8 @@ class NetSceneProtobuf : public NetSceneBase {
      */
     bool IsUseProtobuf() final;
     
+    const char *ContentType() final;
+    
     
     using RespMessage = google::protobuf::Message;
     /**
@@ -37,7 +39,7 @@ class NetSceneProtobuf : public NetSceneBase {
      */
     void *Data() final;
     size_t Length() final;
-    char *Route() final;
+    const char *Route() final;
     
     int DoScene(const std::string &_in_buffer) final;
 

@@ -33,6 +33,10 @@ int NetScene404NotFound::DoSceneImpl(const std::string &_in_buffer) {
     return 0;
 }
 
+const char *NetScene404NotFound::ContentType() {
+    return NetSceneCustom::ContentType();
+}
+
 void *NetScene404NotFound::Data() {
     return (void *) k404Resp.data();
 }
@@ -41,6 +45,6 @@ size_t NetScene404NotFound::Length() {
     return k404Resp.size();
 }
 
-char *NetScene404NotFound::Route() {
+const char *NetScene404NotFound::Route() {
     return nullptr;
 }

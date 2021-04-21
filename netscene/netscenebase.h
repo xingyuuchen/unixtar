@@ -73,8 +73,12 @@ class NetSceneBase {
      *
      * But NetSceneProtobuf do not, because all information is in http body.
      */
-    virtual char *Route() = 0;
+    virtual const char *Route() = 0;
     
+    /**
+     * Http Content-Type.
+     */
+    virtual const char *ContentType() = 0;
     
     /**
      *
