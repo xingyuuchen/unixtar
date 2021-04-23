@@ -1,5 +1,5 @@
-#ifndef OI_SVR_SERVER_H
-#define OI_SVR_SERVER_H
+#ifndef OI_SVR_WEBSERVER_H
+#define OI_SVR_WEBSERVER_H
 #include <stdint.h>
 #include <map>
 #include <list>
@@ -14,9 +14,9 @@
 #include "messagequeue.h"
 
 
-class Server {
+class WebServer final {
     
-    SINGLETON(Server, )
+    SINGLETON(WebServer, )
     
     class NetThread;
 
@@ -26,7 +26,7 @@ class Server {
     
     void NotifyStop();
     
-    ~Server();
+    ~WebServer();
     
     class ServerConfig {
       public:
@@ -210,4 +210,4 @@ class Server {
 };
 
 
-#endif //OI_SVR_SERVER_H
+#endif //OI_SVR_WEBSERVER_H

@@ -2,7 +2,7 @@
 #define OI_SVR_NETSCENEDISPATCHER_H
 #include "netscenebase.h"
 #include "singleton.h"
-#include "server.h"
+#include "webserver.h"
 #include <vector>
 #include <map>
 #include <cassert>
@@ -41,7 +41,7 @@ class NetSceneDispatcher final {
         }
     }
     
-    class NetSceneWorker : public Server::WorkerThread {
+    class NetSceneWorker : public WebServer::WorkerThread {
       public:
         ~NetSceneWorker() override;
         

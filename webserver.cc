@@ -1,4 +1,4 @@
-#include "server.h"
+#include "webserver.h"
 #include "utils/log.h"
 #include "socketepoll.h"
 #include "http/httprequest.h"
@@ -10,18 +10,18 @@
 #include <cassert>
 
 
-std::string Server::ServerConfig::field_port("port");
+std::string WebServer::ServerConfig::field_port("port");
 
-uint16_t Server::ServerConfig::port = 0;
+uint16_t WebServer::ServerConfig::port = 0;
 
-std::string Server::ServerConfig::field_net_thread_cnt("net_thread_cnt");
+std::string WebServer::ServerConfig::field_net_thread_cnt("net_thread_cnt");
 
-size_t Server::ServerConfig::net_thread_cnt = 0;
+size_t WebServer::ServerConfig::net_thread_cnt = 0;
 
-bool Server::ServerConfig::is_config_done = false;
+bool WebServer::ServerConfig::is_config_done = false;
 
 
-Server::Server()
+WebServer::WebServer()
         : listenfd_(-1)
         , net_thread_cnt_(1)
         , running_(false) {
@@ -70,7 +70,7 @@ Server::Server()
 }
 
 
-void Server::Serve() {
+void WebServer::Serve() {
     if (!ServerConfig::is_config_done) {
         LogE("config me first!")
         assert(false);
@@ -131,21 +131,21 @@ void Server::Serve() {
     __NotifyNetThreadsStop();
 }
 
-void Server::NotifyStop() {
-    LogI("[Server::NotifyStop]")
+void WebServer::NotifyStop() {
+    LogI("[WebServer::NotifyStop]")
     running_ = false;
     epoll_notifier_.NotifyEpoll(notification_stop_);
 }
 
-Server::~Server() = default;
+WebServer::~WebServer() = default;
 
-Server::WorkerThread::WorkerThread()
+WebServer::WorkerThread::WorkerThread()
         : net_thread_(nullptr)
         , thread_seq_(__MakeWorkerThreadSeq()) {
     
 }
 
-void Server::WorkerThread::Run() {
+void WebServer::WorkerThread::Run() {
     if (!net_thread_) {
         LogE("WorkerThread bind NetThread first!")
         running_ = false;
@@ -184,13 +184,13 @@ void Server::WorkerThread::Run() {
     LogI("Worker%d terminate!", thread_seq_)
 }
 
-void Server::WorkerThread::BindNetThread(Server::NetThread *_net_thread) {
+void WebServer::WorkerThread::BindNetThread(WebServer::NetThread *_net_thread) {
     if (_net_thread) {
         net_thread_ = _net_thread;
     }
 }
 
-void Server::WorkerThread::NotifyStop() {
+void WebServer::WorkerThread::NotifyStop() {
     if (!net_thread_) {
         LogE("!net_thread_, notify failed")
         return;
@@ -200,27 +200,27 @@ void Server::WorkerThread::NotifyStop() {
     net_thread_->GetRecvQueue()->Terminate();
 }
 
-int Server::WorkerThread::__MakeWorkerThreadSeq() {
+int WebServer::WorkerThread::__MakeWorkerThreadSeq() {
     static int thread_seq = 0;
     return ++thread_seq;
 }
 
-int Server::WorkerThread::GetWorkerSeqNum() const { return thread_seq_; }
+int WebServer::WorkerThread::GetWorkerSeqNum() const { return thread_seq_; }
 
-Server::WorkerThread::~WorkerThread() = default;
+WebServer::WorkerThread::~WorkerThread() = default;
 
 
-Server::ConnectionManager::ConnectionManager()
+WebServer::ConnectionManager::ConnectionManager()
         : socket_epoll_(nullptr) {
 }
 
-void Server::ConnectionManager::SetEpoll(SocketEpoll *_epoll) {
+void WebServer::ConnectionManager::SetEpoll(SocketEpoll *_epoll) {
     if (_epoll) {
         socket_epoll_ = _epoll;
     }
 }
 
-tcp::ConnectionProfile *Server::ConnectionManager::GetConnection(SOCKET _fd) {
+tcp::ConnectionProfile *WebServer::ConnectionManager::GetConnection(SOCKET _fd) {
     ScopedLock lock(mutex_);
     auto find = connections_.find(_fd);
     if (find == connections_.end()) {
@@ -229,7 +229,7 @@ tcp::ConnectionProfile *Server::ConnectionManager::GetConnection(SOCKET _fd) {
     return find->second;
 }
 
-void Server::ConnectionManager::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
+void WebServer::ConnectionManager::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     if (_fd < 0) {
         LogE("%d", _fd)
         LogPrintStacktrace()
@@ -251,7 +251,7 @@ void Server::ConnectionManager::AddConnection(SOCKET _fd, std::string &_ip, uint
     }
 }
 
-void Server::ConnectionManager::DelConnection(SOCKET _fd) {
+void WebServer::ConnectionManager::DelConnection(SOCKET _fd) {
     ScopedLock lock(mutex_);
     auto &conn = connections_[_fd];
     if (socket_epoll_) {
@@ -267,7 +267,7 @@ void Server::ConnectionManager::DelConnection(SOCKET _fd) {
     
 }
 
-void Server::ConnectionManager::ClearTimeout() {
+void WebServer::ConnectionManager::ClearTimeout() {
     uint64_t now = ::gettickcount();
     ScopedLock lock(mutex_);
     auto it = connections_.begin();
@@ -283,7 +283,7 @@ void Server::ConnectionManager::ClearTimeout() {
     }
 }
 
-Server::ConnectionManager::~ConnectionManager() {
+WebServer::ConnectionManager::~ConnectionManager() {
     ScopedLock lock(mutex_);
     for (auto &it : connections_) {
         delete it.second, it.second = nullptr;
@@ -291,9 +291,9 @@ Server::ConnectionManager::~ConnectionManager() {
 }
 
 
-const size_t Server::NetThread::kDefaultMaxBacklog = 1024;
+const size_t WebServer::NetThread::kDefaultMaxBacklog = 1024;
 
-Server::NetThread::NetThread()
+WebServer::NetThread::NetThread()
         : Thread()
         , max_backlog_(kDefaultMaxBacklog) {
     
@@ -301,7 +301,7 @@ Server::NetThread::NetThread()
     epoll_notifier_.SetSocketEpoll(&socket_epoll_);
 }
 
-void Server::NetThread::Run() {
+void WebServer::NetThread::Run() {
     LogI("launching NetThread!")
     int epoll_retry = 3;
     
@@ -358,24 +358,24 @@ void Server::NetThread::Run() {
     
 }
 
-bool Server::NetThread::IsWorkerOverload() { return recv_queue_.size() > max_backlog_ * 9 / 10; }
+bool WebServer::NetThread::IsWorkerOverload() { return recv_queue_.size() > max_backlog_ * 9 / 10; }
 
-bool Server::NetThread::IsWorkerFullyLoad() { return recv_queue_.size() >= max_backlog_; }
+bool WebServer::NetThread::IsWorkerFullyLoad() { return recv_queue_.size() >= max_backlog_; }
 
-size_t Server::NetThread::GetMaxBacklog() const { return max_backlog_; }
+size_t WebServer::NetThread::GetMaxBacklog() const { return max_backlog_; }
 
-void Server::NetThread::SetMaxBacklog(size_t _backlog) { max_backlog_ = _backlog; }
+void WebServer::NetThread::SetMaxBacklog(size_t _backlog) { max_backlog_ = _backlog; }
 
-void Server::NetThread::NotifySend() {
+void WebServer::NetThread::NotifySend() {
     epoll_notifier_.NotifyEpoll(notification_send_);
 }
 
-void Server::NetThread::NotifyStop() {
+void WebServer::NetThread::NotifyStop() {
     running_ = false;
     epoll_notifier_.NotifyEpoll(notification_stop_);
 }
 
-void Server::NetThread::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
+void WebServer::NetThread::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     if (_fd < 0) {
         LogE("invalid fd: %d", _fd)
         return;
@@ -383,7 +383,7 @@ void Server::NetThread::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _po
     connection_manager_.AddConnection(_fd, _ip, _port);
 }
 
-void Server::NetThread::DelConnection(SOCKET _fd) {
+void WebServer::NetThread::DelConnection(SOCKET _fd) {
     if (_fd < 0) {
         LogE("invalid fd: %d", _fd)
         return;
@@ -391,7 +391,7 @@ void Server::NetThread::DelConnection(SOCKET _fd) {
     connection_manager_.DelConnection(_fd);
 }
 
-void Server::NetThread::HandleSend() {
+void WebServer::NetThread::HandleSend() {
     tcp::SendContext *send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogI("fd(%d) doing send task", send_ctx->fd)
@@ -399,32 +399,32 @@ void Server::NetThread::HandleSend() {
     }
 }
 
-void Server::NetThread::ClearTimeout() { connection_manager_.ClearTimeout(); }
+void WebServer::NetThread::ClearTimeout() { connection_manager_.ClearTimeout(); }
 
-Server::RecvQueue *Server::NetThread::GetRecvQueue() { return &recv_queue_; }
+WebServer::RecvQueue *WebServer::NetThread::GetRecvQueue() { return &recv_queue_; }
 
-Server::SendQueue *Server::NetThread::GetSendQueue() { return &send_queue_; }
+WebServer::SendQueue *WebServer::NetThread::GetSendQueue() { return &send_queue_; }
 
-void Server::NetThread::BindNewWorker(Server::WorkerThread *_worker) {
+void WebServer::NetThread::BindNewWorker(WebServer::WorkerThread *_worker) {
     if (_worker) {
         workers_.emplace_back(_worker);
         _worker->BindNetThread(this);
     }
 }
 
-void Server::NetThread::HandleException(std::exception &ex) {
+void WebServer::NetThread::HandleException(std::exception &ex) {
     LogE("%s", ex.what())
 }
 
-bool Server::NetThread::__IsNotifySend(EpollNotifier::Notification &_notification) const {
+bool WebServer::NetThread::__IsNotifySend(EpollNotifier::Notification &_notification) const {
     return _notification == notification_send_;
 }
 
-bool Server::NetThread::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
+bool WebServer::NetThread::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
     return _notification == notification_stop_;
 }
 
-int Server::NetThread::__OnReadEvent(SOCKET _fd) {
+int WebServer::NetThread::__OnReadEvent(SOCKET _fd) {
     if (_fd <= 0) {
         LogE("invalid _fd: %d", _fd)
         return -1;
@@ -455,7 +455,7 @@ int Server::NetThread::__OnReadEvent(SOCKET _fd) {
     return 0;
 }
 
-int Server::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
+int WebServer::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
     if (!_send_ctx) {
         LogE("!_send_ctx")
         return -1;
@@ -502,13 +502,13 @@ int Server::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
     return nsend < 0 ? -1 : 0;
 }
 
-int Server::NetThread::__OnErrEvent(int _fd) {
+int WebServer::NetThread::__OnErrEvent(int _fd) {
     LogE("fd: %d", _fd)
     DelConnection(_fd);
     return 0;
 }
 
-int Server::NetThread::__OnReadEventTest(SOCKET _fd) {
+int WebServer::NetThread::__OnReadEventTest(SOCKET _fd) {
     LogI("sleeping...")
     std::this_thread::sleep_for(std::chrono::milliseconds(4000));
     char buff[1024] = {0, };
@@ -536,9 +536,9 @@ int Server::NetThread::__OnReadEventTest(SOCKET _fd) {
     return 0;
 }
 
-void Server::NetThread::OnStarted() {
+void WebServer::NetThread::OnStarted() {
     if (workers_.empty()) {
-        LogE("call Server::SetWorker() to employ workers first!")
+        LogE("call WebServer::SetWorker() to employ workers first!")
         assert(false);
     }
     // try launching all workers.
@@ -547,7 +547,7 @@ void Server::NetThread::OnStarted() {
     }
 }
 
-void Server::NetThread::__NotifyWorkersStop() {
+void WebServer::NetThread::__NotifyWorkersStop() {
     recv_queue_.Terminate();
     for (auto & worker_thread : workers_) {
         int seq = worker_thread->GetWorkerSeqNum();
@@ -557,9 +557,9 @@ void Server::NetThread::__NotifyWorkersStop() {
     }
 }
 
-Server::NetThread::~NetThread() = default;
+WebServer::NetThread::~NetThread() = default;
 
-void Server::__NotifyNetThreadsStop() {
+void WebServer::__NotifyNetThreadsStop() {
     for (auto & net_thread : net_threads_) {
         net_thread->NotifyStop();
         net_thread->Join();
@@ -569,11 +569,11 @@ void Server::__NotifyNetThreadsStop() {
     LogI("All Threads Joined!")
 }
 
-bool Server::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
+bool WebServer::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
     return _notification == notification_stop_;
 }
 
-int Server::__OnConnect() {
+int WebServer::__OnConnect() {
     SOCKET fd;
     struct sockaddr_in sock_in{};
     socklen_t socklen = sizeof(sockaddr_in);
@@ -603,7 +603,7 @@ int Server::__OnConnect() {
     }
 }
 
-void Server::__AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
+void WebServer::__AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     if (_fd < 0) {
         return;
     }
@@ -617,7 +617,7 @@ void Server::__AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     
 }
 
-int Server::__CreateListenFd() {
+int WebServer::__CreateListenFd() {
     listenfd_ = ::socket(AF_INET, SOCK_STREAM, 0);
     if (listenfd_ < 0) {
         LogE("create socket error: %s, errno: %d",
@@ -634,7 +634,7 @@ int Server::__CreateListenFd() {
 }
 
 
-int Server::__Bind(uint16_t _port) const {
+int WebServer::__Bind(uint16_t _port) const {
     struct sockaddr_in sock_addr{};
     memset(&sock_addr, 0, sizeof(sock_addr));
     sock_addr.sin_family = AF_INET;
@@ -650,7 +650,7 @@ int Server::__Bind(uint16_t _port) const {
     return 0;
 }
 
-int Server::__OnEpollErr(int _fd) {
+int WebServer::__OnEpollErr(int _fd) {
     LogE("fd: %d", _fd)
     return 0;
 }

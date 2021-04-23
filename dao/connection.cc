@@ -32,21 +32,21 @@ class _Connection {
     bool IsConnected() { return status_ == kConnected; }
     
     void Config() {
-        Yaml::YamlDescriptor desc = Yaml::Load("../framework/dao/database.yml");
+        yaml::YamlDescriptor desc = yaml::Load("../framework/dao/database.yml");
         if (desc) {
-            Yaml::Get(desc, kDatabase, db_);
-            Yaml::Get(desc, kServer, svr_);
-            Yaml::Get(desc, kUser, usr_);
-            Yaml::Get(desc, kPassword, pwd_);
-            Yaml::Close(desc);
+            yaml::Get(desc, kDatabase, db_);
+            yaml::Get(desc, kServer, svr_);
+            yaml::Get(desc, kUser, usr_);
+            yaml::Get(desc, kPassword, pwd_);
+            yaml::Close(desc);
             LogI("db: %s, svr: %s, usr: %s, pwd: %s", db_.c_str(),
                  svr_.c_str(), usr_.c_str(), pwd_.c_str())
             __TryConnect();
     
             LogI("Register Mysql HeartBeat Task.")
-            const int kHeartBeatPeriod = 4 * 60 * 60 * 1000;    // mysql default wait_timeout is 8 hours.
+            const int kHeartBeatPeriod = 4 * 60 * 1000;    // mysql default wait_timeout is 8 hours.
             ThreadPool::Instance().ExecutePeriodic(kHeartBeatPeriod, [this] {
-                __SendHeartBeat();
+                __SendHeartbeat();
             });
             return;
         }
@@ -155,20 +155,13 @@ class _Connection {
         return -1;
     }
     
-    void __SendHeartBeat() {
-        LogI("try sending heart beat...")
+    void __SendHeartbeat() {
         if (!__CheckConnection()) {
             LogE("SendHeartBeat failed: connection already lost!!")
             return;
         }
-        try {
-            mysqlpp::Query query = conn_.query("show tables;");
-            query.exec();
-        } catch (const mysqlpp::BadQuery &er) {
-            LogE("BadQuery: %s", er.what());
-        } catch (const mysqlpp::BadConversion &er) {
-            LogE("Conversion error: %s, retrieved data size: %ld, actual size: %ld",
-                 er.what(), er.retrieved, er.actual_size);
+        if (!conn_.ping()) {
+            LogI("ping db server failed, server_status: %s", conn_.server_status().c_str())
         }
     }
     
