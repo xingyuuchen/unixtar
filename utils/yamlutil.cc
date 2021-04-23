@@ -7,7 +7,7 @@
 #include <set>
 #include <map>
 
-namespace Yaml {
+namespace yaml {
 
 static std::set<YamlDescriptor> sg_open_descs;
 static std::map<YamlDescriptor, std::map<std::string, std::string>> sg_yaml_cache;

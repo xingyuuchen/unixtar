@@ -44,6 +44,8 @@ class Server {
         void Run() final;
     
         virtual void HandleImpl(http::RecvContext *) = 0;
+        
+        virtual void HandleOverload(http::RecvContext *) = 0;
     
         void BindNetThread(NetThread *_net_thread);
     
@@ -56,10 +58,8 @@ class Server {
       private:
         static int __MakeWorkerThreadSeq();
         
-      protected:
-        NetThread *             net_thread_;
-      
       private:
+        NetThread *             net_thread_;
         const int               thread_seq_;
     };
     
@@ -124,6 +124,14 @@ class Server {
         
         void Run() override;
     
+        bool IsWorkerOverload();
+        
+        bool IsWorkerFullyLoad();
+    
+        size_t GetMaxBacklog() const;
+    
+        void SetMaxBacklog(size_t _backlog);
+    
         void NotifySend();
         
         void NotifyStop();
@@ -143,8 +151,6 @@ class Server {
         void BindNewWorker(WorkerThread *);
         
         void OnStarted() override;
-    
-        void OnWorkersHighPressure();
     
         void HandleException(std::exception &ex) override;
 
@@ -170,6 +176,8 @@ class Server {
         EpollNotifier::Notification         notification_send_;
         EpollNotifier::Notification         notification_stop_;
         RecvQueue                           recv_queue_;
+        size_t                              max_backlog_;
+        static const size_t                 kDefaultMaxBacklog;
         SendQueue                           send_queue_;
         std::list<WorkerThread *>           workers_;
         

@@ -26,7 +26,7 @@ Server::Server()
         , net_thread_cnt_(1)
         , running_(false) {
     
-    Yaml::YamlDescriptor server_config = Yaml::Load("../framework/serverconfig.yml");
+    yaml::YamlDescriptor server_config = yaml::Load("../framework/serverconfig.yml");
     
     if (!server_config) {
         LogE("serverconfig.yaml open failed!")
@@ -34,12 +34,12 @@ Server::Server()
     }
     
     do {
-        if (Yaml::Get(server_config, ServerConfig::field_port,
+        if (yaml::Get(server_config, ServerConfig::field_port,
                       ServerConfig::port) < 0) {
             LogE("load port from yaml failed")
             break;
         }
-        if (Yaml::Get(server_config, ServerConfig::field_net_thread_cnt,
+        if (yaml::Get(server_config, ServerConfig::field_net_thread_cnt,
                          (int &) ServerConfig::net_thread_cnt) < 0) {
             LogE("load net_thread_cnt from yaml failed")
             break;
@@ -65,7 +65,7 @@ Server::Server()
         
     } while (false);
     
-    Yaml::Close(server_config);
+    yaml::Close(server_config);
     
 }
 
@@ -158,13 +158,16 @@ void Server::WorkerThread::Run() {
     while (true) {
         
         http::RecvContext *recv_ctx;
-    
-//        if (recv_queue->size() > 100) {
-//            net_thread_->OnWorkersHighPressure();
-//        }
-        
         if (recv_queue->pop_front_to(recv_ctx)) {
-            HandleImpl(recv_ctx);
+        
+            if (net_thread_->IsWorkerOverload()) {
+                HandleOverload(recv_ctx);
+            } else {
+                HandleImpl(recv_ctx);
+            }
+            tcp::SendContext *send_ctx = recv_ctx->send_context;
+            net_thread_->GetSendQueue()->push_back(send_ctx);
+            net_thread_->NotifySend();
             continue;
         }
         
@@ -288,8 +291,11 @@ Server::ConnectionManager::~ConnectionManager() {
 }
 
 
+const size_t Server::NetThread::kDefaultMaxBacklog = 1024;
+
 Server::NetThread::NetThread()
-        : Thread() {
+        : Thread()
+        , max_backlog_(kDefaultMaxBacklog) {
     
     connection_manager_.SetEpoll(&socket_epoll_);
     epoll_notifier_.SetSocketEpoll(&socket_epoll_);
@@ -351,6 +357,14 @@ void Server::NetThread::Run() {
     }
     
 }
+
+bool Server::NetThread::IsWorkerOverload() { return recv_queue_.size() > max_backlog_ * 9 / 10; }
+
+bool Server::NetThread::IsWorkerFullyLoad() { return recv_queue_.size() >= max_backlog_; }
+
+size_t Server::NetThread::GetMaxBacklog() const { return max_backlog_; }
+
+void Server::NetThread::SetMaxBacklog(size_t _backlog) { max_backlog_ = _backlog; }
 
 void Server::NetThread::NotifySend() {
     epoll_notifier_.NotifyEpoll(notification_send_);
@@ -430,7 +444,13 @@ int Server::NetThread::__OnReadEvent(SOCKET _fd) {
     
     if (conn->IsParseDone()) {
         LogI("fd(%d) http parse succeed", _fd)
-        recv_queue_.push_back(conn->GetRecvContext());
+        if (IsWorkerFullyLoad()) {
+            LogI("worker fully loaded, drop connection directly")
+            DelConnection(_fd);
+            
+        } else {
+            recv_queue_.push_back(conn->GetRecvContext());
+        }
     }
     return 0;
 }
@@ -524,16 +544,6 @@ void Server::NetThread::OnStarted() {
     // try launching all workers.
     for (auto & worker_thread : workers_) {
         worker_thread->Start();
-    }
-}
-
-void Server::NetThread::OnWorkersHighPressure() {
-    // TODO: Redesign strategy.
-    const size_t kThreshHold = 100;
-    if (recv_queue_.size() > kThreshHold) {
-        // hire more workers
-    } else if (workers_.size() > 1) {
-        // stop unnecessary workers
     }
 }
 

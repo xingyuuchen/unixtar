@@ -4,7 +4,7 @@
 #include <string>
 
 
-namespace Yaml {
+namespace yaml {
 
 using YamlDescriptor = FILE *;
 

@@ -32,4 +32,5 @@ const int kErrDatabase      = 0x40;
 const int kErrIllegalReq    = 0x80;
 const int kErrIllegalResp   = 0x100;    /* used by front-end */
 const int kErrFileBroken    = 0x200;
+const int kSvrOverload      = 0x400;
 

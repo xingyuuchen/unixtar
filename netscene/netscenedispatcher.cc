@@ -81,10 +81,6 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     if (!_recv_ctx) {
         return;
     }
-    if (!net_thread_) {
-        LogE("WTF? No net_thread!")
-        return;
-    }
     SOCKET fd = _recv_ctx->fd;
     AutoBuffer &http_body = _recv_ctx->http_body;
     
@@ -138,12 +134,32 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     __PackHttpResp(net_scene, http_resp_msg);
     
     delete net_scene, net_scene = nullptr;
+
+}
+
+void NetSceneDispatcher::NetSceneWorker::HandleOverload(http::RecvContext *_recv_ctx) {
+    if (!_recv_ctx) {
+        return;
+    }
+    std::string resp_str = "server is busy now";
+    std::string status_desc = "OK";
+    int resp_code = 200;
     
-    Server::SendQueue *send_queue = net_thread_->GetSendQueue();
-    send_queue->push_back(_recv_ctx->send_context);
-    
-    net_thread_->NotifySend();
-    
+    std::string resp;
+    std::map<std::string, std::string> headers;
+    if (!_recv_ctx->is_post) {
+        resp = resp_str;
+        headers[http::HeaderField::kContentType] = http::HeaderField::kTextPlain;
+        
+    } else {
+        headers[http::HeaderField::kContentType] = http::HeaderField::kOctetStream;
+        BaseNetSceneResp::BaseNetSceneResp base_resp;
+        base_resp.set_errcode(kSvrOverload);
+        base_resp.set_errmsg(resp);
+        base_resp.SerializeToString(&resp);
+    }
+    http::response::Pack(http::kHTTP_1_1, resp_code,status_desc,
+                         headers, _recv_ctx->send_context->buffer, resp);
 }
 
 void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
