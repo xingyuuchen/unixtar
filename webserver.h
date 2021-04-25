@@ -6,6 +6,7 @@
 #include <mutex>
 #include <vector>
 #include <unordered_map>
+#include <cassert>
 #include "netscenebase.h"
 #include "singleton.h"
 #include "thread.h"
@@ -77,10 +78,10 @@ class WebServer final {
      */
     template<class WorkerImpl/* : public WorkerThread*/, class ...Args>
     void SetWorker(Args &&..._init_args) {
-        if (net_thread_cnt_ <= 0) {
-            return;
-        }
-        for (int i = 0; i < net_thread_cnt_; ++i) {
+        
+        assert(ServerConfig::net_thread_cnt > 0);
+        
+        for (int i = 0; i < ServerConfig::net_thread_cnt; ++i) {
             // Initially, one network thread is bound to one worker thread.
             auto worker = new WorkerImpl(_init_args...);
             auto net_thread = net_threads_[i];
@@ -205,7 +206,6 @@ class WebServer final {
     int __OnEpollErr(SOCKET);
     
   private:
-    size_t                              net_thread_cnt_;
     std::vector<NetThread *>            net_threads_;
     SocketEpoll                         socket_epoll_;
     EpollNotifier                       epoll_notifier_;

@@ -7,7 +7,6 @@
 #include "timeutil.h"
 #include <unistd.h>
 #include <string.h>
-#include <cassert>
 
 
 std::string WebServer::ServerConfig::field_port("port");
@@ -22,7 +21,6 @@ bool WebServer::ServerConfig::is_config_done = false;
 
 WebServer::WebServer()
         : listenfd_(-1)
-        , net_thread_cnt_(1)
         , running_(false) {
     
     yaml::YamlDescriptor server_config = yaml::Load("../framework/serverconfig.yml");
@@ -58,13 +56,12 @@ WebServer::WebServer()
             LogE("please config correct max_backlog")
             break;
         }
-        net_thread_cnt_ = ServerConfig::net_thread_cnt;
         
         if (__CreateListenFd() < 0) { break; }
         
         if (__Bind(ServerConfig::port) < 0) { break; }
         
-        for (int i = 0; i < net_thread_cnt_; ++i) {
+        for (int i = 0; i < ServerConfig::net_thread_cnt; ++i) {
             auto net_thread = new NetThread();
             net_thread->SetMaxBacklog(ServerConfig::max_backlog);
             net_threads_.push_back(net_thread);
@@ -616,7 +613,7 @@ void WebServer::__AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     if (_fd < 0) {
         return;
     }
-    uint net_thread_idx = _fd % net_thread_cnt_;
+    uint net_thread_idx = _fd % ServerConfig::net_thread_cnt;
     NetThread *owner_thread = net_threads_[net_thread_idx];
     if (!owner_thread) {
         LogE("wtf???")
