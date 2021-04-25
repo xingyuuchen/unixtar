@@ -1,3 +1,4 @@
 [submodule "utils/threadpool"]
 	path = utils/threadpool
 	url = https://github.com/xingyuuchen/ThreadPool
+	branch = feat_giveup_tasks_when_destruct
