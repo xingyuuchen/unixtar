@@ -34,6 +34,8 @@ class WebServer final {
         static uint16_t         port;
         static std::string      field_net_thread_cnt;
         static size_t           net_thread_cnt;
+        static std::string      field_max_backlog;
+        static size_t           max_backlog;
         static bool             is_config_done;
     };
 
@@ -130,6 +132,10 @@ class WebServer final {
     
         size_t GetMaxBacklog() const;
     
+        /**
+         * @param _backlog: The maximum backlog for waiting queue (which holds parsed HTTP packets
+                            but have not yet been processed by the WorkerThread).
+         */
         void SetMaxBacklog(size_t _backlog);
     
         void NotifySend();
@@ -181,7 +187,7 @@ class WebServer final {
         SendQueue                           send_queue_;
         std::list<WorkerThread *>           workers_;
         
-        friend class Server;
+        friend class WebServer;
     };
     
     void __NotifyNetThreadsStop();

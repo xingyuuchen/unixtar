@@ -4,4 +4,4 @@ testclient
 build/
 autogen/
 logs/
-dao/database.yml
+dao/dbconfig.yml

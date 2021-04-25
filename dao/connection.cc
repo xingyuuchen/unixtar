@@ -32,7 +32,7 @@ class _Connection {
     bool IsConnected() { return status_ == kConnected; }
     
     void Config() {
-        yaml::YamlDescriptor desc = yaml::Load("../framework/dao/database.yml");
+        yaml::YamlDescriptor desc = yaml::Load("../framework/dao/dbconfig.yml");
         if (desc) {
             yaml::Get(desc, kDatabase, db_);
             yaml::Get(desc, kServer, svr_);
@@ -50,7 +50,7 @@ class _Connection {
             });
             return;
         }
-        LogE("desc == NULL")
+        LogE("please config your mysql server, database, user, password in dbconfig.yaml")
     }
     
     int Insert(DBItem &_row) {

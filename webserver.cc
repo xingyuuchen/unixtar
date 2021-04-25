@@ -11,13 +11,12 @@
 
 
 std::string WebServer::ServerConfig::field_port("port");
+std::string WebServer::ServerConfig::field_net_thread_cnt("net_thread_cnt");
+std::string WebServer::ServerConfig::field_max_backlog("max_backlog");
 
 uint16_t WebServer::ServerConfig::port = 0;
-
-std::string WebServer::ServerConfig::field_net_thread_cnt("net_thread_cnt");
-
 size_t WebServer::ServerConfig::net_thread_cnt = 0;
-
+size_t WebServer::ServerConfig::max_backlog = 0;
 bool WebServer::ServerConfig::is_config_done = false;
 
 
@@ -29,8 +28,8 @@ WebServer::WebServer()
     yaml::YamlDescriptor server_config = yaml::Load("../framework/serverconfig.yml");
     
     if (!server_config) {
-        LogE("serverconfig.yaml open failed!")
-        return;
+        LogE("open serverconfig.yaml failed!")
+        assert(false);
     }
     
     do {
@@ -44,11 +43,20 @@ WebServer::WebServer()
             LogE("load net_thread_cnt from yaml failed")
             break;
         }
+        if (yaml::Get(server_config, ServerConfig::field_max_backlog,
+                      (int &) ServerConfig::max_backlog) < 0) {
+            LogE("load max_backlog from yaml failed")
+            break;
+        }
         if (ServerConfig::net_thread_cnt < 1) {
             ServerConfig::net_thread_cnt = 1;
         }
         if (ServerConfig::net_thread_cnt > 8) {
             ServerConfig::net_thread_cnt = 8;
+        }
+        if (ServerConfig::max_backlog < 0) {
+            LogE("please config correct max_backlog")
+            break;
         }
         net_thread_cnt_ = ServerConfig::net_thread_cnt;
         
@@ -58,6 +66,7 @@ WebServer::WebServer()
         
         for (int i = 0; i < net_thread_cnt_; ++i) {
             auto net_thread = new NetThread();
+            net_thread->SetMaxBacklog(ServerConfig::max_backlog);
             net_threads_.push_back(net_thread);
         }
         
