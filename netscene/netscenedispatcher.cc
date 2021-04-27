@@ -19,6 +19,7 @@ NetSceneDispatcher::NetSceneDispatcher() {
         selectors_.push_back(nullptr);
     }
     
+    WebServer::Instance().SetWorker<NetSceneWorker>();
 }
 
 

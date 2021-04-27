@@ -14,7 +14,7 @@ The framework adopts the model of `Epoll + NetThreads + WorkerThreads`.
 git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
 cd framework/scripts
 bash autogen.sh   # before this step, make sure Protobuf is installed.
-bash cmake.sh -r -d   # -d: build will run as a daemon, logs will be redirect to file using linux rsyslog, instead of stdout.
+bash cmake.sh -r -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
 ```
 
 ## Example Usage
@@ -36,7 +36,6 @@ Hope you enjoy :)
 #include "log.h"
 #include "webserver.h"
 #include "netscenedispatcher.h"
-#include "businesslayer/registry.h"
 #ifdef DAEMON
 #include "daemon.h"
 #endif
@@ -55,13 +54,11 @@ int main(int ac, char **argv) {
     
     // NetScene_YourBusiness must inherit from NetSceneBase, which is your
     // predefined network interface (i.e. A specific Http url route)
-    // See class NetSceneHelloSvr below for detail.
+    // See class NetSceneGetIndexPage below for detail.
     NetSceneDispatcher::Instance().RegisterNetScene<NetScene_YourBusiness>();
     NetSceneDispatcher::Instance().RegisterNetScene<NetScene_YourBusiness1>();
     NetSceneDispatcher::Instance().RegisterNetScene<NetScene_YourBusiness2>();
     
-    WebServer::Instance().SetWorker<NetSceneDispatcher::NetSceneWorker>();
-
     WebServer::Instance().Serve();
     
     LogI("Server Down")
@@ -79,25 +76,25 @@ class NetSceneGetIndexPage : public NetSceneCustom {
   public:
     NetSceneGetIndexPage();
 
-    // the unique NetScene type.
+    // The unique NetScene type.
     int GetType() override;
 
-    // new instance of your NetScene here.
+    // New instance of your NetScene here.
     NetSceneBase *NewInstance() override;
 
-    // your business logic here.
+    // Your business logic here.
     int DoSceneImpl(const std::string &_in_buffer) override;
     
-    // Http body pointer here
+    // Http body pointer.
     void *Data() override;
 
-    // How long is your http body here.
+    // How long is your http body.
     size_t Length() override;
 
-    // Http url route here.
+    // Http url route.
     const char *Route() override;
 
-    // Http Content-Type here
+    // Http Content-Type.
     const char *ContentType() override;
 
   private:
@@ -123,7 +120,7 @@ std::mutex NetSceneGetIndexPage::mutex_;
 
 NetSceneGetIndexPage::NetSceneGetIndexPage() : NetSceneCustom() {}
 
-int NetSceneGetIndexPage::GetType() { return kNetSceneTypeGetIndexPage; }
+int NetSceneGetIndexPage::GetType() { return 0; }
 
 NetSceneBase *NetSceneGetIndexPage::NewInstance() { return new NetSceneGetIndexPage(); }
 
@@ -145,5 +142,5 @@ const char *NetSceneGetIndexPage::Route() { return kUrlRoute; }
 ```
 
 ## Example Project
-Below is a http server, under the hood it is `unixtar` who provides basic network capacity.
 [Plant-Recognition-Server](https://github.com/xingyuuchen/object-identify-SVR.git)
+is a http server project, under the hood it is `unixtar` who provides basic network capacity.

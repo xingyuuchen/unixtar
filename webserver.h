@@ -72,14 +72,14 @@ class WebServer final {
      * Sets the Worker-class who handles the business logic of all request,
      * by default one WorkerThread corresponds to one NetThread.
      *
-     * The workers' life cycle is managed by Server,
-     * just implement WorkerThread's @func HandleImpl and register it here.
+     * The workers' life cycle is managed by framework,
+     * just implement WorkerThread's {@func HandleImpl} and register it here.
      *
      */
     template<class WorkerImpl/* : public WorkerThread*/, class ...Args>
     void SetWorker(Args &&..._init_args) {
         
-        assert(ServerConfig::net_thread_cnt > 0);
+        assert(ServerConfig::is_config_done && ServerConfig::net_thread_cnt > 0);
         
         for (int i = 0; i < ServerConfig::net_thread_cnt; ++i) {
             // Initially, one network thread is bound to one worker thread.
@@ -157,7 +157,7 @@ class WebServer final {
         
         void BindNewWorker(WorkerThread *);
         
-        void OnStarted() override;
+        void OnStart() override;
     
         void HandleException(std::exception &ex) override;
 

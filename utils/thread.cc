@@ -21,10 +21,10 @@ void Thread::Entry() {
 void Thread::Start() {
     running_ = true;
     thread_ = new std::thread(&Thread::Entry, this);
-    OnStarted();
+    OnStart();
 }
 
-void Thread::OnStarted() {
+void Thread::OnStart() {
     // Implement if needed.
 }
 
@@ -36,6 +36,7 @@ void Thread::Join() {
         }
         if (thread_->joinable()) {
             thread_->join();
+            OnJoined();
         }
     }
 }
@@ -54,7 +55,6 @@ void Thread::Detach() {
 }
 
 Thread::~Thread() {
-    OnStop();
     if (thread_) {
         if (thread_->joinable()) {
             thread_->detach();
@@ -70,6 +70,6 @@ void Thread::HandleException(std::exception &ex) {
 
 bool Thread::IsRunning() const { return running_; }
 
-void Thread::OnStop() {
+void Thread::OnJoined() {
     // implement if needed
 }

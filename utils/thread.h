@@ -17,11 +17,11 @@ class Thread {
     
     void Start();
     
-    virtual void OnStarted();
-    
-    virtual void OnStop();
+    virtual void OnStart();
     
     void Join();
+    
+    virtual void OnJoined();
     
     void Detach();
     

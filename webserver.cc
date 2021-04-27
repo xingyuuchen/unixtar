@@ -542,7 +542,7 @@ int WebServer::NetThread::__OnReadEventTest(SOCKET _fd) {
     return 0;
 }
 
-void WebServer::NetThread::OnStarted() {
+void WebServer::NetThread::OnStart() {
     if (workers_.empty()) {
         LogE("call WebServer::SetWorker() to employ workers first!")
         assert(false);
