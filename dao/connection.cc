@@ -102,6 +102,31 @@ class _Connection {
         return -1;
     }
     
+    int QueryExist(DBItem &_row, bool &_exist) {
+        if (!__CheckConnection()) {
+            LogE("kNotConnected")
+            return -1;
+        }
+        try {
+            char sql[512] = {0, };
+            snprintf(sql, sizeof(sql), "select 1 from %s where %s limit 1",
+                     _row.table(), _row.equal_list().c_str());
+            mysqlpp::Query query = conn_.query(sql);
+            if (mysqlpp::StoreQueryResult res = query.store()) {
+                _exist = !res.empty();
+                return 0;
+            }
+        } catch (const mysqlpp::BadQuery &er) {
+            LogE("BadQuery: %s", er.what())
+        } catch (const mysqlpp::BadConversion &er) {
+            LogE("Conversion error: %s, retrieved data size: %ld, actual size: %ld",
+                 er.what(), er.retrieved, er.actual_size)
+        } catch (const mysqlpp::Exception& er) {
+            LogE("BadQuery: %s", er.what())
+        }
+        return -1;
+    }
+    
     int Update(DBItem &_o, DBItem &_n) {
         if (!__CheckConnection()) {
             LogE("kNotConnected")
@@ -193,6 +218,11 @@ int Update(DBItem &_o, DBItem &_n) {
 
 int Query(const char *_sql, std::vector<std::string> &_res, int _col_cnt) {
     return _Connection::Instance().Query(_sql, _res, _col_cnt);
+}
+
+int QueryExist(DBItem &_row, bool &_exist) {
+    _row.OnDataPrepared();
+    return _Connection::Instance().QueryExist(_row, _exist);
 }
 
 bool IsConnected() { return _Connection::Instance().IsConnected(); }

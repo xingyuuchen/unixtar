@@ -2,6 +2,8 @@
 #include "log.h"
 
 
+DBItem::DBItem() = default;
+
 std::string &DBItem::field_list() const {
     return const_cast<std::string &>(field_list_str_);
 }
@@ -27,6 +29,10 @@ void DBItem::__Format(std::vector<std::string> &_in, std::string&_out) {
 }
 
 void DBItem::OnDataPrepared() {
+    field_list_str_.clear();
+    value_list_str_.clear();
+    equal_list_str_.clear();
+    
     // parse field list
     std::vector<std::string> field_list;
     PopulateFieldList(field_list);
@@ -43,10 +49,10 @@ void DBItem::OnDataPrepared() {
     std::map<std::string, std::string> kv;
     PopulateEqualList(kv);
     if (!kv.empty()) {
-        for (auto it = kv.begin(); it != kv.end(); ++it) {
-            equal_list_str_.append(it->first);
+        for (auto & it : kv) {
+            equal_list_str_.append(it.first);
             equal_list_str_.append("=");
-            equal_list_str_.append(it->second);
+            equal_list_str_.append(it.second);
             equal_list_str_.append(" and ");
         }
         equal_list_str_ = equal_list_str_.substr(0, equal_list_str_.length() - 5);

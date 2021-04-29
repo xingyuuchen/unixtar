@@ -7,6 +7,9 @@
 
 class DBItem {
   public:
+    
+    DBItem();
+    
     /**
      * Called by mysql++ framework, cannot override.
      */
