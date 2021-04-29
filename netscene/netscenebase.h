@@ -21,7 +21,7 @@
  *      1. NOT responsible for any network operation(recv, send, etc.);
  *      2. Business logic is implemented by subclasses overriding DoSceneImpl;
  *      3. Refer to NetSceneHelloSvr.cc/.h as an example for detail.
- *      4. Two subclasses: {@class NetSceneProtobuf}, {@class NetSceneProtobuf}.
+ *      4. Two subclasses: {@class NetSceneProtobuf}, {@class NetSceneCustom}.
  */
  
 class NetSceneBase {
@@ -79,6 +79,11 @@ class NetSceneBase {
      * Http Content-Type.
      */
     virtual const char *ContentType() = 0;
+    
+    /**
+     * Custom Http Headers of a NetScene if needed.
+     */
+    virtual void CustomHttpHeaders(std::map<std::string, std::string> &_headers);
     
     /**
      *

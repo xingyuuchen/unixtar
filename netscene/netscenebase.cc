@@ -20,3 +20,8 @@ void NetSceneBase::__ShowHttpHeader(AutoBuffer &_out) {
 
 std::string &NetSceneBase::GetRespBuffer() { return resp_buffer_; }
 
+
+void NetSceneBase::CustomHttpHeaders(std::map<std::string, std::string> &_headers) {
+    // implement if needed.
+}
+

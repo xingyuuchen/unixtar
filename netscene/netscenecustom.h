@@ -1,5 +1,6 @@
 #pragma once
 #include "netscenebase.h"
+#include "http/headerfield.h"
 
 
 class NetSceneCustom : public NetSceneBase {

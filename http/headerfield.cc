@@ -12,13 +12,19 @@ const char *const HeaderField::kContentLength = "Content-Length";
 const char *const HeaderField::kContentType = "Content-Type";
 const char *const HeaderField::kTransferEncoding = "Transfer-Encoding";
 const char *const HeaderField::kConnection = "Connection";
+const char *const HeaderField::kAccessControlAllowOrigin = "Access-Control-Allow-Origin";
 
 
 const char *const HeaderField::kOctetStream = "application/octet-stream";
 const char *const HeaderField::kTextPlain = "text/plain";
 const char *const HeaderField::kTextHtml = "text/html";
 const char *const HeaderField::kTextCss = "text/css";
+const char *const HeaderField::kApplicationJson = "application/json";
+const char *const HeaderField::kXWwwFormUrlencoded = "application/x-www-form-urlencoded";
+const char *const HeaderField::kImageJpg = "image/jpeg";
+const char *const HeaderField::kImagePng = "image/png";
 const char *const HeaderField::kConnectionClose = "close";
+const char *const HeaderField::kAccessControlOriginAll = "*";
 
 
 void HeaderField::InsertOrUpdate(const std::string &_key,
@@ -29,9 +35,9 @@ void HeaderField::InsertOrUpdate(const std::string &_key,
 
 size_t HeaderField::GetHeaderSize() {
     size_t ret = 0;
-    for (auto entry = header_fields_.begin(); entry != header_fields_.end(); entry++) {
-        ret += entry->first.size();
-        ret += entry->second.size();
+    for (auto & header_field : header_fields_) {
+        ret += header_field.first.size();
+        ret += header_field.second.size();
         ret += 4;
     }
     return ret;

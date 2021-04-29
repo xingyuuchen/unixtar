@@ -34,7 +34,7 @@ int NetScene404NotFound::DoSceneImpl(const std::string &_in_buffer) {
 }
 
 const char *NetScene404NotFound::ContentType() {
-    return NetSceneCustom::ContentType();
+    return http::HeaderField::kTextHtml;
 }
 
 void *NetScene404NotFound::Data() {

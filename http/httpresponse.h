@@ -27,7 +27,7 @@ class Parser {
         kError,
     };
     
-    Parser(AutoBuffer *_body);
+    explicit Parser(AutoBuffer *_body);
     
     void Recv(AutoBuffer &_buff);
     

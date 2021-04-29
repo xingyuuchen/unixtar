@@ -1,5 +1,5 @@
 #include "netscenecustom.h"
-#include "http/headerfield.h"
+
 
 NetSceneCustom::NetSceneCustom() = default;
 
@@ -17,5 +17,5 @@ int NetSceneCustom::DoScene(const std::string &_in_buffer) {
 }
 
 const char *NetSceneCustom::ContentType() {
-    return http::HeaderField::kTextHtml;
+    return http::HeaderField::kOctetStream;
 }

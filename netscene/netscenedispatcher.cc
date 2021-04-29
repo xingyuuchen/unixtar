@@ -88,14 +88,19 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     int type = kNetSceneType404NotFound;
     std::string req_buffer;
     do {
+        std::string &full_url = _recv_ctx->full_url;
+        type = NetSceneDispatcher::Instance().__GetNetSceneTypeByRoute(full_url);
         if (!_recv_ctx->is_post) {
-            std::string &full_url = _recv_ctx->full_url;
-            LogI("fd(%d) GET, full_url: %s", fd, full_url.c_str())
-            type = NetSceneDispatcher::Instance().__GetNetSceneTypeByRoute(full_url);
+            LogI("fd(%d), GET, url: %s", fd, full_url.c_str())
+            break;
+        }
+        if (type != kNetSceneType404NotFound) {
+            LogI("fd(%d), POST, url: %s", fd, full_url.c_str())
+            req_buffer = std::string(http_body.Ptr(), http_body.Length());
             break;
         }
         if (!http_body.Ptr() || http_body.Length() <= 0) {
-            LogI("POST but no http body, return 404")
+            LogI("fd(%d), POST but no http body, return 404", fd)
             break;
         }
         LogI("fd(%d) http_body.len: %zd", fd, http_body.Length());
@@ -104,12 +109,12 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     
         if (!base_req.has_net_scene_type()) {
             LogI("fd(%d) base_req.has_net_scene_type(): false", fd)
-            return;
+            break;
         }
         type = base_req.net_scene_type();
         if (!base_req.has_net_scene_req_buff()) {
             LogI("fd(%d), type(%d), base_req.has_net_scene_req_buff(): false", fd, type)
-            return;
+            break;
         }
         req_buffer = base_req.net_scene_req_buff();
     } while (false);
@@ -173,6 +178,8 @@ void NetSceneDispatcher::NetSceneWorker::__PackHttpResp(
         NetSceneBase *_net_scene, AutoBuffer &_http_msg) {
     
     std::map<std::string, std::string> headers;
+    
+    _net_scene->CustomHttpHeaders(headers);
     
     if (_net_scene->IsUseProtobuf()) {
         headers[http::HeaderField::kContentType] = http::HeaderField::kOctetStream;

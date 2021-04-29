@@ -19,13 +19,19 @@ class HeaderField {
     static const char *const kContentType;
     static const char *const kTransferEncoding;
     static const char *const kConnection;
+    static const char *const kAccessControlAllowOrigin;
     
     // values
     static const char *const kOctetStream;
     static const char *const kTextPlain;
     static const char *const kTextHtml;
     static const char *const kTextCss;
+    static const char *const kApplicationJson;
+    static const char *const kXWwwFormUrlencoded;
+    static const char *const kImageJpg;
+    static const char *const kImagePng;
     static const char *const kConnectionClose;
+    static const char *const kAccessControlOriginAll;
     
     
     void InsertOrUpdate(const std::string &_key, const std::string &_value);
