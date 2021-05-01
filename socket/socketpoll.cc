@@ -1,5 +1,5 @@
 #include "socketpoll.h"
-#include <errno.h>
+#include <cerrno>
 
 
 SocketPoll::SocketPoll()

@@ -1,7 +1,7 @@
 #include "socketepoll.h"
 #include <unistd.h>
-#include <errno.h>
-#include <string.h>
+#include <cerrno>
+#include <cstring>
 #include "log.h"
 
 
@@ -218,17 +218,16 @@ SocketEpoll::~SocketEpoll() {
 
 
 EpollNotifier::EpollNotifier()
-        : fd_(INVALID_SOCKET)
+        : socket_(INVALID_SOCKET)
         , socket_epoll_(nullptr) {
     
-    fd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (fd_ < 0) {
+    if (socket_.Create(AF_INET, SOCK_STREAM, 0) < 0) {
         LogE("create socket error: %s, errno: %d",
              strerror(errno), errno);
         return;
     }
-    LogI("notify fd: %d", fd_)
-    SetNonblocking(fd_);
+    LogI("notify fd: %d", socket_.FD())
+    socket_.SetNonblocking();
 }
 
 void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
@@ -238,24 +237,22 @@ void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
     }
     if (_epoll) {
         socket_epoll_ = _epoll;
-        socket_epoll_->AddSocketRead(fd_);
+        socket_epoll_->AddSocketRead(socket_.FD());
     }
 }
 
 void EpollNotifier::NotifyEpoll(Notification &_notification) {
     if (socket_epoll_) {
-        socket_epoll_->ModSocketWrite(fd_, (uint64_t) _notification.notify_id_);
+        socket_epoll_->ModSocketWrite(socket_.FD(), (uint64_t) _notification.notify_id_);
     }
 }
 
-SOCKET EpollNotifier::GetNotifyFd() const { return fd_; }
+SOCKET EpollNotifier::GetNotifyFd() const { return socket_.FD(); }
 
 EpollNotifier::~EpollNotifier() {
-    if (fd_ != INVALID_SOCKET) {
-        if (socket_epoll_) {
-            socket_epoll_->DelSocket(fd_);
-        }
-        ::close(fd_), fd_ = INVALID_SOCKET;
+    SOCKET fd = socket_.FD();
+    if (fd != INVALID_SOCKET && socket_epoll_) {
+        socket_epoll_->DelSocket(fd);
     }
 }
 

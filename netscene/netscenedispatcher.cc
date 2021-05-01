@@ -1,5 +1,5 @@
 #include "netscenedispatcher.h"
-#include <stdio.h>
+#include <cstdio>
 #include "basenetscenereq.pb.h"
 #include "netscene_getindexpage.h"
 #include "netscene_hellosvr.h"
@@ -137,7 +137,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     LogI("fd(%d) type(%d), cost %llu ms", fd, type, cost)
     
     AutoBuffer &http_resp_msg = _recv_ctx->send_context->buffer;
-    __PackHttpResp(net_scene, http_resp_msg);
+    __PackHttpRespPacket(net_scene, http_resp_msg);
     
     delete net_scene, net_scene = nullptr;
 
@@ -174,7 +174,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
 }
 
 
-void NetSceneDispatcher::NetSceneWorker::__PackHttpResp(
+void NetSceneDispatcher::NetSceneWorker::__PackHttpRespPacket(
         NetSceneBase *_net_scene, AutoBuffer &_http_msg) {
     
     std::map<std::string, std::string> headers;

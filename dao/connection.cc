@@ -43,7 +43,7 @@ class _Connection {
                  svr_.c_str(), usr_.c_str(), pwd_.c_str())
             __TryConnect();
     
-            LogI("Register Mysql HeartBeat Task.")
+            LogI("register mysql heartbeat task.")
             const int kHeartBeatPeriod = 4 * 60 * 1000;    // mysql default wait_timeout is 8 hours.
             ThreadPool::Instance().ExecutePeriodic(kHeartBeatPeriod, [this] {
                 __SendHeartbeat();

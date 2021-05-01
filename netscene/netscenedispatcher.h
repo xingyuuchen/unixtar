@@ -52,8 +52,8 @@ class NetSceneDispatcher final {
         void HandleException(std::exception &ex) override;
 
       private:
-        static void __PackHttpResp(NetSceneBase *_net_scene,
-                                   AutoBuffer &_http_msg);
+        static void __PackHttpRespPacket(NetSceneBase *_net_scene,
+                                         AutoBuffer &_http_msg);
     };
     
   private:

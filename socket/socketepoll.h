@@ -7,13 +7,13 @@
 #ifdef __APPLE__
 #include <sys/types.h>
 #include <sys/event.h>
-#include <sys/time.h>
+#include <ctime>
 #define epoll_event kevent
 #define epoll_data void
 #endif
 #endif
-#include <stddef.h>
-#include "unix_socket.h"
+#include <cstddef>
+#include "unixsocket.h"
 
 
 class SocketEpoll {
@@ -129,7 +129,7 @@ class EpollNotifier {
     ~EpollNotifier();
 
   private:
-    SOCKET          fd_;
+    Socket          socket_;
     SocketEpoll *   socket_epoll_;
 };
 

@@ -53,7 +53,7 @@ int main(int ac, char **argv) {
     LogI("Launching Server...")
     
     // NetScene_YourBusiness must inherit from NetSceneBase, which is your
-    // predefined network interface (i.e. A specific Http url route)
+    // predefined network interface (e.g. A specific Http url route)
     // See class NetSceneGetIndexPage below for detail.
     NetSceneDispatcher::Instance().RegisterNetScene<NetScene_YourBusiness>();
     NetSceneDispatcher::Instance().RegisterNetScene<NetScene_YourBusiness1>();

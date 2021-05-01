@@ -1,5 +1,5 @@
 #include "log.h"
-#include <stdlib.h>
+#include <cstdlib>
 #ifdef DAEMON
 #ifdef __linux__
 #include "signalhandler.h"

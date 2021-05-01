@@ -3,10 +3,10 @@
 
 #include <syslog.h>
 #include <execinfo.h>
-#include <string.h>
+#include <cstring>
 #ifndef DAEMON
 #include "timeutil.h"
-#include <stdio.h>
+#include <cstdio>
 #endif
 
 namespace logger {

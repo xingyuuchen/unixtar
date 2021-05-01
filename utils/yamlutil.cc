@@ -1,7 +1,7 @@
 #include "yamlutil.h"
 #include "log.h"
 #include "strutil.h"
-#include <stdio.h>
+#include <cstdio>
 #include <string>
 #include <fstream>
 #include <set>

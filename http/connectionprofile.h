@@ -1,6 +1,6 @@
 #pragma once
 #include "http/httprequest.h"
-#include "socket/unix_socket.h"
+#include "socket/unixsocket.h"
 
 namespace tcp {
 struct SendContext {
@@ -47,7 +47,7 @@ class ConnectionProfile {
     
     virtual bool IsParseDone();
     
-    void CloseSelf();
+    void CloseTcpConnection();
     
     TApplicationProtocol GetApplicationProtocol() const;
     
@@ -72,11 +72,10 @@ class ConnectionProfile {
     void __MakeRecvContext();
 
   private:
-    static const int        kBuffSize;
     static const uint64_t   kDefaultTimeout;
     std::string             src_ip_;
     uint16_t                src_port_;
-    SOCKET                  fd_;
+    Socket                  socket_;
     http::request::Parser   http_parser_;
     uint64_t                record_;
     uint64_t                timeout_millis_;

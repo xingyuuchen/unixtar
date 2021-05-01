@@ -1,6 +1,6 @@
 #pragma once
-#include <inttypes.h>
-#include <stdlib.h>
+#include <cinttypes>
+#include <cstdlib>
 #include <string>
 
 

@@ -1,8 +1,8 @@
 #pragma once
 #include <string>
-#include <string.h>
+#include <cstring>
 #include <map>
-#include "socket/unix_socket.h"
+#include "socket/unixsocket.h"
 #include "autobuffer.h"
 #include <atomic>
 

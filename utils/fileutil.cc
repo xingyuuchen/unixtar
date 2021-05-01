@@ -1,6 +1,6 @@
 #include "fileutil.h"
-#include <errno.h>
-#include <string.h>
+#include <cerrno>
+#include <cstring>
 #include <unistd.h>
 #include "log.h"
 

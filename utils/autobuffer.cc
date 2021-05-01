@@ -1,9 +1,9 @@
 #include "autobuffer.h"
-#include <stdlib.h>
-#include <string.h>
-#include <stdio.h>
+#include <cstdlib>
+#include <cstring>
+#include <cstdio>
 #include "log.h"
-#include <errno.h>
+#include <cerrno>
 
 
 AutoBuffer::AutoBuffer(size_t _malloc_unit_size)

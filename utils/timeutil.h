@@ -1,7 +1,7 @@
 #ifndef OI_SVR_TIMEUTIL_H
 #define OI_SVR_TIMEUTIL_H
 
-#include <stdint.h>
+#include <cstdint>
 
 
 uint64_t gettickcount();

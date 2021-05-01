@@ -1,6 +1,6 @@
 #include "signalhandler.h"
 #include "utils/log.h"
-#include <stdlib.h>
+#include <cstdlib>
 
     
 void SignalHandler::Init() {}

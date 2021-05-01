@@ -6,7 +6,7 @@
 #include "signalhandler.h"
 #include "timeutil.h"
 #include <unistd.h>
-#include <string.h>
+#include <cstring>
 
 
 std::string WebServer::ServerConfig::field_port("port");
@@ -20,8 +20,8 @@ bool WebServer::ServerConfig::is_config_done = false;
 
 
 WebServer::WebServer()
-        : listenfd_(-1)
-        , running_(false) {
+        : running_(false)
+        , listenfd_(INVALID_SOCKET) {
     
     yaml::YamlDescriptor server_config = yaml::Load("../framework/serverconfig.yml");
     
@@ -88,9 +88,9 @@ void WebServer::Serve() {
     
     running_ = true;
     
-    ::listen(listenfd_, 1024);
+    ::listen(listenfd_.FD(), 1024);
     
-    socket_epoll_.SetListenFd(listenfd_);
+    socket_epoll_.SetListenFd(listenfd_.FD());
     
     epoll_notifier_.SetSocketEpoll(&socket_epoll_);
     
@@ -127,11 +127,6 @@ void WebServer::Serve() {
                 __OnEpollErr(fd);
             }
         }
-    }
-    
-    if (listenfd_ != -1) {
-        LogI("close listenfd")
-        ::close(listenfd_), listenfd_ = -1;
     }
     
     __NotifyNetThreadsStop();
@@ -483,7 +478,7 @@ int WebServer::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
     
     do {
         if (nsend == ntotal) {
-            LogI("send %zd/%zu B, done", nsend, ntotal)
+            LogI("fd(%d), send %zd/%zu B, done", fd, nsend, ntotal)
             break;
         }
         if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
@@ -586,8 +581,9 @@ int WebServer::__OnConnect() {
     char ip_str[INET_ADDRSTRLEN] = {0, };
     uint16_t port = 0;
     
+    SOCKET listen_fd = listenfd_.FD();
     while (true) {
-        fd = ::accept(listenfd_, (struct sockaddr *) &sock_in, &socklen);
+        fd = ::accept(listen_fd, (struct sockaddr *) &sock_in, &socklen);
         if (fd < 0) {
             if (errno == EINTR) {
                 continue;
@@ -604,7 +600,6 @@ int WebServer::__OnConnect() {
         port = ntohs(sock_in.sin_port);
         std::string ip(ip_str);
         LogI("fd(%d), address: [%s:%d]", fd, ip_str, port);
-        SetNonblocking(fd);
         __AddConnection(fd, ip, port);
     }
 }
@@ -624,18 +619,16 @@ void WebServer::__AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
 }
 
 int WebServer::__CreateListenFd() {
-    listenfd_ = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (listenfd_ < 0) {
-        LogE("create socket error: %s, errno: %d",
-             strerror(errno), errno);
-        return -1;
-    }
-    // FIXME
+    assert(listenfd_.Create(AF_INET, SOCK_STREAM, 0) >= 0);
+    
+    // If l_onoff is not 0, The system waits for the length of time
+    // described by l_linger for the data in the fd buffer to be sent
+    // before the fd actually be destroyed.
     struct linger ling{};
     ling.l_linger = 0;
-    ling.l_onoff = 1;
-    ::setsockopt(listenfd_, SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
-    SetNonblocking(listenfd_);
+    ling.l_onoff = 0;   // identical to default.
+    listenfd_.SetSocketOpt(SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
+    listenfd_.SetNonblocking();
     return 0;
 }
 
@@ -647,11 +640,11 @@ int WebServer::__Bind(uint16_t _port) const {
     sock_addr.sin_addr.s_addr = htonl(INADDR_ANY);
     sock_addr.sin_port = htons(_port);
     
-    int ret = ::bind(listenfd_, (struct sockaddr *) &sock_addr,
+    int ret = ::bind(listenfd_.FD(), (struct sockaddr *) &sock_addr,
                         sizeof(sock_addr));
     if (ret < 0) {
-        LogE("errno(%d): %s", errno, strerror(errno));
-        return -1;
+        LogE("bind errno(%d): %s", errno, strerror(errno));
+        assert(false);
     }
     return 0;
 }

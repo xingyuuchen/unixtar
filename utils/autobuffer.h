@@ -1,6 +1,6 @@
 #ifndef OI_SVR_AUTOBUFFER_H
 #define OI_SVR_AUTOBUFFER_H
-#include <stddef.h>
+#include <cstddef>
 
 
 class AutoBuffer {

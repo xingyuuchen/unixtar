@@ -1,8 +1,8 @@
 #include "daemon.h"
 #include <unistd.h>
-#include <stdio.h>
+#include <cstdio>
 #include <fcntl.h>
-#include <signal.h>
+#include <csignal>
 
 
 namespace Daemon {

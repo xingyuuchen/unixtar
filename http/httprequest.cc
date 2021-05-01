@@ -2,7 +2,7 @@
 #include "firstline.h"
 #include "headerfield.h"
 #include "log.h"
-#include <string.h>
+#include <cstring>
 #include "strutil.h"
 
 

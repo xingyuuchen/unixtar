@@ -1,29 +1,27 @@
 #include "connectionprofile.h"
-#include <errno.h>
-#include <string.h>
+#include <cerrno>
+#include <cstring>
 #include <unistd.h>
 #include "timeutil.h"
 #include "log.h"
-#include "socket/unix_socket.h"
+#include "socket/unixsocket.h"
 
 
 namespace tcp {
-
-const int ConnectionProfile::kBuffSize = 1024;
 
 const uint64_t ConnectionProfile::kDefaultTimeout = 60 * 1000;
 
 ConnectionProfile::ConnectionProfile(int _fd, std::string _src_ip, uint16_t _src_port)
         : src_ip_(std::move(_src_ip))
         , src_port_(_src_port)
-        , fd_(_fd)
+        , socket_(_fd)
         , application_protocol_(TApplicationProtocol::kHttp1_1)
         , record_(::gettickcount())
         , timeout_millis_(kDefaultTimeout)
         , timeout_ts_(record_ + timeout_millis_) {
     
     if (_fd < 0) {
-        fd_ = INVALID_SOCKET;
+        socket_.Set(INVALID_SOCKET);
     }
     
 }
@@ -31,31 +29,23 @@ ConnectionProfile::ConnectionProfile(int _fd, std::string _src_ip, uint16_t _src
 int ConnectionProfile::Receive() {
     AutoBuffer *recv_buff = http_parser_.GetBuff();
     
+    SOCKET fd = socket_.FD();
     while (true) {
     
-        size_t available = recv_buff->AvailableSize();
-        if (available < kBuffSize) {
-            recv_buff->AddCapacity(kBuffSize - available);
-        }
-        
-        ssize_t n = ::read(fd_, recv_buff->Ptr(
-                recv_buff->Length()), kBuffSize);
-        
-        if (n == -1 && IS_EAGAIN(errno)) {
+        bool has_more_data;
+        ssize_t n = socket_.Recv(recv_buff, &has_more_data);
+    
+        if (socket_.IsEAgain()) {
             LogI("EAGAIN")
             return 0;
         }
         if (n < 0) {
-            LogE("n<0, errno(%d): %s", errno, strerror(errno))
             return -1;
-            
-        } else if (n == 0) {
+        }
+        if (n == 0) {
             // A read event is raised when conn closed by peer
-            LogI("conn(%d) closed by peer", fd_)
+            LogI("conn(%d) closed by peer", fd)
             return -1;
-            
-        } else if (n > 0) {
-            recv_buff->AddLength(n);
         }
     
         int ret = ParseProtocol();
@@ -73,7 +63,7 @@ int ConnectionProfile::Receive() {
             return 0;
         }
     
-        if (n < kBuffSize) {
+        if (!has_more_data) {
             return 0;
         }
     }
@@ -105,11 +95,8 @@ bool ConnectionProfile::IsParseDone() {
     return http_parser_.IsEnd();
 }
 
-void ConnectionProfile::CloseSelf() {
-    if (fd_ > 0) {
-        LogI("%d", fd_)
-        ::shutdown(fd_, SHUT_RDWR), fd_ = INVALID_SOCKET;
-    }
+void ConnectionProfile::CloseTcpConnection() {
+    socket_.Close();
 }
 
 ConnectionProfile::TApplicationProtocol ConnectionProfile::GetApplicationProtocol() const {
@@ -119,7 +106,7 @@ ConnectionProfile::TApplicationProtocol ConnectionProfile::GetApplicationProtoco
 
 http::request::Parser *ConnectionProfile::GetHttpParser() { return &http_parser_; }
 
-SOCKET ConnectionProfile::FD() const { return fd_; }
+SOCKET ConnectionProfile::FD() const { return socket_.FD(); }
 
 http::RecvContext *ConnectionProfile::GetRecvContext() { return &recv_ctx_; }
 
@@ -139,14 +126,15 @@ bool ConnectionProfile::IsTimeout(uint64_t _now) const {
 }
 
 void ConnectionProfile::__MakeRecvContext() {
-    if (fd_ < 0) {
+    SOCKET fd = socket_.FD();
+    if (fd < 0) {
         return;
     }
     if (!IsParseDone()) {
         LogE("recv ctx cannot be made when the parsing hasn't done")
         return;
     }
-    recv_ctx_.fd = fd_;
+    recv_ctx_.fd = fd;
     
     recv_ctx_.is_post = http_parser_.IsMethodPost();
     if (recv_ctx_.is_post) {
@@ -156,12 +144,10 @@ void ConnectionProfile::__MakeRecvContext() {
     }
     std::string &url = http_parser_.GetRequestUrl();
     recv_ctx_.full_url = std::string(url);
-    send_ctx_.fd = fd_;
+    send_ctx_.fd = fd;
     recv_ctx_.send_context = &send_ctx_;
 }
 
-ConnectionProfile::~ConnectionProfile() {
-    CloseSelf();
-}
+ConnectionProfile::~ConnectionProfile() = default;
 
 }

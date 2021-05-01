@@ -1,6 +1,6 @@
 #ifndef OI_SVR_WEBSERVER_H
 #define OI_SVR_WEBSERVER_H
-#include <stdint.h>
+#include <cstdint>
 #include <map>
 #include <list>
 #include <mutex>
@@ -211,7 +211,7 @@ class WebServer final {
     EpollNotifier                       epoll_notifier_;
     EpollNotifier::Notification         notification_stop_;
     bool                                running_;
-    SOCKET                              listenfd_;
+    Socket                              listenfd_;
     
 };
 

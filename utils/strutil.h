@@ -1,8 +1,8 @@
 #ifndef OI_SVR_STRUTIL_H
 #define OI_SVR_STRUTIL_H
 
-#include <stdint.h>
-#include <string.h>
+#include <cstdint>
+#include <cstring>
 #include <vector>
 #include <string>
 
