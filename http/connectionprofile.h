@@ -4,6 +4,7 @@
 
 namespace tcp {
 struct SendContext {
+    uint32_t        connection_uid;
     SOCKET          fd;
     AutoBuffer      buffer;
 };
@@ -30,11 +31,14 @@ class ConnectionProfile {
         kHttp2_0,
     };
     
-    ConnectionProfile(SOCKET _fd, std::string _src_ip, uint16_t _src_port);
+    ConnectionProfile(uint32_t _uid, SOCKET _fd, std::string _src_ip,
+                      uint16_t _src_port);
     
     ~ConnectionProfile();
     
     int Receive();
+    
+    uint32_t Uid() const;
     
     /**
      *
@@ -73,6 +77,7 @@ class ConnectionProfile {
 
   private:
     static const uint64_t   kDefaultTimeout;
+    uint32_t                uid_;
     std::string             src_ip_;
     uint16_t                src_port_;
     Socket                  socket_;
@@ -81,7 +86,7 @@ class ConnectionProfile {
     uint64_t                timeout_millis_;
     uint64_t                timeout_ts_;
     TApplicationProtocol    application_protocol_;
-    tcp::SendContext        send_ctx_{INVALID_SOCKET};
+    tcp::SendContext        send_ctx_{0, INVALID_SOCKET};
     http::RecvContext       recv_ctx_{INVALID_SOCKET, nullptr};
     
 };

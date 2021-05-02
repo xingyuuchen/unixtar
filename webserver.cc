@@ -1,7 +1,6 @@
 #include "webserver.h"
 #include "utils/log.h"
 #include "socketepoll.h"
-#include "http/httprequest.h"
 #include "yamlutil.h"
 #include "signalhandler.h"
 #include "timeutil.h"
@@ -12,10 +11,12 @@
 std::string WebServer::ServerConfig::field_port("port");
 std::string WebServer::ServerConfig::field_net_thread_cnt("net_thread_cnt");
 std::string WebServer::ServerConfig::field_max_backlog("max_backlog");
+std::string WebServer::ServerConfig::field_worker_thread_cnt("worker_thread_cnt");
 
 uint16_t WebServer::ServerConfig::port = 0;
 size_t WebServer::ServerConfig::net_thread_cnt = 0;
 size_t WebServer::ServerConfig::max_backlog = 0;
+size_t WebServer::ServerConfig::worker_thread_cnt = 0;
 bool WebServer::ServerConfig::is_config_done = false;
 
 
@@ -26,34 +27,52 @@ WebServer::WebServer()
     yaml::YamlDescriptor server_config = yaml::Load("../framework/serverconfig.yml");
     
     if (!server_config) {
-        LogE("open serverconfig.yaml failed!")
+        LogE("Open serverconfig.yaml failed.")
         assert(false);
     }
     
     do {
         if (yaml::Get(server_config, ServerConfig::field_port,
                       ServerConfig::port) < 0) {
-            LogE("load port from yaml failed")
+            LogE("Load port from yaml failed.")
             break;
         }
         if (yaml::Get(server_config, ServerConfig::field_net_thread_cnt,
                          (int &) ServerConfig::net_thread_cnt) < 0) {
-            LogE("load net_thread_cnt from yaml failed")
+            LogE("Load net_thread_cnt from yaml failed.")
             break;
         }
         if (yaml::Get(server_config, ServerConfig::field_max_backlog,
                       (int &) ServerConfig::max_backlog) < 0) {
-            LogE("load max_backlog from yaml failed")
+            LogE("Load max_backlog from yaml failed.")
+            break;
+        }
+        if (yaml::Get(server_config, ServerConfig::field_worker_thread_cnt,
+                      (int &) ServerConfig::worker_thread_cnt) < 0) {
+            LogE("Load worker_thread_cnt from yaml failed.")
             break;
         }
         if (ServerConfig::net_thread_cnt < 1) {
-            ServerConfig::net_thread_cnt = 1;
+            LogE("Illegal net_thread_cnt: %zu", ServerConfig::net_thread_cnt)
+            break;
         }
         if (ServerConfig::net_thread_cnt > 8) {
             ServerConfig::net_thread_cnt = 8;
         }
+        if (ServerConfig::worker_thread_cnt < 1) {
+            LogE("Illegal worker_thread_cnt: %zu", ServerConfig::worker_thread_cnt)
+            break;
+        }
+        if (ServerConfig::worker_thread_cnt % ServerConfig::net_thread_cnt != 0) {
+            LogW("Config worker_thread_cnt as an integer multiple time of "
+                 "net_thread_cnt to get best performance.")
+        }
+        if (ServerConfig::worker_thread_cnt > 4 * ServerConfig::net_thread_cnt) {
+            LogW("Excessive proportion of worker_thread / net_thread "
+                 "may lower performance of net_thread.")
+        }
         if (ServerConfig::max_backlog < 0) {
-            LogE("please config correct max_backlog")
+            LogE("Please config max_backlog a positive number.")
             break;
         }
         
@@ -211,8 +230,18 @@ int WebServer::WorkerThread::GetWorkerSeqNum() const { return thread_seq_; }
 WebServer::WorkerThread::~WorkerThread() = default;
 
 
+
+const size_t WebServer::ConnectionManager::kReserveSize = 128;
+const size_t WebServer::ConnectionManager::kEnlargeUnit = 128;
+
 WebServer::ConnectionManager::ConnectionManager()
         : socket_epoll_(nullptr) {
+    
+    pool_.reserve(kReserveSize);
+    for (uint32_t i = 0; i < kReserveSize; ++i) {
+        free_places_.push(i);
+        pool_.push_back(nullptr);
+    }
 }
 
 void WebServer::ConnectionManager::SetEpoll(SocketEpoll *_epoll) {
@@ -221,73 +250,88 @@ void WebServer::ConnectionManager::SetEpoll(SocketEpoll *_epoll) {
     }
 }
 
-tcp::ConnectionProfile *WebServer::ConnectionManager::GetConnection(SOCKET _fd) {
+tcp::ConnectionProfile *WebServer::ConnectionManager::GetConnection(uint32_t _uid) {
+    assert(_uid >= 0 && _uid < pool_.capacity());
     ScopedLock lock(mutex_);
-    auto find = connections_.find(_fd);
-    if (find == connections_.end()) {
-        return nullptr;
-    }
-    return find->second;
+    return pool_[_uid];
 }
 
-void WebServer::ConnectionManager::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
+void WebServer::ConnectionManager::AddConnection(SOCKET _fd,
+                                                 std::string &_ip,
+                                                 uint16_t _port) {
     if (_fd < 0) {
-        LogE("%d", _fd)
+        LogE("fd(%d)", _fd)
         LogPrintStacktrace()
         return;
     }
+    assert(socket_epoll_);
+    
+    __CheckCapacity();
+    
     ScopedLock lock(mutex_);
-    if (connections_.find(_fd) != connections_.end()) {
-        LogE("already got %d", _fd)
-        return;
-    }
-    auto neo = new tcp::ConnectionProfile(_fd, _ip, _port);
-    connections_.emplace(_fd, neo);
-    if (socket_epoll_) {
-        // While one thread is blocked in a call to epoll_wait(), it is
-        // possible for another thread to add a file descriptor to the
-        // waited-upon epoll instance.  If the new file descriptor becomes
-        // ready, it will cause the epoll_wait() call to unblock.
-        socket_epoll_->AddSocketReadWrite(_fd, (uint64_t) neo);
-    }
+    
+    uint32_t uid = free_places_.front();
+    free_places_.pop();
+    
+    LogI("fd(%d), address: [%s:%d], uid: %u", _fd, _ip.c_str(), _port, uid)
+    
+    auto neo = new tcp::ConnectionProfile(uid, _fd, _ip, _port);
+    pool_[uid] = neo;
+    
+    // While one thread is blocked in a call to epoll_wait(), it is
+    // possible for another thread to add a file descriptor to the
+    // waited-upon epoll instance.  If the new file descriptor becomes
+    // ready, it will cause the epoll_wait() call to unblock.
+    socket_epoll_->AddSocketReadWrite(_fd, (uint64_t) neo);
 }
 
-void WebServer::ConnectionManager::DelConnection(SOCKET _fd) {
+void WebServer::ConnectionManager::DelConnection(uint32_t _uid) {
     ScopedLock lock(mutex_);
-    auto &conn = connections_[_fd];
+    assert(_uid >= 0 && _uid < pool_.capacity());
+    
+    auto &conn = pool_[_uid];
     if (socket_epoll_) {
-        socket_epoll_->DelSocket(_fd);
-    }
-    if (conn) {
-        LogI("fd(%d)", _fd)
-    } else {
-        LogE("fd(%d) Bug here!!", _fd)
+        socket_epoll_->DelSocket(conn->FD());
     }
     delete conn, conn = nullptr;
-    connections_.erase(_fd);
     
+    free_places_.push(_uid);
+    
+    LogI("free size: %lu", free_places_.size())
 }
 
 void WebServer::ConnectionManager::ClearTimeout() {
     uint64_t now = ::gettickcount();
     ScopedLock lock(mutex_);
-    auto it = connections_.begin();
-    while (it != connections_.end()) {
-        if (it->second->IsTimeout(now)) {
-            LogI("clear fd: %d", it->first)
-            socket_epoll_->DelSocket(it->first);
-            delete it->second, it->second = nullptr;
-            it = connections_.erase(it);
-            continue;
+    
+    for (auto & conn : pool_) {
+        if (conn && conn->IsTimeout(now)) {
+            LogI("clear fd: %d", conn->FD())
+            socket_epoll_->DelSocket(conn->FD());
+            free_places_.push(conn->Uid());
+            delete conn, conn = nullptr;
         }
-        ++it;
+    }
+}
+
+void WebServer::ConnectionManager::__CheckCapacity() {
+    ScopedLock lock(mutex_);
+    if (free_places_.empty()) {
+        size_t curr = pool_.size();
+        size_t neo = curr + kEnlargeUnit;
+        pool_.resize(neo, nullptr);
+        for (size_t i = curr; i < neo; ++i) {
+            free_places_.push(i);
+        }
     }
 }
 
 WebServer::ConnectionManager::~ConnectionManager() {
     ScopedLock lock(mutex_);
-    for (auto &it : connections_) {
-        delete it.second, it.second = nullptr;
+    for (auto & conn : pool_) {
+        if (conn) {
+            delete conn, conn = nullptr;
+        }
     }
 }
 
@@ -306,7 +350,7 @@ void WebServer::NetThread::Run() {
     LogI("launching NetThread!")
     int epoll_retry = 3;
     
-    const uint64_t clear_timeout_period = 3000;
+    const uint64_t clear_timeout_period = 10 * 1000;
     uint64_t last_clear_ts = 0;
     
     while (true) {
@@ -337,16 +381,14 @@ void WebServer::NetThread::Run() {
             
             tcp::ConnectionProfile *profile;
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
-                SOCKET fd = profile->FD();
-                __OnReadEvent(fd);
+                __OnReadEvent(profile);
             }
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
                 auto send_ctx = profile->GetSendContext();
                 __OnWriteEvent(send_ctx);
             }
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
-                SOCKET fd = profile->FD();
-                __OnErrEvent(fd);
+                __OnErrEvent(profile);
             }
         }
     
@@ -384,12 +426,8 @@ void WebServer::NetThread::AddConnection(SOCKET _fd, std::string &_ip, uint16_t 
     connection_manager_.AddConnection(_fd, _ip, _port);
 }
 
-void WebServer::NetThread::DelConnection(SOCKET _fd) {
-    if (_fd < 0) {
-        LogE("invalid fd: %d", _fd)
-        return;
-    }
-    connection_manager_.DelConnection(_fd);
+void WebServer::NetThread::DelConnection(uint32_t _uid) {
+    connection_manager_.DelConnection(_uid);
 }
 
 void WebServer::NetThread::HandleSend() {
@@ -425,32 +463,26 @@ bool WebServer::NetThread::__IsNotifyStop(EpollNotifier::Notification &_notifica
     return _notification == notification_stop_;
 }
 
-int WebServer::NetThread::__OnReadEvent(SOCKET _fd) {
-    if (_fd <= 0) {
-        LogE("invalid _fd: %d", _fd)
-        return -1;
-    }
-    LogI("fd: %d", _fd)
+int WebServer::NetThread::__OnReadEvent(tcp::ConnectionProfile * _conn) {
+    assert(_conn);
     
-    tcp::ConnectionProfile *conn = connection_manager_.GetConnection(_fd);
-    if (!conn) {
-        LogE("conn == NULL, fd: %d", _fd)
-        return -1;
-    }
+    SOCKET fd = _conn->FD();
+    uint32_t uid = _conn->Uid();
+    LogI("fd(%d), uid: %u", fd, uid)
     
-    if (conn->Receive() < 0) {
-        DelConnection(_fd);
+    if (_conn->Receive() < 0) {
+        DelConnection(uid);
         return -1;
     }
     
-    if (conn->IsParseDone()) {
-        LogI("fd(%d) http parse succeed", _fd)
+    if (_conn->IsParseDone()) {
+        LogI("fd(%d) http parse succeed", fd)
         if (IsWorkerFullyLoad()) {
             LogI("worker fully loaded, drop connection directly")
-            DelConnection(_fd);
+            DelConnection(uid);
             
         } else {
-            recv_queue_.push_back(conn->GetRecvContext());
+            recv_queue_.push_back(_conn->GetRecvContext());
         }
     }
     return 0;
@@ -498,24 +530,28 @@ int WebServer::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
         }
     } while (false);
     
-    DelConnection(fd);
+    DelConnection(_send_ctx->connection_uid);
     
     return nsend < 0 ? -1 : 0;
 }
 
-int WebServer::NetThread::__OnErrEvent(int _fd) {
-    LogE("fd: %d", _fd)
-    DelConnection(_fd);
+int WebServer::NetThread::__OnErrEvent(tcp::ConnectionProfile *_profile) {
+    if (!_profile) {
+        return -1;
+    }
+    LogE("fd: %d, uid: %u", _profile->FD(), _profile->Uid())
+    DelConnection(_profile->Uid());
     return 0;
 }
 
-int WebServer::NetThread::__OnReadEventTest(SOCKET _fd) {
+int WebServer::NetThread::__OnReadEventTest(tcp::ConnectionProfile *_profile) {
     LogI("sleeping...")
+    SOCKET fd = _profile->FD();
     std::this_thread::sleep_for(std::chrono::milliseconds(4000));
     char buff[1024] = {0, };
     
     while (true) {
-        ssize_t n = ::read(_fd, buff, 2);
+        ssize_t n = ::read(fd, buff, 2);
         if (n == -1 && IS_EAGAIN(errno)) {
             LogI("EAGAIN")
             return 0;
@@ -533,7 +569,7 @@ int WebServer::NetThread::__OnReadEventTest(SOCKET _fd) {
             LogI("read: %s", buff)
         }
     }
-    DelConnection(_fd);
+    DelConnection(_profile->Uid());
     return 0;
 }
 
@@ -599,7 +635,7 @@ int WebServer::__OnConnect() {
         }
         port = ntohs(sock_in.sin_port);
         std::string ip(ip_str);
-        LogI("fd(%d), address: [%s:%d]", fd, ip_str, port);
+        
         __AddConnection(fd, ip, port);
     }
 }

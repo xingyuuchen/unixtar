@@ -16,15 +16,16 @@ const char *const HeaderField::kAccessControlAllowOrigin = "Access-Control-Allow
 
 
 const char *const HeaderField::kOctetStream = "application/octet-stream";
+const char *const HeaderField::kApplicationJson = "application/json";
+const char *const HeaderField::kXWwwFormUrlencoded = "application/x-www-form-urlencoded";
 const char *const HeaderField::kTextPlain = "text/plain";
 const char *const HeaderField::kTextHtml = "text/html";
 const char *const HeaderField::kTextCss = "text/css";
-const char *const HeaderField::kApplicationJson = "application/json";
-const char *const HeaderField::kXWwwFormUrlencoded = "application/x-www-form-urlencoded";
 const char *const HeaderField::kImageJpg = "image/jpeg";
 const char *const HeaderField::kImagePng = "image/png";
 const char *const HeaderField::kConnectionClose = "close";
 const char *const HeaderField::kAccessControlOriginAll = "*";
+const char *const HeaderField::kTransferChunked = "chunked";
 
 
 void HeaderField::InsertOrUpdate(const std::string &_key,

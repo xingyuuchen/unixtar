@@ -1,7 +1,7 @@
 #ifndef OI_SVR_WEBSERVER_H
 #define OI_SVR_WEBSERVER_H
 #include <cstdint>
-#include <map>
+#include <queue>
 #include <list>
 #include <mutex>
 #include <vector>
@@ -37,6 +37,8 @@ class WebServer final {
         static size_t           net_thread_cnt;
         static std::string      field_max_backlog;
         static size_t           max_backlog;
+        static std::string      field_worker_thread_cnt;
+        static size_t           worker_thread_cnt;
         static bool             is_config_done;
     };
 
@@ -79,12 +81,12 @@ class WebServer final {
     template<class WorkerImpl/* : public WorkerThread*/, class ...Args>
     void SetWorker(Args &&..._init_args) {
         
-        assert(ServerConfig::is_config_done && ServerConfig::net_thread_cnt > 0);
+        assert(ServerConfig::is_config_done);
         
-        for (int i = 0; i < ServerConfig::net_thread_cnt; ++i) {
-            // Initially, one network thread is bound to one worker thread.
+        for (int i = 0; i < ServerConfig::worker_thread_cnt; ++i) {
             auto worker = new WorkerImpl(_init_args...);
-            auto net_thread = net_threads_[i];
+            size_t idx = i % ServerConfig::net_thread_cnt;
+            auto net_thread = net_threads_[idx];
             net_thread->BindNewWorker(worker);
         }
     }
@@ -102,19 +104,25 @@ class WebServer final {
         
         void SetEpoll(SocketEpoll *_epoll);
         
-        tcp::ConnectionProfile *GetConnection(SOCKET);
+        tcp::ConnectionProfile *GetConnection(uint32_t _uid);
         
         void AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
         
-        void DelConnection(SOCKET);
+        void DelConnection(uint32_t _uid);
         
         void ClearTimeout();
         
       private:
+        void __CheckCapacity();
+        
+      private:
         using ScopedLock = std::lock_guard<std::mutex>;
-        std::unordered_map<SOCKET, tcp::ConnectionProfile *> connections_;
-        SocketEpoll *                                        socket_epoll_;
-        std::mutex                                           mutex_;
+        static const size_t                             kReserveSize;
+        static const size_t                             kEnlargeUnit;
+        std::vector<tcp::ConnectionProfile *>           pool_;
+        std::queue<uint32_t>                            free_places_;
+        SocketEpoll *                                   socket_epoll_;
+        std::mutex                                      mutex_;
     };
     
     
@@ -145,7 +153,7 @@ class WebServer final {
     
         void AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
     
-        void DelConnection(SOCKET);
+        void DelConnection(uint32_t _uid);
     
         void HandleSend();
     
@@ -168,13 +176,13 @@ class WebServer final {
     
         bool __IsNotifyStop(EpollNotifier::Notification &) const;
     
-        int __OnReadEvent(SOCKET);
+        int __OnReadEvent(tcp::ConnectionProfile *);
     
         int __OnWriteEvent(tcp::SendContext *);
     
-        int __OnErrEvent(SOCKET);
+        int __OnErrEvent(tcp::ConnectionProfile *);
         
-        int __OnReadEventTest(SOCKET);
+        int __OnReadEventTest(tcp::ConnectionProfile *);
         
       private:
         SocketEpoll                         socket_epoll_;

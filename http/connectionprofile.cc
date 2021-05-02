@@ -1,7 +1,5 @@
 #include "connectionprofile.h"
-#include <cerrno>
 #include <cstring>
-#include <unistd.h>
 #include "timeutil.h"
 #include "log.h"
 #include "socket/unixsocket.h"
@@ -11,8 +9,10 @@ namespace tcp {
 
 const uint64_t ConnectionProfile::kDefaultTimeout = 60 * 1000;
 
-ConnectionProfile::ConnectionProfile(int _fd, std::string _src_ip, uint16_t _src_port)
-        : src_ip_(std::move(_src_ip))
+ConnectionProfile::ConnectionProfile(uint32_t _uid, int _fd,
+                                     std::string _src_ip, uint16_t _src_port)
+        : uid_(_uid)
+        , src_ip_(std::move(_src_ip))
         , src_port_(_src_port)
         , socket_(_fd)
         , application_protocol_(TApplicationProtocol::kHttp1_1)
@@ -69,6 +69,9 @@ int ConnectionProfile::Receive() {
     }
 }
 
+uint32_t ConnectionProfile::Uid() const {
+    return uid_;
+}
 
 int ConnectionProfile::ParseProtocol() {
     if (application_protocol_ != TApplicationProtocol::kHttp1_1) {
@@ -144,6 +147,7 @@ void ConnectionProfile::__MakeRecvContext() {
     }
     std::string &url = http_parser_.GetRequestUrl();
     recv_ctx_.full_url = std::string(url);
+    send_ctx_.connection_uid = Uid();
     send_ctx_.fd = fd;
     recv_ctx_.send_context = &send_ctx_;
 }

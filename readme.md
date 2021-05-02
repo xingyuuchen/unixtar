@@ -20,15 +20,15 @@ bash cmake.sh -r -d   # -d: build will run as a daemon process, logs redirected 
 ## Example Usage
 Each network interface is represented by a class. They all inherit indirectly from `NetSceneBase`.
 
-If you use ProtoBuf to serialize your data, inherit from `NetSceneProtoBuf` and use the POST request.
+If you use `ProtoBuf` to serialize your data, inherit from `NetSceneProtoBuf` and use the POST request.
 
 Else, to customize your network communication protocol, inherit from `NetSceneCustom`. Currently only GET requests are supported.
 
 After defining your network interface classes and implement your business logic,
 please register your class to the framework:
-`NetSceneDispatcher::Instance()::RegisterNetScene<NetScene_YourBusiness>()`.
+`NetSceneDispatcher::Instance()::RegisterNetScene<NetScene_YourBusiness>();`.
 
-You can change server config by changing `serverconfig.yml`. After configuration, call `Server::Instance().serve()`, and the service just gets started!
+You can change server config by changing `serverconfig.yml`. After configuration, call `Server::Instance().serve();`, and the service just gets started!
 
 Hope you enjoy :)
 
@@ -143,4 +143,4 @@ const char *NetSceneGetIndexPage::Route() { return kUrlRoute; }
 
 ## Example Project
 [Plant-Recognition-Server](https://github.com/xingyuuchen/object-identify-SVR.git)
-is a http server project, under the hood it is `unixtar` who provides basic network capacity.
+is a web-server project, under the hood it is `unixtar` who provides basic http network capacity.

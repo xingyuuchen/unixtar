@@ -11,7 +11,7 @@
 
 
 /**
- * 业务分发枢纽
+ * Service Distribution
  */
 class NetSceneDispatcher final {
     

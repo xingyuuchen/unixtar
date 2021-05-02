@@ -32,6 +32,7 @@ class HeaderField {
     static const char *const kImagePng;
     static const char *const kConnectionClose;
     static const char *const kAccessControlOriginAll;
+    static const char *const kTransferChunked;
     
     
     void InsertOrUpdate(const std::string &_key, const std::string &_value);
