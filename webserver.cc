@@ -78,7 +78,7 @@ WebServer::WebServer()
         
         if (__CreateListenFd() < 0) { break; }
         
-        if (__Bind(ServerConfig::port) < 0) { break; }
+        if (listenfd_.Bind(AF_INET, ServerConfig::port) < 0) { break; }
         
         for (int i = 0; i < ServerConfig::net_thread_cnt; ++i) {
             auto net_thread = new NetThread();
@@ -297,7 +297,7 @@ void WebServer::ConnectionManager::DelConnection(uint32_t _uid) {
     
     free_places_.push(_uid);
     
-    LogI("free size: %lu", free_places_.size())
+    LogD("free size: %lu", free_places_.size())
 }
 
 void WebServer::ConnectionManager::ClearTimeout() {
@@ -347,7 +347,7 @@ WebServer::NetThread::NetThread()
 }
 
 void WebServer::NetThread::Run() {
-    LogI("launching NetThread!")
+    LogD("launching NetThread!")
     int epoll_retry = 3;
     
     const uint64_t clear_timeout_period = 10 * 1000;
@@ -433,7 +433,7 @@ void WebServer::NetThread::DelConnection(uint32_t _uid) {
 void WebServer::NetThread::HandleSend() {
     tcp::SendContext *send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
-        LogI("fd(%d) doing send task", send_ctx->fd)
+        LogD("fd(%d) doing send task", send_ctx->fd)
         __OnWriteEvent(send_ctx);
     }
 }
@@ -642,6 +642,7 @@ int WebServer::__OnConnect() {
 
 void WebServer::__AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
     if (_fd < 0) {
+        LogE("wtf??")
         return;
     }
     uint net_thread_idx = _fd % ServerConfig::net_thread_cnt;
@@ -665,23 +666,6 @@ int WebServer::__CreateListenFd() {
     ling.l_onoff = 0;   // identical to default.
     listenfd_.SetSocketOpt(SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
     listenfd_.SetNonblocking();
-    return 0;
-}
-
-
-int WebServer::__Bind(uint16_t _port) const {
-    struct sockaddr_in sock_addr{};
-    memset(&sock_addr, 0, sizeof(sock_addr));
-    sock_addr.sin_family = AF_INET;
-    sock_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    sock_addr.sin_port = htons(_port);
-    
-    int ret = ::bind(listenfd_.FD(), (struct sockaddr *) &sock_addr,
-                        sizeof(sock_addr));
-    if (ret < 0) {
-        LogE("bind errno(%d): %s", errno, strerror(errno));
-        assert(false);
-    }
     return 0;
 }
 

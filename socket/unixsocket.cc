@@ -14,6 +14,7 @@ Socket::Socket(SOCKET _fd, int _type/* = SOCK_STREAM*/, bool _nonblocking/* = tr
         , errno_(0)
         , is_eagain_(false)
         , nonblocking_(_nonblocking) {
+    
     assert(_type == SOCK_STREAM || _type == SOCK_DGRAM);
     
     if (fd_ > 0 && _nonblocking) {
@@ -33,6 +34,27 @@ int Socket::Create(int _domain, int _type, int _protocol) {
     if (fd_ < 0) {
         LogE("create socket error: %s, errno: %d",
              strerror(errno), errno);
+        return -1;
+    }
+    return 0;
+}
+
+int Socket::Bind(sa_family_t _sin_family, uint16_t _port,
+                 in_addr_t _in_addr/* = INADDR_ANY*/) const {
+    
+    assert(_sin_family == AF_INET || _sin_family == AF_INET6);
+    
+    struct sockaddr_in sock_addr{};
+    memset(&sock_addr, 0, sizeof(sock_addr));
+    
+    sock_addr.sin_family = _sin_family;
+    sock_addr.sin_addr.s_addr = htonl(_in_addr);
+    sock_addr.sin_port = htons(_port);
+    
+    int ret = ::bind(fd_, (struct sockaddr *) &sock_addr,
+                     sizeof(sock_addr));
+    if (ret < 0) {
+        LogE("bind errno(%d): %s", errno, strerror(errno));
         return -1;
     }
     return 0;

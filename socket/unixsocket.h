@@ -15,9 +15,13 @@
 class Socket {
   public:
     
-    explicit Socket(SOCKET _fd, int _type = SOCK_STREAM, bool _nonblocking = true);
+    explicit Socket(SOCKET _fd, int _type = SOCK_STREAM,
+                    bool _nonblocking = true);
     
     int Create(int _domain, int _type, int _protocol);
+    
+    int Bind(sa_family_t _sin_family, uint16_t _port,
+             in_addr_t _in_addr = INADDR_ANY) const;
     
     ssize_t Recv(AutoBuffer *_buff, bool *_is_buffer_full);
     

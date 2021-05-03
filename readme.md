@@ -1,6 +1,6 @@
 # Unixtar
 
-(short for UniqueStar✨🌟✨)
+(short for Unique-Star✨🌟✨)
 
 The framework is a high-performance HTTP Server on unix based system.
 
@@ -13,7 +13,7 @@ The framework adopts the model of `Epoll + NetThreads + WorkerThreads`.
 ```bash
 git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
 cd framework/scripts
-bash autogen.sh   # before this step, make sure Protobuf is installed.
+bash autogen.sh   # Do this if you wanna use ProtoBuf.
 bash cmake.sh -r -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
 ```
 
@@ -22,7 +22,7 @@ Each network interface is represented by a class. They all inherit indirectly fr
 
 If you use `ProtoBuf` to serialize your data, inherit from `NetSceneProtoBuf` and use the POST request.
 
-Else, to customize your network communication protocol, inherit from `NetSceneCustom`. Currently only GET requests are supported.
+Else, to customize your network communication protocol, inherit from `NetSceneCustom`. GET and POST are supported.
 
 After defining your network interface classes and implement your business logic,
 please register your class to the framework:
@@ -127,7 +127,7 @@ NetSceneBase *NetSceneGetIndexPage::NewInstance() { return new NetSceneGetIndexP
 int NetSceneGetIndexPage::DoSceneImpl(const std::string &_in_buffer) {
     static int visit_times_since_last_boot_ = 0;
     std::unique_lock<std::mutex> lock(mutex_);
-    // count the visitors.
+    // count up visitors.
     snprintf(resp_, sizeof(resp_), kRespFormat, ++visit_times_since_last_boot_);
     return 0;
 }
@@ -143,4 +143,4 @@ const char *NetSceneGetIndexPage::Route() { return kUrlRoute; }
 
 ## Example Project
 [Plant-Recognition-Server](https://github.com/xingyuuchen/object-identify-SVR.git)
-is a web-server project, under the hood it is `unixtar` who provides basic http network capacity.
+is a web-server project, under the hood it is `unixtar` provides basic http network capability.

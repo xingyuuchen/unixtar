@@ -3,7 +3,8 @@
 
 /**
  * Reserved NetSceneType,
- * which can not be used in your application.
+ * which has been used by framework,
+ * and can not be used in your application.
  *
  * You should start from {@code kReservedTypeOffset} + 1
  */

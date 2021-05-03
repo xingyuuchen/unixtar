@@ -27,7 +27,7 @@ class SignalHandler {
   private:
     using ScopedLock = std::unique_lock<std::mutex>;
     std::mutex                                          mutex_;
-    std::map<int, std::stack<std::function<void()>>>   callback_map_;
+    std::map<int, std::stack<std::function<void()>>>    callback_map_;
     
 };
 

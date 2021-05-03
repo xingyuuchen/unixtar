@@ -21,19 +21,19 @@ class ThreadSafeDeque {
     
     bool push_back(const T &_v, bool _notify = true);
     
-    bool pop_front(bool _wait = true, uint64_t _timeout_millis = 1000);
+    bool pop_front(bool _wait = true, uint64_t _timeout_millis = -1);
     
-    bool pop_back(bool _wait = true, uint64_t _timeout_millis = 1000);
+    bool pop_back(bool _wait = true, uint64_t _timeout_millis = -1);
     
-    bool pop_front_to(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
+    bool pop_front_to(T &_t, bool _wait = true, uint64_t _timeout_millis = -1);
     
-    bool pop_back_to(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
+    bool pop_back_to(T &_t, bool _wait = true, uint64_t _timeout_millis = -1);
     
-    bool front(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
+    bool front(T &_t, bool _wait = true, uint64_t _timeout_millis = -1);
     
-    bool back(T &_t, bool _wait = true, uint64_t _timeout_millis = 1000);
+    bool back(T &_t, bool _wait = true, uint64_t _timeout_millis = -1);
     
-    bool get(T &_t, size_t _pos, bool _wait = true, uint64_t _timeout_millis = 1000);
+    bool get(T &_t, size_t _pos, bool _wait = true, uint64_t _timeout_millis = -1);
     
     size_t size();
     
@@ -122,7 +122,7 @@ template<class T, class Container>
 bool
 ThreadSafeDeque<T, Container>::pop_front_to(T &_t,
                                             bool _wait /*= true*/,
-                                            uint64_t _timeout_millis /*= 1000*/) {
+                                            uint64_t _timeout_millis /*= -1*/) {
     UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
@@ -140,7 +140,7 @@ template<class T, class Container>
 bool
 ThreadSafeDeque<T, Container>::pop_back_to(T &_t,
                                            bool _wait /*= true*/,
-                                           uint64_t _timeout_millis /*= 1000*/) {
+                                           uint64_t _timeout_millis /*= -1*/) {
     UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
@@ -156,7 +156,7 @@ ThreadSafeDeque<T, Container>::pop_back_to(T &_t,
 template<class T, class Container>
 bool
 ThreadSafeDeque<T, Container>::front(T &_t, bool _wait /*= true*/,
-                                     uint64_t _timeout_millis /*= 1000*/) {
+                                     uint64_t _timeout_millis /*= -1*/) {
     UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
@@ -171,7 +171,7 @@ ThreadSafeDeque<T, Container>::front(T &_t, bool _wait /*= true*/,
 template<class T, class Container>
 bool
 ThreadSafeDeque<T, Container>::back(T &_t, bool _wait /*= true*/,
-                                    uint64_t _timeout_millis /*= 1000*/) {
+                                    uint64_t _timeout_millis /*= -1*/) {
     UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(0, lock, _timeout_millis);
@@ -188,7 +188,7 @@ bool
 ThreadSafeDeque<T, Container>::get(T &_t,
                                    size_t _pos,
                                    bool _wait /* = true*/,
-                                   uint64_t _timeout_millis /* = 1000*/) {
+                                   uint64_t _timeout_millis /* = -1*/) {
     UniqueLock lock(mtx_);
     if (_wait) {
         __WaitSizeGreaterThan(_pos, lock, _timeout_millis);
@@ -230,9 +230,17 @@ void
 ThreadSafeDeque<T, Container>::__WaitSizeGreaterThan(const size_t _than,
                                                      ThreadSafeDeque::UniqueLock &_lock,
                                                      uint64_t _timeout_millis) {
-    cond_.wait_for(_lock,
-                   std::chrono::milliseconds(_timeout_millis),
-                   [&, this] { return container_.size() > _than || terminated_; });
+    if (_timeout_millis == -1) {
+        cond_.wait(_lock, [&, this] {
+            return container_.size() > _than || terminated_;
+        });
+    } else {
+        cond_.wait_for(_lock,
+                       std::chrono::milliseconds(_timeout_millis),
+                       [&, this] {
+            return container_.size() > _than || terminated_;
+        });
+    }
 }
 
 }
