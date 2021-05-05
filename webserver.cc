@@ -239,7 +239,7 @@ WebServer::ConnectionManager::ConnectionManager()
     
     pool_.reserve(kReserveSize);
     for (uint32_t i = 0; i < kReserveSize; ++i) {
-        free_places_.push(i);
+        free_places_.push_back(i);
         pool_.push_back(nullptr);
     }
 }
@@ -271,7 +271,7 @@ void WebServer::ConnectionManager::AddConnection(SOCKET _fd,
     ScopedLock lock(mutex_);
     
     uint32_t uid = free_places_.front();
-    free_places_.pop();
+    free_places_.pop_front();
     
     LogI("fd(%d), address: [%s:%d], uid: %u", _fd, _ip.c_str(), _port, uid)
     
@@ -288,16 +288,17 @@ void WebServer::ConnectionManager::AddConnection(SOCKET _fd,
 void WebServer::ConnectionManager::DelConnection(uint32_t _uid) {
     ScopedLock lock(mutex_);
     assert(_uid >= 0 && _uid < pool_.capacity());
+    assert(socket_epoll_);
     
     auto &conn = pool_[_uid];
-    if (socket_epoll_) {
-        socket_epoll_->DelSocket(conn->FD());
-    }
+    SOCKET fd = conn->FD();
+    
+    socket_epoll_->DelSocket(fd);
+    
+    free_places_.push_front(_uid);
+    
     delete conn, conn = nullptr;
-    
-    free_places_.push(_uid);
-    
-    LogD("free size: %lu", free_places_.size())
+    LogD("fd(%d), uid: %u, free size: %lu", fd, _uid, free_places_.size())
 }
 
 void WebServer::ConnectionManager::ClearTimeout() {
@@ -308,7 +309,7 @@ void WebServer::ConnectionManager::ClearTimeout() {
         if (conn && conn->IsTimeout(now)) {
             LogI("clear fd: %d", conn->FD())
             socket_epoll_->DelSocket(conn->FD());
-            free_places_.push(conn->Uid());
+            free_places_.push_front(conn->Uid());
             delete conn, conn = nullptr;
         }
     }
@@ -321,7 +322,7 @@ void WebServer::ConnectionManager::__CheckCapacity() {
         size_t neo = curr + kEnlargeUnit;
         pool_.resize(neo, nullptr);
         for (size_t i = curr; i < neo; ++i) {
-            free_places_.push(i);
+            free_places_.push_back(i);
         }
     }
 }
@@ -379,7 +380,7 @@ void WebServer::NetThread::Run() {
                 return;
             }
             
-            tcp::ConnectionProfile *profile;
+            tcp::ConnectionProfile *profile = nullptr;
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
                 __OnReadEvent(profile);
             }
@@ -463,7 +464,7 @@ bool WebServer::NetThread::__IsNotifyStop(EpollNotifier::Notification &_notifica
     return _notification == notification_stop_;
 }
 
-int WebServer::NetThread::__OnReadEvent(tcp::ConnectionProfile * _conn) {
+int WebServer::NetThread::__OnReadEvent(tcp::ConnectionProfile *_conn) {
     assert(_conn);
     
     SOCKET fd = _conn->FD();
@@ -539,8 +540,7 @@ int WebServer::NetThread::__OnErrEvent(tcp::ConnectionProfile *_profile) {
     if (!_profile) {
         return -1;
     }
-    LogE("fd: %d, uid: %u", _profile->FD(), _profile->Uid())
-    DelConnection(_profile->Uid());
+    LogE("fd(%d), uid: %u", _profile->FD(), _profile->Uid())
     return 0;
 }
 

@@ -22,8 +22,8 @@ void Pack(const std::string &_host, const std::string &_url, const std::map<std:
     HeaderField header_field;
     header_field.InsertOrUpdate(HeaderField::kHost, _host);
     header_field.InsertOrUpdate(HeaderField::kConnection, HeaderField::kConnectionClose);
-    for (auto iter = _headers.begin(); iter != _headers.end(); iter++) {
-        header_field.InsertOrUpdate(iter->first, iter->second);
+    for (const auto & _header : _headers) {
+        header_field.InsertOrUpdate(_header.first, _header.second);
     }
     
     char len_str[9] = {0, };
@@ -94,7 +94,7 @@ void Parser::__ResolveRequestHeaders() {
 void Parser::__ResolveBody() {
     uint64_t content_length = headers_.GetContentLength();
     if (content_length == 0) {
-        LogE("Content-Length = 0")
+        LogI("Content-Length = 0")
         position_ = kError;
         return;
     }

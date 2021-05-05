@@ -1,7 +1,7 @@
 #ifndef OI_SVR_WEBSERVER_H
 #define OI_SVR_WEBSERVER_H
 #include <cstdint>
-#include <queue>
+#include <deque>
 #include <list>
 #include <mutex>
 #include <vector>
@@ -120,7 +120,7 @@ class WebServer final {
         static const size_t                             kReserveSize;
         static const size_t                             kEnlargeUnit;
         std::vector<tcp::ConnectionProfile *>           pool_;
-        std::queue<uint32_t>                            free_places_;
+        std::deque<uint32_t>                            free_places_;
         SocketEpoll *                                   socket_epoll_;
         std::mutex                                      mutex_;
     };

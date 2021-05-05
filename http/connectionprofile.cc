@@ -83,7 +83,7 @@ int ConnectionProfile::ParseProtocol() {
     http_parser_.DoParse();
     
     if (http_parser_.IsErr()) {
-        LogE("parser error")
+        LogI("parser error")
         return -2;
     }
     

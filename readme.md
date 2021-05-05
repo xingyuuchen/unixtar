@@ -28,7 +28,8 @@ After defining your network interface classes and implement your business logic,
 please register your class to the framework:
 `NetSceneDispatcher::Instance()::RegisterNetScene<NetScene_YourBusiness>();`.
 
-You can change server config by changing `serverconfig.yml`. After configuration, call `Server::Instance().serve();`, and the service just gets started!
+You can custom some configuration by changing `serverconfig.yml`.
+After configuration, call `Server::Instance().Serve();`, and the service just gets started!
 
 Hope you enjoy :)
 

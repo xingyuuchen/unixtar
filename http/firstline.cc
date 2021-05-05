@@ -54,7 +54,7 @@ bool RequestLine::ParseFromString(std::string &_from) {
     std::vector<std::string> res;
     str::split(_from, " ", res);
     if (res.size() != 3) {
-        LogI("res.size(): %zd", res.size())
+        LogI("res.size(%lu): %s", res.size(), _from.c_str())
         return false;
     }
     method_ = GetHttpMethod(res[0]);
