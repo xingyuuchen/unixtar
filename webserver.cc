@@ -231,14 +231,17 @@ WebServer::WorkerThread::~WorkerThread() = default;
 
 
 
+const uint32_t WebServer::ConnectionManager::kInvalidUid = 0;
 const size_t WebServer::ConnectionManager::kReserveSize = 128;
 const size_t WebServer::ConnectionManager::kEnlargeUnit = 128;
 
 WebServer::ConnectionManager::ConnectionManager()
         : socket_epoll_(nullptr) {
     
+    ScopedLock lock(mutex_);
     pool_.reserve(kReserveSize);
-    for (uint32_t i = 0; i < kReserveSize; ++i) {
+    pool_.push_back(nullptr);    // pool_[kInvalidUid] not available.
+    for (uint32_t i = kInvalidUid + 1; i < kReserveSize; ++i) {
         free_places_.push_back(i);
         pool_.push_back(nullptr);
     }
@@ -251,7 +254,7 @@ void WebServer::ConnectionManager::SetEpoll(SocketEpoll *_epoll) {
 }
 
 tcp::ConnectionProfile *WebServer::ConnectionManager::GetConnection(uint32_t _uid) {
-    assert(_uid >= 0 && _uid < pool_.capacity());
+    assert(_uid > kInvalidUid && _uid < pool_.capacity());
     ScopedLock lock(mutex_);
     return pool_[_uid];
 }
@@ -287,10 +290,12 @@ void WebServer::ConnectionManager::AddConnection(SOCKET _fd,
 
 void WebServer::ConnectionManager::DelConnection(uint32_t _uid) {
     ScopedLock lock(mutex_);
-    assert(_uid >= 0 && _uid < pool_.capacity());
+    assert(_uid > kInvalidUid && _uid < pool_.capacity());
     assert(socket_epoll_);
     
     auto &conn = pool_[_uid];
+    assert(conn);
+    
     SOCKET fd = conn->FD();
     
     socket_epoll_->DelSocket(fd);
@@ -318,10 +323,9 @@ void WebServer::ConnectionManager::ClearTimeout() {
 void WebServer::ConnectionManager::__CheckCapacity() {
     ScopedLock lock(mutex_);
     if (free_places_.empty()) {
-        size_t curr = pool_.size();
-        size_t neo = curr + kEnlargeUnit;
-        pool_.resize(neo, nullptr);
-        for (size_t i = curr; i < neo; ++i) {
+        size_t curr = pool_.capacity();
+        pool_.resize(curr + kEnlargeUnit, nullptr);
+        for (size_t i = curr; i < pool_.capacity(); ++i) {
             free_places_.push_back(i);
         }
     }

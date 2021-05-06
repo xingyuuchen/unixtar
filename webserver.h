@@ -1,5 +1,5 @@
-#ifndef OI_SVR_WEBSERVER_H
-#define OI_SVR_WEBSERVER_H
+#pragma once
+
 #include <cstdint>
 #include <deque>
 #include <list>
@@ -97,6 +97,7 @@ class WebServer final {
   private:
     
     class ConnectionManager final {
+        using ScopedLock = std::lock_guard<std::mutex>;
       public:
         ConnectionManager();
         
@@ -115,8 +116,9 @@ class WebServer final {
       private:
         void __CheckCapacity();
         
+      public:
+        static const uint32_t                           kInvalidUid;
       private:
-        using ScopedLock = std::lock_guard<std::mutex>;
         static const size_t                             kReserveSize;
         static const size_t                             kEnlargeUnit;
         std::vector<tcp::ConnectionProfile *>           pool_;
@@ -221,5 +223,3 @@ class WebServer final {
     
 };
 
-
-#endif //OI_SVR_WEBSERVER_H

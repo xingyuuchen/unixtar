@@ -1,5 +1,4 @@
-#ifndef OI_SVR_LOG_H
-#define OI_SVR_LOG_H
+#pragma once
 
 #include <syslog.h>
 #include <execinfo.h>
@@ -68,4 +67,3 @@ void LogPrintStacktraceImpl(int _size = 8);
 
 #define LogPrintStacktrace(...)  logger::LogPrintStacktraceImpl(__VA_ARGS__);
 
-#endif //OI_SVR_LOG_H

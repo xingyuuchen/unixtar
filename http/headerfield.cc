@@ -13,6 +13,7 @@ const char *const HeaderField::kContentType = "Content-Type";
 const char *const HeaderField::kTransferEncoding = "Transfer-Encoding";
 const char *const HeaderField::kConnection = "Connection";
 const char *const HeaderField::kAccessControlAllowOrigin = "Access-Control-Allow-Origin";
+const char *const HeaderField::kSetCookie = "Set-Cookie";
 
 
 const char *const HeaderField::kOctetStream = "application/octet-stream";

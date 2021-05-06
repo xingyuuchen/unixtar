@@ -20,6 +20,7 @@ class HeaderField {
     static const char *const kTransferEncoding;
     static const char *const kConnection;
     static const char *const kAccessControlAllowOrigin;
+    static const char *const kSetCookie;
     
     // values
     static const char *const kOctetStream;
