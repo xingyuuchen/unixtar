@@ -1,160 +1,15 @@
 #include "webserver.h"
 #include "utils/log.h"
-#include "socketepoll.h"
-#include "yamlutil.h"
-#include "signalhandler.h"
 #include "timeutil.h"
 #include <unistd.h>
 #include <cstring>
 
 
-std::string WebServer::ServerConfig::field_port("port");
-std::string WebServer::ServerConfig::field_net_thread_cnt("net_thread_cnt");
 std::string WebServer::ServerConfig::field_max_backlog("max_backlog");
 std::string WebServer::ServerConfig::field_worker_thread_cnt("worker_thread_cnt");
 
-uint16_t WebServer::ServerConfig::port = 0;
-size_t WebServer::ServerConfig::net_thread_cnt = 0;
-size_t WebServer::ServerConfig::max_backlog = 0;
-size_t WebServer::ServerConfig::worker_thread_cnt = 0;
-bool WebServer::ServerConfig::is_config_done = false;
 
-
-WebServer::WebServer()
-        : running_(false)
-        , listenfd_(INVALID_SOCKET) {
-    
-    yaml::YamlDescriptor server_config = yaml::Load("../framework/serverconfig.yml");
-    
-    if (!server_config) {
-        LogE("Open serverconfig.yaml failed.")
-        assert(false);
-    }
-    
-    do {
-        if (yaml::Get(server_config, ServerConfig::field_port,
-                      ServerConfig::port) < 0) {
-            LogE("Load port from yaml failed.")
-            break;
-        }
-        if (yaml::Get(server_config, ServerConfig::field_net_thread_cnt,
-                         (int &) ServerConfig::net_thread_cnt) < 0) {
-            LogE("Load net_thread_cnt from yaml failed.")
-            break;
-        }
-        if (yaml::Get(server_config, ServerConfig::field_max_backlog,
-                      (int &) ServerConfig::max_backlog) < 0) {
-            LogE("Load max_backlog from yaml failed.")
-            break;
-        }
-        if (yaml::Get(server_config, ServerConfig::field_worker_thread_cnt,
-                      (int &) ServerConfig::worker_thread_cnt) < 0) {
-            LogE("Load worker_thread_cnt from yaml failed.")
-            break;
-        }
-        if (ServerConfig::net_thread_cnt < 1) {
-            LogE("Illegal net_thread_cnt: %zu", ServerConfig::net_thread_cnt)
-            break;
-        }
-        if (ServerConfig::net_thread_cnt > 8) {
-            ServerConfig::net_thread_cnt = 8;
-        }
-        if (ServerConfig::worker_thread_cnt < 1) {
-            LogE("Illegal worker_thread_cnt: %zu", ServerConfig::worker_thread_cnt)
-            break;
-        }
-        if (ServerConfig::worker_thread_cnt % ServerConfig::net_thread_cnt != 0) {
-            LogW("Config worker_thread_cnt as an integer multiple time of "
-                 "net_thread_cnt to get best performance.")
-        }
-        if (ServerConfig::worker_thread_cnt > 4 * ServerConfig::net_thread_cnt) {
-            LogW("Excessive proportion of worker_thread / net_thread "
-                 "may lower performance of net_thread.")
-        }
-        if (ServerConfig::max_backlog < 0) {
-            LogE("Please config max_backlog a positive number.")
-            break;
-        }
-        
-        if (__CreateListenFd() < 0) { break; }
-        
-        if (listenfd_.Bind(AF_INET, ServerConfig::port) < 0) { break; }
-        
-        for (int i = 0; i < ServerConfig::net_thread_cnt; ++i) {
-            auto net_thread = new NetThread();
-            net_thread->SetMaxBacklog(ServerConfig::max_backlog);
-            net_threads_.push_back(net_thread);
-        }
-        
-        ServerConfig::is_config_done = true;
-        
-    } while (false);
-    
-    yaml::Close(server_config);
-    
-}
-
-
-void WebServer::Serve() {
-    if (!ServerConfig::is_config_done) {
-        LogE("config me first!")
-        assert(false);
-    }
-    
-    SignalHandler::Instance().RegisterCallback(SIGINT, [this] {
-        NotifyStop();
-    });
-    
-    running_ = true;
-    
-    ::listen(listenfd_.FD(), 1024);
-    
-    socket_epoll_.SetListenFd(listenfd_.FD());
-    
-    epoll_notifier_.SetSocketEpoll(&socket_epoll_);
-    
-    for (auto &net_thread : net_threads_) {
-        net_thread->Start();
-    }
-    
-    while (running_) {
-        int n_events = socket_epoll_.EpollWait();
-        
-        if (n_events < 0) {
-            int epoll_errno = socket_epoll_.GetErrNo();
-            LogE("break serve, errno(%d): %s",
-                 epoll_errno, strerror(epoll_errno))
-            running_ = false;
-            break;
-        }
-        
-        for (int i = 0; i < n_events; ++i) {
-            EpollNotifier::Notification probable_notification(
-                    socket_epoll_.GetEpollDataPtr(i));
-            
-            if (__IsNotifyStop(probable_notification)) {
-                LogI("recv notification_stop, break")
-                running_ = false;
-                break;
-            }
-            
-            if (socket_epoll_.IsNewConnect(i)) {
-                __OnConnect();
-            }
-            
-            if (auto fd = (SOCKET) socket_epoll_.IsErrSet(i)) {
-                __OnEpollErr(fd);
-            }
-        }
-    }
-    
-    __NotifyNetThreadsStop();
-}
-
-void WebServer::NotifyStop() {
-    LogI("[WebServer::NotifyStop]")
-    running_ = false;
-    epoll_notifier_.NotifyEpoll(notification_stop_);
+WebServer::WebServer() : ServerBase() {
 }
 
 WebServer::~WebServer() = default;
@@ -230,179 +85,11 @@ int WebServer::WorkerThread::GetWorkerSeqNum() const { return thread_seq_; }
 WebServer::WorkerThread::~WorkerThread() = default;
 
 
-
-const uint32_t WebServer::ConnectionManager::kInvalidUid = 0;
-const size_t WebServer::ConnectionManager::kReserveSize = 128;
-const size_t WebServer::ConnectionManager::kEnlargeUnit = 128;
-
-WebServer::ConnectionManager::ConnectionManager()
-        : socket_epoll_(nullptr) {
-    
-    ScopedLock lock(mutex_);
-    pool_.reserve(kReserveSize);
-    pool_.push_back(nullptr);    // pool_[kInvalidUid] not available.
-    for (uint32_t i = kInvalidUid + 1; i < kReserveSize; ++i) {
-        free_places_.push_back(i);
-        pool_.push_back(nullptr);
-    }
-}
-
-void WebServer::ConnectionManager::SetEpoll(SocketEpoll *_epoll) {
-    if (_epoll) {
-        socket_epoll_ = _epoll;
-    }
-}
-
-tcp::ConnectionProfile *WebServer::ConnectionManager::GetConnection(uint32_t _uid) {
-    assert(_uid > kInvalidUid && _uid < pool_.capacity());
-    ScopedLock lock(mutex_);
-    return pool_[_uid];
-}
-
-void WebServer::ConnectionManager::AddConnection(SOCKET _fd,
-                                                 std::string &_ip,
-                                                 uint16_t _port) {
-    if (_fd < 0) {
-        LogE("fd(%d)", _fd)
-        LogPrintStacktrace()
-        return;
-    }
-    assert(socket_epoll_);
-    
-    __CheckCapacity();
-    
-    ScopedLock lock(mutex_);
-    
-    uint32_t uid = free_places_.front();
-    free_places_.pop_front();
-    
-    LogI("fd(%d), address: [%s:%d], uid: %u", _fd, _ip.c_str(), _port, uid)
-    
-    auto neo = new tcp::ConnectionProfile(uid, _fd, _ip, _port);
-    pool_[uid] = neo;
-    
-    // While one thread is blocked in a call to epoll_wait(), it is
-    // possible for another thread to add a file descriptor to the
-    // waited-upon epoll instance.  If the new file descriptor becomes
-    // ready, it will cause the epoll_wait() call to unblock.
-    socket_epoll_->AddSocketReadWrite(_fd, (uint64_t) neo);
-}
-
-void WebServer::ConnectionManager::DelConnection(uint32_t _uid) {
-    ScopedLock lock(mutex_);
-    assert(_uid > kInvalidUid && _uid < pool_.capacity());
-    assert(socket_epoll_);
-    
-    auto &conn = pool_[_uid];
-    assert(conn);
-    
-    SOCKET fd = conn->FD();
-    
-    socket_epoll_->DelSocket(fd);
-    
-    free_places_.push_front(_uid);
-    
-    delete conn, conn = nullptr;
-    LogD("fd(%d), uid: %u, free size: %lu", fd, _uid, free_places_.size())
-}
-
-void WebServer::ConnectionManager::ClearTimeout() {
-    uint64_t now = ::gettickcount();
-    ScopedLock lock(mutex_);
-    
-    for (auto & conn : pool_) {
-        if (conn && conn->IsTimeout(now)) {
-            LogI("clear fd: %d", conn->FD())
-            socket_epoll_->DelSocket(conn->FD());
-            free_places_.push_front(conn->Uid());
-            delete conn, conn = nullptr;
-        }
-    }
-}
-
-void WebServer::ConnectionManager::__CheckCapacity() {
-    ScopedLock lock(mutex_);
-    if (free_places_.empty()) {
-        size_t curr = pool_.capacity();
-        pool_.resize(curr + kEnlargeUnit, nullptr);
-        for (size_t i = curr; i < pool_.capacity(); ++i) {
-            free_places_.push_back(i);
-        }
-    }
-}
-
-WebServer::ConnectionManager::~ConnectionManager() {
-    ScopedLock lock(mutex_);
-    for (auto & conn : pool_) {
-        if (conn) {
-            delete conn, conn = nullptr;
-        }
-    }
-}
-
-
 const size_t WebServer::NetThread::kDefaultMaxBacklog = 1024;
 
 WebServer::NetThread::NetThread()
-        : Thread()
+        : ServerBase::NetThreadBase()
         , max_backlog_(kDefaultMaxBacklog) {
-    
-    connection_manager_.SetEpoll(&socket_epoll_);
-    epoll_notifier_.SetSocketEpoll(&socket_epoll_);
-}
-
-void WebServer::NetThread::Run() {
-    LogD("launching NetThread!")
-    int epoll_retry = 3;
-    
-    const uint64_t clear_timeout_period = 10 * 1000;
-    uint64_t last_clear_ts = 0;
-    
-    while (true) {
-        
-        int n_events = socket_epoll_.EpollWait(clear_timeout_period);
-        
-        if (n_events < 0) {
-            if (socket_epoll_.GetErrNo() == EINTR || --epoll_retry > 0) {
-                continue;
-            }
-            break;
-        }
-    
-        for (int i = 0; i < n_events; ++i) {
-            EpollNotifier::Notification probable_notification(
-                    socket_epoll_.GetEpollDataPtr(i));
-            
-            if (__IsNotifySend(probable_notification)) {
-                HandleSend();
-                continue;
-                
-            } else if (__IsNotifyStop(probable_notification)) {
-                LogI("NetThread notification-stop, break")
-                running_ = false;
-                __NotifyWorkersStop();
-                return;
-            }
-            
-            tcp::ConnectionProfile *profile = nullptr;
-            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
-                __OnReadEvent(profile);
-            }
-            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
-                auto send_ctx = profile->GetSendContext();
-                __OnWriteEvent(send_ctx);
-            }
-            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
-                __OnErrEvent(profile);
-            }
-        }
-    
-        uint64_t now = ::gettickcount();
-        if (now - last_clear_ts > clear_timeout_period) {
-            last_clear_ts = now;
-            ClearTimeout();
-        }
-    }
     
 }
 
@@ -418,22 +105,6 @@ void WebServer::NetThread::NotifySend() {
     epoll_notifier_.NotifyEpoll(notification_send_);
 }
 
-void WebServer::NetThread::NotifyStop() {
-    running_ = false;
-    epoll_notifier_.NotifyEpoll(notification_stop_);
-}
-
-void WebServer::NetThread::AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
-    if (_fd < 0) {
-        LogE("invalid fd: %d", _fd)
-        return;
-    }
-    connection_manager_.AddConnection(_fd, _ip, _port);
-}
-
-void WebServer::NetThread::DelConnection(uint32_t _uid) {
-    connection_manager_.DelConnection(_uid);
-}
 
 void WebServer::NetThread::HandleSend() {
     tcp::SendContext *send_ctx;
@@ -442,8 +113,6 @@ void WebServer::NetThread::HandleSend() {
         __OnWriteEvent(send_ctx);
     }
 }
-
-void WebServer::NetThread::ClearTimeout() { connection_manager_.ClearTimeout(); }
 
 WebServer::RecvQueue *WebServer::NetThread::GetRecvQueue() { return &recv_queue_; }
 
@@ -462,10 +131,6 @@ void WebServer::NetThread::HandleException(std::exception &ex) {
 
 bool WebServer::NetThread::__IsNotifySend(EpollNotifier::Notification &_notification) const {
     return _notification == notification_send_;
-}
-
-bool WebServer::NetThread::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
-    return _notification == notification_stop_;
 }
 
 int WebServer::NetThread::__OnReadEvent(tcp::ConnectionProfile *_conn) {
@@ -503,11 +168,7 @@ int WebServer::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
     size_t ntotal = resp.Length() - pos;
     SOCKET fd = _send_ctx->fd;
     
-    if (fd < 0) {
-        return 0;
-    }
-    if (ntotal == 0) {
-        LogI("fd(%d), nothing to send", fd)
+    if (fd < 0 || ntotal == 0) {
         return 0;
     }
     
@@ -598,83 +259,68 @@ void WebServer::NetThread::__NotifyWorkersStop() {
     }
 }
 
+void WebServer::NetThread::HandleNotification(EpollNotifier::Notification &_notification) {
+    if (__IsNotifySend(_notification)) {
+        HandleSend();
+        
+    } else if (_IsNotifyStop(_notification)) {
+        LogI("NetThread notification-stop")
+        running_ = false;
+        __NotifyWorkersStop();
+    }
+}
+
 WebServer::NetThread::~NetThread() = default;
 
-void WebServer::__NotifyNetThreadsStop() {
-    for (auto & net_thread : net_threads_) {
-        net_thread->NotifyStop();
-        net_thread->Join();
-        delete net_thread, net_thread = nullptr;
-        LogI("NetThread dead")
-    }
-    LogI("All Threads Joined!")
+
+ServerBase::ServerConfigBase *WebServer::MakeConfig() {
+    return new ServerConfig();
 }
 
-bool WebServer::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
-    return _notification == notification_stop_;
-}
-
-int WebServer::__OnConnect() {
-    SOCKET fd;
-    struct sockaddr_in sock_in{};
-    socklen_t socklen = sizeof(sockaddr_in);
-    char ip_str[INET_ADDRSTRLEN] = {0, };
-    uint16_t port = 0;
+bool WebServer::_DoConfig(yaml::YamlDescriptor &_desc) {
     
-    SOCKET listen_fd = listenfd_.FD();
-    while (true) {
-        fd = ::accept(listen_fd, (struct sockaddr *) &sock_in, &socklen);
-        if (fd < 0) {
-            if (errno == EINTR) {
-                continue;
-            }
-            if (IS_EAGAIN(errno)) {
-                return 0;
-            }
-            LogE("errno(%d): %s", errno, strerror(errno));
-            return -1;
-        }
-        if (!inet_ntop(AF_INET, &sock_in.sin_addr, ip_str, sizeof(ip_str))) {
-            LogE("inet_ntop errno(%d): %s", errno, strerror(errno))
-        }
-        port = ntohs(sock_in.sin_port);
-        std::string ip(ip_str);
-        
-        __AddConnection(fd, ip, port);
-    }
-}
-
-void WebServer::__AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port) {
-    if (_fd < 0) {
-        LogE("wtf??")
-        return;
-    }
-    uint net_thread_idx = _fd % ServerConfig::net_thread_cnt;
-    NetThread *owner_thread = net_threads_[net_thread_idx];
-    if (!owner_thread) {
-        LogE("wtf???")
-        return;
-    }
-    owner_thread->AddConnection(_fd, _ip, _port);
+    auto *config = (ServerConfig *) config_;
     
+    if (yaml::Get(_desc, ServerConfig::field_max_backlog,
+                  (int &) config->max_backlog) < 0) {
+        LogE("Load max_backlog from yaml failed.")
+        return false;
+    }
+    if (yaml::Get(_desc, ServerConfig::field_worker_thread_cnt,
+                  (int &) config->worker_thread_cnt) < 0) {
+        LogE("Load worker_thread_cnt from yaml failed.")
+        return false;
+    }
+    if (config->worker_thread_cnt < 1) {
+        LogE("Illegal worker_thread_cnt: %zu", config->worker_thread_cnt)
+        return false;
+    }
+    if (config->worker_thread_cnt % config->net_thread_cnt != 0) {
+        LogW("Config worker_thread_cnt as an integer multiple time of "
+             "net_thread_cnt to get best performance.")
+    }
+    if (config->worker_thread_cnt > 4 * config->net_thread_cnt) {
+        LogW("Excessive proportion of worker_thread / net_thread "
+             "may lower performance of net_thread.")
+    }
+    if (config->max_backlog < 0) {
+        LogE("Please config max_backlog a positive number.")
+        return false;
+    }
+    return true;
 }
 
-int WebServer::__CreateListenFd() {
-    assert(listenfd_.Create(AF_INET, SOCK_STREAM, 0) >= 0);
-    
-    // If l_onoff is not 0, The system waits for the length of time
-    // described by l_linger for the data in the fd buffer to be sent
-    // before the fd actually be destroyed.
-    struct linger ling{};
-    ling.l_linger = 0;
-    ling.l_onoff = 0;   // identical to default.
-    listenfd_.SetSocketOpt(SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
-    listenfd_.SetNonblocking();
-    return 0;
-}
-
-int WebServer::__OnEpollErr(int _fd) {
+int WebServer::_OnEpollErr(int _fd) {
     LogE("fd: %d", _fd)
     return 0;
+}
+
+void WebServer::AfterConfig() {
+    SetNetThreadImpl<NetThread>();
+    
+    for (NetThreadBase *p : net_threads_) {
+        auto *net_thread = (NetThread *) p;
+        net_thread->SetMaxBacklog(((ServerConfig *) config_)->max_backlog);
+    }
 }
 

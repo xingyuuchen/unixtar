@@ -1,21 +1,9 @@
 #pragma once
 
-#include <cstdint>
-#include <deque>
-#include <list>
-#include <mutex>
-#include <vector>
-#include <unordered_map>
-#include <cassert>
-#include "netscenebase.h"
-#include "singleton.h"
-#include "thread.h"
-#include "http/connectionprofile.h"
-#include "socket/socketepoll.h"
-#include "messagequeue.h"
+#include "serverbase.h"
 
 
-class WebServer final {
+class WebServer : public ServerBase {
     
     SINGLETON(WebServer, )
     
@@ -23,23 +11,16 @@ class WebServer final {
 
   public:
     
-    void Serve();
-    
-    void NotifyStop();
+    void AfterConfig() override;
     
     ~WebServer();
     
-    class ServerConfig {
+    class ServerConfig : public ServerBase::ServerConfigBase {
       public:
-        static std::string      field_port;
-        static uint16_t         port;
-        static std::string      field_net_thread_cnt;
-        static size_t           net_thread_cnt;
         static std::string      field_max_backlog;
-        static size_t           max_backlog;
+        size_t                  max_backlog;
         static std::string      field_worker_thread_cnt;
-        static size_t           worker_thread_cnt;
-        static bool             is_config_done;
+        size_t                  worker_thread_cnt;
     };
 
     class WorkerThread : public Thread {
@@ -81,13 +62,14 @@ class WebServer final {
     template<class WorkerImpl/* : public WorkerThread*/, class ...Args>
     void SetWorker(Args &&..._init_args) {
         
-        assert(ServerConfig::is_config_done);
+        auto conf = (ServerConfig *) config_;
+        assert(conf->is_config_done);
         
-        for (int i = 0; i < ServerConfig::worker_thread_cnt; ++i) {
+        for (int i = 0; i < conf->worker_thread_cnt; ++i) {
             auto worker = new WorkerImpl(_init_args...);
-            size_t idx = i % ServerConfig::net_thread_cnt;
+            size_t idx = i % conf->net_thread_cnt;
             auto net_thread = net_threads_[idx];
-            net_thread->BindNewWorker(worker);
+            ((NetThread *) net_thread)->BindNewWorker(worker);
         }
     }
     
@@ -96,47 +78,13 @@ class WebServer final {
     
   private:
     
-    class ConnectionManager final {
-        using ScopedLock = std::lock_guard<std::mutex>;
-      public:
-        ConnectionManager();
-        
-        ~ConnectionManager();
-        
-        void SetEpoll(SocketEpoll *_epoll);
-        
-        tcp::ConnectionProfile *GetConnection(uint32_t _uid);
-        
-        void AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
-        
-        void DelConnection(uint32_t _uid);
-        
-        void ClearTimeout();
-        
-      private:
-        void __CheckCapacity();
-        
-      public:
-        static const uint32_t                           kInvalidUid;
-      private:
-        static const size_t                             kReserveSize;
-        static const size_t                             kEnlargeUnit;
-        std::vector<tcp::ConnectionProfile *>           pool_;
-        std::deque<uint32_t>                            free_places_;
-        SocketEpoll *                                   socket_epoll_;
-        std::mutex                                      mutex_;
-    };
-    
-    
-    class NetThread : public Thread {
+    class NetThread : public ServerBase::NetThreadBase {
       public:
         
         NetThread();
         
         ~NetThread() override;
         
-        void Run() override;
-    
         bool IsWorkerOverload();
         
         bool IsWorkerFullyLoad();
@@ -151,15 +99,9 @@ class WebServer final {
     
         void NotifySend();
         
-        void NotifyStop();
-    
-        void AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
-    
-        void DelConnection(uint32_t _uid);
+        virtual void HandleNotification(EpollNotifier::Notification &) override;
     
         void HandleSend();
-    
-        void ClearTimeout();
     
         RecvQueue *GetRecvQueue();
     
@@ -176,22 +118,16 @@ class WebServer final {
         
         bool __IsNotifySend(EpollNotifier::Notification &) const;
     
-        bool __IsNotifyStop(EpollNotifier::Notification &) const;
+        int __OnReadEvent(tcp::ConnectionProfile *) override;
     
-        int __OnReadEvent(tcp::ConnectionProfile *);
+        int __OnWriteEvent(tcp::SendContext *) override;
     
-        int __OnWriteEvent(tcp::SendContext *);
-    
-        int __OnErrEvent(tcp::ConnectionProfile *);
+        int __OnErrEvent(tcp::ConnectionProfile *) override;
         
         int __OnReadEventTest(tcp::ConnectionProfile *);
         
       private:
-        SocketEpoll                         socket_epoll_;
-        ConnectionManager                   connection_manager_;
-        EpollNotifier                       epoll_notifier_;
         EpollNotifier::Notification         notification_send_;
-        EpollNotifier::Notification         notification_stop_;
         RecvQueue                           recv_queue_;
         size_t                              max_backlog_;
         static const size_t                 kDefaultMaxBacklog;
@@ -201,25 +137,14 @@ class WebServer final {
         friend class WebServer;
     };
     
-    void __NotifyNetThreadsStop();
+  protected:
+    ServerConfigBase *MakeConfig() override;
     
-    bool __IsNotifyStop(EpollNotifier::Notification &) const;
+    bool _DoConfig(yaml::YamlDescriptor &_desc) override;
     
-    int __OnConnect();
-    
-    void __AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
-    
-    int __CreateListenFd();
-    
-    int __OnEpollErr(SOCKET);
+    int _OnEpollErr(SOCKET) override;
     
   private:
-    std::vector<NetThread *>            net_threads_;
-    SocketEpoll                         socket_epoll_;
-    EpollNotifier                       epoll_notifier_;
-    EpollNotifier::Notification         notification_stop_;
-    bool                                running_;
-    Socket                              listenfd_;
-    
+  
 };
 
