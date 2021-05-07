@@ -5,14 +5,10 @@
 #include <list>
 #include <mutex>
 #include <vector>
-#include <unordered_map>
 #include <cassert>
-#include "netscenebase.h"
-#include "singleton.h"
 #include "thread.h"
 #include "http/connectionprofile.h"
 #include "socket/socketepoll.h"
-#include "messagequeue.h"
 #include "yamlutil.h"
 
 
@@ -23,11 +19,13 @@ class ServerBase {
     
     ServerBase();
     
-    ~ServerBase();
+    virtual ~ServerBase();
     
     virtual void BeforeConfig();
     
     void Config();
+    
+    virtual const char *ConfigFile() = 0;
     
     virtual void AfterConfig();
     
@@ -37,6 +35,7 @@ class ServerBase {
     
     class ServerConfigBase {
       public:
+        ServerConfigBase();
         static std::string      field_port;
         uint16_t                port;
         static std::string      field_net_thread_cnt;
@@ -57,7 +56,7 @@ class ServerBase {
         
         tcp::ConnectionProfile *GetConnection(uint32_t _uid);
         
-        void AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
+        void AddConnection(tcp::ConnectionProfile *);
         
         void DelConnection(uint32_t _uid);
         
@@ -87,30 +86,36 @@ class ServerBase {
     
         void Run() override;
     
-        virtual void HandleNotification(EpollNotifier::Notification &) = 0;
+        virtual void HandleNotification(EpollNotifier::Notification &);
         
         void NotifyStop();
       
-        void AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
-      
+        void RegisterConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
+    
+        tcp::ConnectionProfile *MakeConnection(std::string &_ip, uint16_t _port);
+    
+        tcp::ConnectionProfile *GetConnection(uint32_t _uid);
+        
         void DelConnection(uint32_t _uid);
     
         void ClearTimeout();
 
       protected:
         
-        virtual int __OnReadEvent(tcp::ConnectionProfile *) = 0;
+        virtual int _OnReadEvent(tcp::ConnectionProfile *) = 0;
     
-        virtual int __OnWriteEvent(tcp::SendContext *) = 0;
+        virtual int _OnWriteEvent(tcp::SendContext *, bool _del) = 0;
     
-        virtual int __OnErrEvent(tcp::ConnectionProfile *) = 0;
+        virtual int _OnErrEvent(tcp::ConnectionProfile *);
         
-        bool _IsNotifyStop(EpollNotifier::Notification &) const;
+      private:
+        bool __IsNotifyStop(EpollNotifier::Notification &) const;
 
       protected:
+        EpollNotifier                       epoll_notifier_;
+      private:
         SocketEpoll                         socket_epoll_;
         ConnectionManager                   connection_manager_;
-        EpollNotifier                       epoll_notifier_;
         EpollNotifier::Notification         notification_stop_;
     };
     
@@ -127,9 +132,9 @@ class ServerBase {
 
   protected:
     
-    virtual ServerConfigBase *MakeConfig();
+    virtual ServerConfigBase *_MakeConfig();
     
-    virtual bool _DoConfig(yaml::YamlDescriptor &_desc);
+    virtual bool _CustomConfig(yaml::YamlDescriptor &_desc);
     
     void _NotifyNetThreadsStop();
     
@@ -137,11 +142,12 @@ class ServerBase {
     
     int _OnConnect();
     
-    void _AddConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
+    void _RegisterConnection(SOCKET _fd, std::string &_ip,
+                             uint16_t _port);
     
     int _CreateListenFd();
     
-    virtual int _OnEpollErr(SOCKET) = 0;
+    virtual int _OnEpollErr(SOCKET);
 
   protected:
     ServerConfigBase                  * config_;

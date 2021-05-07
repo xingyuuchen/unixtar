@@ -11,9 +11,11 @@ const uint64_t ConnectionProfile::kDefaultTimeout = 60 * 1000;
 
 ConnectionProfile::ConnectionProfile(uint32_t _uid, int _fd,
                                      std::string _src_ip, uint16_t _src_port)
-        : uid_(_uid)
+        : type_(kFrom)
+        , uid_(_uid)
         , src_ip_(std::move(_src_ip))
         , src_port_(_src_port)
+        , dst_port_(0)
         , socket_(_fd)
         , application_protocol_(TApplicationProtocol::kHttp1_1)
         , record_(::gettickcount())
@@ -24,6 +26,30 @@ ConnectionProfile::ConnectionProfile(uint32_t _uid, int _fd,
         socket_.Set(INVALID_SOCKET);
     }
     
+}
+
+
+ConnectionProfile::ConnectionProfile(uint32_t _uid,
+                                     std::string _dst_ip,
+                                     uint16_t _dst_port)
+        : type_(kTo)
+        , uid_(_uid)
+        , dst_ip_(std::move(_dst_ip))
+        , src_port_(0)
+        , dst_port_(_dst_port)
+        , socket_(INVALID_SOCKET)
+        , application_protocol_(TApplicationProtocol::kHttp1_1)
+        , record_(::gettickcount())
+        , timeout_millis_(kDefaultTimeout)
+        , timeout_ts_(record_ + timeout_millis_) {
+    
+    if (socket_.Create(AF_INET, SOCK_STREAM)) {
+        LogE("Create socket_ failed")
+    }
+}
+
+int ConnectionProfile::Connect() {
+    return socket_.Connect(dst_ip_, dst_port_);
 }
 
 int ConnectionProfile::Receive() {
@@ -59,7 +85,7 @@ int ConnectionProfile::Receive() {
         }
     
         if (IsParseDone()) {
-            __MakeRecvContext();
+            MakeContext();
             return 0;
         }
     
@@ -69,9 +95,9 @@ int ConnectionProfile::Receive() {
     }
 }
 
-uint32_t ConnectionProfile::Uid() const {
-    return uid_;
-}
+uint32_t ConnectionProfile::Uid() const { return uid_; }
+
+void ConnectionProfile::SetUid(uint32_t _uid) { uid_ = _uid; }
 
 int ConnectionProfile::ParseProtocol() {
     if (application_protocol_ != TApplicationProtocol::kHttp1_1) {
@@ -117,9 +143,13 @@ SendContext *ConnectionProfile::GetSendContext() { return &send_ctx_; }
 
 uint64_t ConnectionProfile::GetTimeoutTs() const { return timeout_ts_; }
 
-std::string &ConnectionProfile::GetSrcIp() { return src_ip_; }
+std::string &ConnectionProfile::SrcIp() { return src_ip_; }
 
-uint16_t ConnectionProfile::GetPort() const { return src_port_; }
+std::string &ConnectionProfile::DstIp() { return dst_ip_; }
+
+uint16_t ConnectionProfile::SrcPort() const { return src_port_; }
+
+uint16_t ConnectionProfile::DstPort() const { return dst_port_; }
 
 bool ConnectionProfile::IsTimeout(uint64_t _now) const {
     if (_now == 0) {
@@ -128,7 +158,14 @@ bool ConnectionProfile::IsTimeout(uint64_t _now) const {
     return _now > timeout_ts_;
 }
 
-void ConnectionProfile::__MakeRecvContext() {
+ConnectionProfile::TType ConnectionProfile::GetType() const { return type_; }
+
+bool ConnectionProfile::IsTypeValid() const {
+    TType type = GetType();
+    return type == kTo || type == kFrom;
+}
+
+void ConnectionProfile::MakeContext() {
     SOCKET fd = socket_.FD();
     if (fd < 0) {
         return;
@@ -147,9 +184,13 @@ void ConnectionProfile::__MakeRecvContext() {
     }
     std::string &url = http_parser_.GetRequestUrl();
     recv_ctx_.full_url = std::string(url);
-    send_ctx_.connection_uid = Uid();
-    send_ctx_.fd = fd;
     recv_ctx_.send_context = &send_ctx_;
+    MakeSendContext();
+}
+
+void ConnectionProfile::MakeSendContext() {
+    send_ctx_.connection_uid = Uid();
+    send_ctx_.fd = socket_.FD();
 }
 
 ConnectionProfile::~ConnectionProfile() = default;

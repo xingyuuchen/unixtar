@@ -14,7 +14,6 @@ uint64_t gettickcount() {
 
 void printcurrtime() {
     auto t = system_clock::to_time_t(system_clock::now());
-    // TODO deprecate put_time
     std::cout << std::put_time(std::localtime(&t), "%m-%d %H:%M:%S");
 }
 

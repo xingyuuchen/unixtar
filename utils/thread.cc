@@ -8,6 +8,8 @@ Thread::Thread()
 }
 
 void Thread::Entry() {
+    OnStart();
+    
     running_ = true;
     try {
         Run();
@@ -16,12 +18,13 @@ void Thread::Entry() {
         HandleException(ex);
     }
     running_ = false;
+    
+    OnStop();
 }
 
 void Thread::Start() {
     running_ = true;
     thread_ = new std::thread(&Thread::Entry, this);
-    OnStart();
 }
 
 void Thread::OnStart() {
@@ -36,7 +39,6 @@ void Thread::Join() {
         }
         if (thread_->joinable()) {
             thread_->join();
-            OnJoined();
         }
     }
 }
@@ -70,6 +72,6 @@ void Thread::HandleException(std::exception &ex) {
 
 bool Thread::IsRunning() const { return running_; }
 
-void Thread::OnJoined() {
+void Thread::OnStop() {
     // implement if needed
 }

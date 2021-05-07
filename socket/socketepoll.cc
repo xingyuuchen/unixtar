@@ -221,7 +221,7 @@ EpollNotifier::EpollNotifier()
         : socket_(INVALID_SOCKET)
         , socket_epoll_(nullptr) {
     
-    if (socket_.Create(AF_INET, SOCK_STREAM, 0) < 0) {
+    if (socket_.Create(AF_INET, SOCK_STREAM) < 0) {
         LogE("create socket error: %s, errno: %d",
              strerror(errno), errno);
         return;

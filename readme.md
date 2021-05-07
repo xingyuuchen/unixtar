@@ -14,7 +14,7 @@ The framework adopts the model of `Epoll + NetThreads + WorkerThreads`.
 git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
 cd framework/scripts
 bash autogen.sh   # Do this if you wanna use ProtoBuf.
-bash cmake.sh -r -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
+bash cmake.sh -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
 ```
 
 ## Example Usage

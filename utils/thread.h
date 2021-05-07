@@ -21,7 +21,7 @@ class Thread {
     
     void Join();
     
-    virtual void OnJoined();
+    virtual void OnStop();
     
     void Detach();
     

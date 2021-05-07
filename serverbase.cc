@@ -1,11 +1,18 @@
 #include "serverbase.h"
 #include "signalhandler.h"
 #include "log.h"
+#include "timeutil.h"
 
 
 
 std::string ServerBase::ServerConfigBase::field_port("port");
 std::string ServerBase::ServerConfigBase::field_net_thread_cnt("net_thread_cnt");
+
+ServerBase::ServerConfigBase::ServerConfigBase()
+        : port(0)
+        , net_thread_cnt(0)
+        , is_config_done(false) {
+}
 
 
 ServerBase::ServerBase()
@@ -23,18 +30,22 @@ ServerBase::~ServerBase() {
 void ServerBase::BeforeConfig() {
     // implement if needed
 }
+
 void ServerBase::Config() {
     
     BeforeConfig();
     
-    config_ = MakeConfig();
+    config_ = _MakeConfig();
     
     assert(config_);
     
-    yaml::YamlDescriptor config_yaml = yaml::Load("../framework/serverconfig.yml");
+    char config_path[128] = {0, };
+    snprintf(config_path, sizeof(config_path), "/etc/unixtar/%s", ConfigFile());
+    
+    yaml::YamlDescriptor config_yaml = yaml::Load(config_path);
     
     if (!config_yaml) {
-        LogE("Open serverconfig.yaml failed.")
+        LogE("Open %s failed.", ConfigFile())
         assert(false);
     }
     
@@ -57,8 +68,8 @@ void ServerBase::Config() {
             config_->net_thread_cnt = 8;
         }
         
-        if (!_DoConfig(config_yaml)) {
-            LogE("_DoConfig failed")
+        if (!_CustomConfig(config_yaml)) {
+            LogE("_CustomConfig failed")
             break;
         }
         
@@ -172,15 +183,11 @@ tcp::ConnectionProfile *ServerBase::ConnectionManager::GetConnection(uint32_t _u
     return pool_[_uid];
 }
 
-void ServerBase::ConnectionManager::AddConnection(SOCKET _fd,
-                                                 std::string &_ip,
-                                                 uint16_t _port) {
-    if (_fd < 0) {
-        LogE("fd(%d)", _fd)
-        LogPrintStacktrace()
-        return;
-    }
+void ServerBase::ConnectionManager::AddConnection(tcp::ConnectionProfile *_conn) {
     assert(socket_epoll_);
+    assert(_conn);
+    
+    SOCKET fd = _conn->FD();
     
     __CheckCapacity();
     
@@ -189,16 +196,23 @@ void ServerBase::ConnectionManager::AddConnection(SOCKET _fd,
     uint32_t uid = free_places_.front();
     free_places_.pop_front();
     
-    LogI("fd(%d), address: [%s:%d], uid: %u", _fd, _ip.c_str(), _port, uid)
+    _conn->SetUid(uid);
     
-    auto neo = new tcp::ConnectionProfile(uid, _fd, _ip, _port);
-    pool_[uid] = neo;
+    if (_conn->GetType() == tcp::ConnectionProfile::kFrom) {
+        LogI("fd(%d), from address: [%s:%d], uid: %u", fd,
+             _conn->SrcIp().c_str(), _conn->SrcPort(), uid)
+    } else {
+        LogI("fd(%d), to address: [%s:%d], uid: %u", fd,
+             _conn->DstIp().c_str(), _conn->DstPort(), uid)
+    }
+    
+    pool_[uid] = _conn;
     
     // While one thread is blocked in a call to epoll_wait(), it is
     // possible for another thread to add a file descriptor to the
     // waited-upon epoll instance.  If the new file descriptor becomes
     // ready, it will cause the epoll_wait() call to unblock.
-    socket_epoll_->AddSocketReadWrite(_fd, (uint64_t) neo);
+    socket_epoll_->AddSocketReadWrite(fd, (uint64_t) _conn);
 }
 
 void ServerBase::ConnectionManager::DelConnection(uint32_t _uid) {
@@ -255,7 +269,8 @@ ServerBase::ConnectionManager::~ConnectionManager() {
 
 
 
-ServerBase::NetThreadBase::NetThreadBase() {
+ServerBase::NetThreadBase::NetThreadBase()
+        : Thread() {
     connection_manager_.SetEpoll(&socket_epoll_);
     epoll_notifier_.SetSocketEpoll(&socket_epoll_);
 }
@@ -282,18 +297,24 @@ void ServerBase::NetThreadBase::Run() {
             EpollNotifier::Notification probable_notification(
                     socket_epoll_.GetEpollDataPtr(i));
     
+            if (__IsNotifyStop(probable_notification)) {
+                LogI("NetThread notification-stop")
+                running_ = false;
+                return;
+            }
+            
             HandleNotification(probable_notification);
             
-            tcp::ConnectionProfile *profile = nullptr;
+            tcp::ConnectionProfile *profile;
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
-                __OnReadEvent(profile);
+                _OnReadEvent(profile);
             }
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
                 auto send_ctx = profile->GetSendContext();
-                __OnWriteEvent(send_ctx);
+                _OnWriteEvent(send_ctx, true);
             }
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
-                __OnErrEvent(profile);
+                _OnErrEvent(profile);
             }
         }
         
@@ -306,17 +327,41 @@ void ServerBase::NetThreadBase::Run() {
     
 }
 
+void ServerBase::NetThreadBase::HandleNotification(EpollNotifier::Notification &) {
+    // Implement if needed
+}
+
 void ServerBase::NetThreadBase::NotifyStop() {
     running_ = false;
     epoll_notifier_.NotifyEpoll(notification_stop_);
 }
 
-void ServerBase::NetThreadBase::AddConnection(int _fd, std::string &_ip, uint16_t _port) {
+void ServerBase::NetThreadBase::RegisterConnection(int _fd, std::string &_ip,
+                                                   uint16_t _port) {
     if (_fd < 0) {
         LogE("invalid fd: %d", _fd)
         return;
     }
-    connection_manager_.AddConnection(_fd, _ip, _port);
+    
+    auto neo = new tcp::ConnectionProfile(ConnectionManager::kInvalidUid,
+                                          _fd, _ip, _port);
+    connection_manager_.AddConnection(neo);
+}
+
+tcp::ConnectionProfile *ServerBase::NetThreadBase::MakeConnection(std::string &_ip,
+                                                                  uint16_t _port) {
+    auto neo = new tcp::ConnectionProfile(ConnectionManager::kInvalidUid,
+                                      _ip, _port);
+    if (neo->Connect()) {
+        LogE("Connect failed")
+    }
+    connection_manager_.AddConnection(neo);
+    
+    return neo;
+}
+
+tcp::ConnectionProfile *ServerBase::NetThreadBase::GetConnection(uint32_t _uid) {
+    return connection_manager_.GetConnection(_uid);
 }
 
 void ServerBase::NetThreadBase::DelConnection(uint32_t _uid) {
@@ -325,18 +370,26 @@ void ServerBase::NetThreadBase::DelConnection(uint32_t _uid) {
 
 void ServerBase::NetThreadBase::ClearTimeout() { connection_manager_.ClearTimeout(); }
 
-bool ServerBase::NetThreadBase::_IsNotifyStop(EpollNotifier::Notification &_notification) const {
+int ServerBase::NetThreadBase::_OnErrEvent(tcp::ConnectionProfile *_conn) {
+    if (!_conn) {
+        return -1;
+    }
+    LogE("fd(%d), uid: %u", _conn->FD(), _conn->Uid())
+    return 0;
+}
+
+bool ServerBase::NetThreadBase::__IsNotifyStop(EpollNotifier::Notification &_notification) const {
     return _notification == notification_stop_;
 }
 
 ServerBase::NetThreadBase::~NetThreadBase() = default;
 
 
-ServerBase::ServerConfigBase *ServerBase::MakeConfig() {
+ServerBase::ServerConfigBase *ServerBase::_MakeConfig() {
     return new ServerConfigBase();
 }
 
-bool ServerBase::_DoConfig(yaml::YamlDescriptor &_desc) {
+bool ServerBase::_CustomConfig(yaml::YamlDescriptor &_desc) {
     return true;
 }
 
@@ -359,7 +412,7 @@ int ServerBase::_OnConnect() {
     struct sockaddr_in sock_in{};
     socklen_t socklen = sizeof(sockaddr_in);
     char ip_str[INET_ADDRSTRLEN] = {0, };
-    uint16_t port = 0;
+    uint16_t port;
     
     SOCKET listen_fd = listenfd_.FD();
     while (true) {
@@ -371,7 +424,7 @@ int ServerBase::_OnConnect() {
             if (IS_EAGAIN(errno)) {
                 return 0;
             }
-            LogE("errno(%d): %s", errno, strerror(errno));
+            LogE("errno(%d): %s", errno, strerror(errno))
             return -1;
         }
         if (!inet_ntop(AF_INET, &sock_in.sin_addr, ip_str, sizeof(ip_str))) {
@@ -380,11 +433,12 @@ int ServerBase::_OnConnect() {
         port = ntohs(sock_in.sin_port);
         std::string ip(ip_str);
         
-        _AddConnection(fd, ip, port);
+        _RegisterConnection(fd, ip, port);
     }
 }
 
-void ServerBase::_AddConnection(int _fd, std::string &_ip, uint16_t _port) {
+void ServerBase::_RegisterConnection(int _fd, std::string &_ip,
+                                     uint16_t _port) {
     if (_fd < 0) {
         LogE("wtf??")
         return;
@@ -395,11 +449,11 @@ void ServerBase::_AddConnection(int _fd, std::string &_ip, uint16_t _port) {
         LogE("wtf???")
         return;
     }
-    owner_thread->AddConnection(_fd, _ip, _port);
+    owner_thread->RegisterConnection(_fd, _ip, _port);
 }
 
 int ServerBase::_CreateListenFd() {
-    assert(listenfd_.Create(AF_INET, SOCK_STREAM, 0) >= 0);
+    assert(listenfd_.Create(AF_INET, SOCK_STREAM) >= 0);
     
     // If l_onoff is not 0, The system waits for the length of time
     // described by l_linger for the data in the fd buffer to be sent
@@ -409,6 +463,11 @@ int ServerBase::_CreateListenFd() {
     ling.l_onoff = 0;   // identical to default.
     listenfd_.SetSocketOpt(SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
     listenfd_.SetNonblocking();
+    return 0;
+}
+
+int ServerBase::_OnEpollErr(SOCKET _fd) {
+    LogE("fd: %d", _fd)
     return 0;
 }
 

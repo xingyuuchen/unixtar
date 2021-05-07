@@ -24,21 +24,36 @@ struct RecvContext {
 namespace tcp {
 class ConnectionProfile {
   public:
+    /* whether this connection is established actively or passively */
+    enum TType {
+        kFrom = 0,
+        kTo,
+    };
     
     enum TApplicationProtocol {
         kUnknown = 0,
         kHttp1_1,   // default
         kHttp2_0,
+        kHttp3_0,
     };
     
+    /* for kFrom */
     ConnectionProfile(uint32_t _uid, SOCKET _fd, std::string _src_ip,
                       uint16_t _src_port);
     
+    /* for kTo */
+    ConnectionProfile(uint32_t _uid, std::string _dst_ip,
+                      uint16_t _dst_port);
+    
     ~ConnectionProfile();
+    
+    int Connect();
     
     int Receive();
     
     uint32_t Uid() const;
+    
+    void SetUid(uint32_t _uid);
     
     /**
      *
@@ -59,27 +74,39 @@ class ConnectionProfile {
     
     uint64_t GetTimeoutTs() const;
     
-    std::string &GetSrcIp();
+    std::string &SrcIp();
     
-    uint16_t GetPort() const;
+    std::string &DstIp();
+    
+    uint16_t SrcPort() const;
+    
+    uint16_t DstPort() const;
     
     bool IsTimeout(uint64_t _now = 0) const;
     
+    TType GetType() const;
+    
+    bool IsTypeValid() const;
+    
     http::request::Parser *GetHttpParser();
+    
+    void MakeContext();
+    
+    void MakeSendContext();
     
     http::RecvContext *GetRecvContext();
     
     SendContext *GetSendContext();
 
-
+    
   private:
-    void __MakeRecvContext();
-
-  private:
+    TType                   type_;
     static const uint64_t   kDefaultTimeout;
     uint32_t                uid_;
     std::string             src_ip_;
+    std::string             dst_ip_;
     uint16_t                src_port_;
+    uint16_t                dst_port_;
     Socket                  socket_;
     http::request::Parser   http_parser_;
     uint64_t                record_;

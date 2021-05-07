@@ -191,6 +191,7 @@ class _Connection {
     }
     
   private:
+    // TODO connection pool
     mysqlpp::Connection     conn_;
     std::string             db_;
     std::string             usr_;

@@ -26,7 +26,7 @@ Socket::~Socket() {
     Close();
 }
 
-int Socket::Create(int _domain, int _type, int _protocol) {
+int Socket::Create(int _domain, int _type, int _protocol /* = 0*/) {
     assert(_type == SOCK_STREAM || _type == SOCK_DGRAM);
     type_ = _type;
     
@@ -59,6 +59,24 @@ int Socket::Bind(sa_family_t _sin_family, uint16_t _port,
     }
     return 0;
 }
+
+int Socket::Connect(std::string &_ip, uint16_t _port) const {
+    struct sockaddr_in sockaddr{};
+    memset(&sockaddr, 0, sizeof(sockaddr));
+    
+    sockaddr.sin_family = AF_INET;
+    sockaddr.sin_port = htons(_port);
+    sockaddr.sin_addr.s_addr = inet_addr(_ip.c_str());
+    
+    int ret = connect(fd_, (struct sockaddr *) &sockaddr,
+            sizeof(sockaddr));
+    if (ret < 0) {
+        LogE("connect errno(%d): %s", errno, strerror(errno));
+        return -1;
+    }
+    return ret;
+}
+
 
 int Socket::SetNonblocking() {
     int old_flags = ::fcntl(fd_, F_GETFL);

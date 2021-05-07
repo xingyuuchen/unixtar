@@ -4,6 +4,7 @@
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include "autobuffer.h"
+#include <string>
 
 
 #define SOCKET int
@@ -18,10 +19,12 @@ class Socket {
     explicit Socket(SOCKET _fd, int _type = SOCK_STREAM,
                     bool _nonblocking = true);
     
-    int Create(int _domain, int _type, int _protocol);
+    int Create(int _domain, int _type, int _protocol = 0);
     
     int Bind(sa_family_t _sin_family, uint16_t _port,
              in_addr_t _in_addr = INADDR_ANY) const;
+    
+    int Connect(std::string &_ip, uint16_t _port) const;
     
     ssize_t Recv(AutoBuffer *_buff, bool *_is_buffer_full);
     

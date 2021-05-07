@@ -1,9 +1,12 @@
 #pragma once
 
-#include "serverbase.h"
+#include "httpserver.h"
+#include "netscenebase.h"
+#include "messagequeue.h"
+#include "singleton.h"
 
 
-class WebServer : public ServerBase {
+class WebServer final : public HttpServer {
     
     SINGLETON(WebServer, )
     
@@ -13,10 +16,13 @@ class WebServer : public ServerBase {
     
     void AfterConfig() override;
     
-    ~WebServer();
+    const char *ConfigFile() override;
+    
+    ~WebServer() override;
     
     class ServerConfig : public ServerBase::ServerConfigBase {
       public:
+        ServerConfig();
         static std::string      field_max_backlog;
         size_t                  max_backlog;
         static std::string      field_worker_thread_cnt;
@@ -78,7 +84,7 @@ class WebServer : public ServerBase {
     
   private:
     
-    class NetThread : public ServerBase::NetThreadBase {
+    class NetThread : public HttpNetThread {
       public:
         
         NetThread();
@@ -99,7 +105,7 @@ class WebServer : public ServerBase {
     
         void NotifySend();
         
-        virtual void HandleNotification(EpollNotifier::Notification &) override;
+        void HandleNotification(EpollNotifier::Notification &) override;
     
         void HandleSend();
     
@@ -111,20 +117,16 @@ class WebServer : public ServerBase {
         
         void OnStart() override;
     
+        void OnStop() override;
+    
+        int HandleHttpRequest(tcp::ConnectionProfile *) override;
+
         void HandleException(std::exception &ex) override;
 
       private:
         void __NotifyWorkersStop();
         
         bool __IsNotifySend(EpollNotifier::Notification &) const;
-    
-        int __OnReadEvent(tcp::ConnectionProfile *) override;
-    
-        int __OnWriteEvent(tcp::SendContext *) override;
-    
-        int __OnErrEvent(tcp::ConnectionProfile *) override;
-        
-        int __OnReadEventTest(tcp::ConnectionProfile *);
         
       private:
         EpollNotifier::Notification         notification_send_;
@@ -138,13 +140,11 @@ class WebServer : public ServerBase {
     };
     
   protected:
-    ServerConfigBase *MakeConfig() override;
+    ServerConfigBase *_MakeConfig() override;
     
-    bool _DoConfig(yaml::YamlDescriptor &_desc) override;
-    
-    int _OnEpollErr(SOCKET) override;
+    bool _CustomConfig(yaml::YamlDescriptor &_desc) override;
     
   private:
-  
+    static const char* const kConfigFile;
 };
 

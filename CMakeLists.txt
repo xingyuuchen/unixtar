@@ -50,3 +50,13 @@ add_library(${PROJECT_NAME} SHARED ${SELF_SRC_FILES})
 add_dependencies(${PROJECT_NAME} utils dao)
 
 target_link_libraries(${PROJECT_NAME} protobuf utils dao)
+
+add_subdirectory(reverseproxy)
+
+if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
+            COMMAND test -d /etc/unixtar || mkdir -p /etc/unixtar
+            COMMAND cp ${PROJECT_SOURCE_DIR}/webserverconf.yml /etc/unixtar/webserverconf.yml
+            COMMAND cp ${PROJECT_SOURCE_DIR}/reverseproxy/proxyserverconf.yml /etc/unixtar/proxyserverconf.yml
+            COMMENT "Copying unixtar config files...")
+endif()

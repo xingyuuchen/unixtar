@@ -1,18 +1,34 @@
 #include "webserver.h"
 #include "utils/log.h"
 #include "timeutil.h"
-#include <unistd.h>
 #include <cstring>
 
 
 std::string WebServer::ServerConfig::field_max_backlog("max_backlog");
 std::string WebServer::ServerConfig::field_worker_thread_cnt("worker_thread_cnt");
+const char *const WebServer::kConfigFile = "webserverconf.yml";
+
+WebServer::ServerConfig::ServerConfig()
+        : ServerBase::ServerConfigBase()
+        , max_backlog(0)
+        , worker_thread_cnt(0) {
+}
 
 
-WebServer::WebServer() : ServerBase() {
+WebServer::WebServer() : HttpServer() {
+}
+
+void WebServer::AfterConfig() {
+    SetNetThreadImpl<NetThread>();
+    
+    for (NetThreadBase *p : net_threads_) {
+        auto *net_thread = (NetThread *) p;
+        net_thread->SetMaxBacklog(((ServerConfig *) config_)->max_backlog);
+    }
 }
 
 WebServer::~WebServer() = default;
+
 
 WebServer::WorkerThread::WorkerThread()
         : net_thread_(nullptr)
@@ -88,7 +104,7 @@ WebServer::WorkerThread::~WorkerThread() = default;
 const size_t WebServer::NetThread::kDefaultMaxBacklog = 1024;
 
 WebServer::NetThread::NetThread()
-        : ServerBase::NetThreadBase()
+        : HttpNetThread()
         , max_backlog_(kDefaultMaxBacklog) {
     
 }
@@ -105,12 +121,17 @@ void WebServer::NetThread::NotifySend() {
     epoll_notifier_.NotifyEpoll(notification_send_);
 }
 
+void WebServer::NetThread::HandleNotification(EpollNotifier::Notification &_notification) {
+    if (__IsNotifySend(_notification)) {
+        HandleSend();
+    }
+}
 
 void WebServer::NetThread::HandleSend() {
     tcp::SendContext *send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogD("fd(%d) doing send task", send_ctx->fd)
-        __OnWriteEvent(send_ctx);
+        _OnWriteEvent(send_ctx, true);
     }
 }
 
@@ -129,115 +150,6 @@ void WebServer::NetThread::HandleException(std::exception &ex) {
     LogE("%s", ex.what())
 }
 
-bool WebServer::NetThread::__IsNotifySend(EpollNotifier::Notification &_notification) const {
-    return _notification == notification_send_;
-}
-
-int WebServer::NetThread::__OnReadEvent(tcp::ConnectionProfile *_conn) {
-    assert(_conn);
-    
-    SOCKET fd = _conn->FD();
-    uint32_t uid = _conn->Uid();
-    LogI("fd(%d), uid: %u", fd, uid)
-    
-    if (_conn->Receive() < 0) {
-        DelConnection(uid);
-        return -1;
-    }
-    
-    if (_conn->IsParseDone()) {
-        LogI("fd(%d) http parse succeed", fd)
-        if (IsWorkerFullyLoad()) {
-            LogI("worker fully loaded, drop connection directly")
-            DelConnection(uid);
-            
-        } else {
-            recv_queue_.push_back(_conn->GetRecvContext());
-        }
-    }
-    return 0;
-}
-
-int WebServer::NetThread::__OnWriteEvent(tcp::SendContext *_send_ctx) {
-    if (!_send_ctx) {
-        LogE("!_send_ctx")
-        return -1;
-    }
-    AutoBuffer &resp = _send_ctx->buffer;
-    size_t pos = resp.Pos();
-    size_t ntotal = resp.Length() - pos;
-    SOCKET fd = _send_ctx->fd;
-    
-    if (fd < 0 || ntotal == 0) {
-        return 0;
-    }
-    
-    ssize_t nsend = ::write(fd, resp.Ptr(pos), ntotal);
-    
-    do {
-        if (nsend == ntotal) {
-            LogI("fd(%d), send %zd/%zu B, done", fd, nsend, ntotal)
-            break;
-        }
-        if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
-            nsend = nsend > 0 ? nsend : 0;
-            LogI("fd(%d): send %zd/%zu B", fd, nsend, ntotal)
-            resp.Seek(pos + nsend);
-            return 0;
-        }
-        if (nsend < 0) {
-            if (errno == EPIPE) {
-                // fd probably closed by peer, or cleared because of timeout.
-                LogI("fd(%d) already closed, send nothing", fd)
-                return 0;
-            }
-            LogE("fd(%d) nsend(%zd), errno(%d): %s",
-                 fd, nsend, errno, strerror(errno));
-        }
-    } while (false);
-    
-    DelConnection(_send_ctx->connection_uid);
-    
-    return nsend < 0 ? -1 : 0;
-}
-
-int WebServer::NetThread::__OnErrEvent(tcp::ConnectionProfile *_profile) {
-    if (!_profile) {
-        return -1;
-    }
-    LogE("fd(%d), uid: %u", _profile->FD(), _profile->Uid())
-    return 0;
-}
-
-int WebServer::NetThread::__OnReadEventTest(tcp::ConnectionProfile *_profile) {
-    LogI("sleeping...")
-    SOCKET fd = _profile->FD();
-    std::this_thread::sleep_for(std::chrono::milliseconds(4000));
-    char buff[1024] = {0, };
-    
-    while (true) {
-        ssize_t n = ::read(fd, buff, 2);
-        if (n == -1 && IS_EAGAIN(errno)) {
-            LogI("EAGAIN")
-            return 0;
-        }
-        if (n == 0) {
-            LogI("Conn closed by peer")
-            break;
-        }
-        if (n < 0) {
-            LogE("err: n=%zd", n)
-            break;
-        }
-        LogI("n: %zd", n)
-        if (n > 0) {
-            LogI("read: %s", buff)
-        }
-    }
-    DelConnection(_profile->Uid());
-    return 0;
-}
-
 void WebServer::NetThread::OnStart() {
     if (workers_.empty()) {
         LogE("call WebServer::SetWorker() to employ workers first!")
@@ -247,6 +159,10 @@ void WebServer::NetThread::OnStart() {
     for (auto & worker_thread : workers_) {
         worker_thread->Start();
     }
+}
+
+void WebServer::NetThread::OnStop() {
+    __NotifyWorkersStop();
 }
 
 void WebServer::NetThread::__NotifyWorkersStop() {
@@ -259,25 +175,31 @@ void WebServer::NetThread::__NotifyWorkersStop() {
     }
 }
 
-void WebServer::NetThread::HandleNotification(EpollNotifier::Notification &_notification) {
-    if (__IsNotifySend(_notification)) {
-        HandleSend();
-        
-    } else if (_IsNotifyStop(_notification)) {
-        LogI("NetThread notification-stop")
-        running_ = false;
-        __NotifyWorkersStop();
+bool WebServer::NetThread::__IsNotifySend(EpollNotifier::Notification &_notification) const {
+    return _notification == notification_send_;
+}
+
+int WebServer::NetThread::HandleHttpRequest(tcp::ConnectionProfile *_conn) {
+    uint32_t uid = _conn->Uid();
+    
+    if (IsWorkerFullyLoad()) {
+        LogI("worker fully loaded, drop connection directly")
+        DelConnection(uid);
+        return -1;
     }
+    
+    recv_queue_.push_back(_conn->GetRecvContext());
+    return 0;
 }
 
 WebServer::NetThread::~NetThread() = default;
 
 
-ServerBase::ServerConfigBase *WebServer::MakeConfig() {
+ServerBase::ServerConfigBase *WebServer::_MakeConfig() {
     return new ServerConfig();
 }
 
-bool WebServer::_DoConfig(yaml::YamlDescriptor &_desc) {
+bool WebServer::_CustomConfig(yaml::YamlDescriptor &_desc) {
     
     auto *config = (ServerConfig *) config_;
     
@@ -310,17 +232,7 @@ bool WebServer::_DoConfig(yaml::YamlDescriptor &_desc) {
     return true;
 }
 
-int WebServer::_OnEpollErr(int _fd) {
-    LogE("fd: %d", _fd)
-    return 0;
-}
-
-void WebServer::AfterConfig() {
-    SetNetThreadImpl<NetThread>();
-    
-    for (NetThreadBase *p : net_threads_) {
-        auto *net_thread = (NetThread *) p;
-        net_thread->SetMaxBacklog(((ServerConfig *) config_)->max_backlog);
-    }
+const char *WebServer::ConfigFile() {
+    return kConfigFile;
 }
 
