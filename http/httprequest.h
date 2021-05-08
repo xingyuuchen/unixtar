@@ -1,10 +1,6 @@
-#ifndef OI_SVR_HTTPREQUSET_H
-#define OI_SVR_HTTPREQUSET_H
+#pragma once
 
-#include "firstline.h"
-#include "headerfield.h"
-#include "autobuffer.h"
-#include <map>
+#include "parserbase.h"
 
 
 namespace http { namespace request {
@@ -15,56 +11,37 @@ void Pack(const std::string &_host, const std::string &_url,
           AutoBuffer &_send_body, AutoBuffer &_out_buff);
 
 
-class Parser {
+class Parser : public http::ParserBase {
   public:
     Parser();
     
-    enum TPosition {
-        kNone,
-        kRequestLine,
-        kRequestHeaders,
-        kBody,
-        kEnd,
-        kError,
-    };
-    
-    void DoParse();
-    
-    bool IsEnd() const;
-    
-    bool IsErr() const;
+    ~Parser() override;
     
     bool IsMethodPost() const;
     
-    TPosition GetPosition() const;
-    
-    char *GetBody();
+    char *GetBody() override;
     
     std::string &GetRequestUrl();
     
-    AutoBuffer *GetBuff();
+    size_t GetContentLength() const override;
     
-    size_t GetContentLength() const;
+    std::string &GetUrl();
+    
+    THttpMethod GetMethod() const;
+    
+    THttpVersion GetVersion() const;
+    
+    bool IsHttpRequest() const override;
+    
+  protected:
+    bool _ResolveFirstLine() override;
+    
+    bool _ResolveBody() override;
 
   private:
-    void __ResolveRequestLine();
-    
-    void __ResolveRequestHeaders();
-    
-    void __ResolveBody();
-    
-  private:
-    TPosition                               position_;
     http::RequestLine                       request_line_;
-    http::HeaderField                       headers_;
-    size_t                                  request_line_len_;
-    size_t                                  request_header_len_;
-    size_t                                  resolved_len_;
-    AutoBuffer                              buff_;
     
 };
 
 }}
 
-
-#endif //OI_SVR_HTTPREQUSET_H

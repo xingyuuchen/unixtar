@@ -48,7 +48,7 @@ size_t HeaderField::GetHeaderSize() {
 uint64_t HeaderField::GetContentLength() const {
     for (const auto & header_field : header_fields_) {
         if (0 == strcmp(header_field.first.c_str(), kContentLength)) {
-            return strtoul(header_field.second.c_str(), nullptr, 10);
+            return strtoul(header_field.second.c_str(), nullptr, 10);;
         }
     }
     LogI("No such field: Content-Length")

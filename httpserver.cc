@@ -28,7 +28,7 @@ int HttpServer::HttpNetThread::_OnReadEvent(tcp::ConnectionProfile *_conn) {
     
     if (_conn->IsParseDone()) {
         LogI("fd(%d) http parse succeed", fd)
-        return HandleHttpRequest(_conn);
+        return HandleHttpPacket(_conn);
     }
     return 0;
 }
@@ -44,7 +44,7 @@ int HttpServer::HttpNetThread::_OnWriteEvent(tcp::SendContext *_send_ctx,
     size_t ntotal = resp.Length() - pos;
     SOCKET fd = _send_ctx->fd;
     
-    if (fd < 0 || ntotal == 0) {
+    if (fd <= 0 || ntotal == 0) {
         return 0;
     }
     
@@ -69,7 +69,8 @@ int HttpServer::HttpNetThread::_OnWriteEvent(tcp::SendContext *_send_ctx,
                 return 0;
             }
             LogE("fd(%d) nsend(%zd), errno(%d): %s",
-                 fd, nsend, errno, strerror(errno));
+                 fd, nsend, errno, strerror(errno))
+            LogPrintStacktrace(5)
         }
     } while (false);
     

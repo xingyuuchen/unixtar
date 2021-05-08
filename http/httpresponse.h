@@ -1,11 +1,6 @@
-#ifndef OI_SVR_HTTPRESPONSE_H
-#define OI_SVR_HTTPRESPONSE_H
+#pragma once
 
-#include <map>
-#include "autobuffer.h"
-#include "firstline.h"
-#include "headerfield.h"
-
+#include "parserbase.h"
 
 
 namespace http { namespace response {
@@ -16,50 +11,28 @@ void Pack(http::THttpVersion _http_ver, int _resp_code, std::string &_status_des
           AutoBuffer &_out_buff, std::string &_send_body);
 
 
-class Parser {
+class Parser : public http::ParserBase {
   public:
-    enum TPosition {
-        kNone,
-        kStatusLine,
-        kResponseHeaders,
-        kBody,
-        kEnd,
-        kError,
-    };
     
-    explicit Parser(AutoBuffer *_body);
+    Parser();
     
-    void Recv(AutoBuffer &_buff);
+    ~Parser() override;
     
-    bool IsEnd() const;
+    int GetStatusCode() const;
     
-    bool IsErr() const;
+    THttpVersion GetVersion() const;
     
-    TPosition GetPosition() const;
+    std::string &StatusDesc();
     
-    AutoBuffer *GetBody();
+    bool IsHttpRequest() const override;
+
+  protected:
+    bool _ResolveFirstLine() override;
 
   private:
-    void __ResolveStatusLine(AutoBuffer &_buff);
-    
-    void __ResolveResponseHeaders(AutoBuffer &_buff);
-    
-    void __ResolveBody(AutoBuffer &_buff);
-    
-  private:
-    TPosition                               position_;
     http::StatusLine                        status_line_;
-    http::HeaderField                       headers_;
-    size_t                                  status_line_len_;      // debug only
-    size_t                                  response_header_len_;    // debug only
-    size_t                                  resolved_len_;
-    AutoBuffer*                             body_;
     
 };
 
 }}
 
-
-
-
-#endif //OI_SVR_HTTPRESPONSE_H

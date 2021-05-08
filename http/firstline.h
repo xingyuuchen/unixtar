@@ -86,6 +86,12 @@ class StatusLine {
   public:
     StatusLine();
 
+    int StatusCode() const;
+    
+    THttpVersion GetVersion() const;
+    
+    std::string &StatusDesc();
+    
     void SetVersion(THttpVersion _version);
 
     void SetStatusCode(int _status_code);

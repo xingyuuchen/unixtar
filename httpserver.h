@@ -14,7 +14,7 @@ class HttpServer : public ServerBase {
     
         ~HttpNetThread() override;
         
-        virtual int HandleHttpRequest(tcp::ConnectionProfile *) = 0;
+        virtual int HandleHttpPacket(tcp::ConnectionProfile *) = 0;
 
       protected:
         int _OnReadEvent(tcp::ConnectionProfile *) final;

@@ -199,11 +199,11 @@ void ServerBase::ConnectionManager::AddConnection(tcp::ConnectionProfile *_conn)
     _conn->SetUid(uid);
     
     if (_conn->GetType() == tcp::ConnectionProfile::kFrom) {
-        LogI("fd(%d), from address: [%s:%d], uid: %u", fd,
-             _conn->SrcIp().c_str(), _conn->SrcPort(), uid)
+        LogI("fd(%d), from: [%s:%d], uid: %u", fd,
+             _conn->RemoteIp().c_str(), _conn->RemotePort(), uid)
     } else {
-        LogI("fd(%d), to address: [%s:%d], uid: %u", fd,
-             _conn->DstIp().c_str(), _conn->DstPort(), uid)
+        LogI("fd(%d), to: [%s:%d], uid: %u", fd,
+             _conn->RemoteIp().c_str(), _conn->RemotePort(), uid)
     }
     
     pool_[uid] = _conn;
@@ -303,7 +303,9 @@ void ServerBase::NetThreadBase::Run() {
                 return;
             }
             
-            HandleNotification(probable_notification);
+            if (HandleNotification(probable_notification)) {
+                continue;
+            }
             
             tcp::ConnectionProfile *profile;
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
@@ -327,8 +329,8 @@ void ServerBase::NetThreadBase::Run() {
     
 }
 
-void ServerBase::NetThreadBase::HandleNotification(EpollNotifier::Notification &) {
-    // Implement if needed
+bool ServerBase::NetThreadBase::HandleNotification(EpollNotifier::Notification &) {
+    return false;
 }
 
 void ServerBase::NetThreadBase::NotifyStop() {
@@ -343,20 +345,18 @@ void ServerBase::NetThreadBase::RegisterConnection(int _fd, std::string &_ip,
         return;
     }
     
-    auto neo = new tcp::ConnectionProfile(ConnectionManager::kInvalidUid,
-                                          _fd, _ip, _port);
+    auto neo = new tcp::ConnectionFrom(_fd, _ip, _port,
+                                       ConnectionManager::kInvalidUid);
     connection_manager_.AddConnection(neo);
 }
 
 tcp::ConnectionProfile *ServerBase::NetThreadBase::MakeConnection(std::string &_ip,
                                                                   uint16_t _port) {
-    auto neo = new tcp::ConnectionProfile(ConnectionManager::kInvalidUid,
-                                      _ip, _port);
+    auto neo = new tcp::ConnectionTo(_ip, _port, ConnectionManager::kInvalidUid);
     if (neo->Connect()) {
         LogE("Connect failed")
     }
     connection_manager_.AddConnection(neo);
-    
     return neo;
 }
 

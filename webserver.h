@@ -105,7 +105,7 @@ class WebServer final : public HttpServer {
     
         void NotifySend();
         
-        void HandleNotification(EpollNotifier::Notification &) override;
+        bool HandleNotification(EpollNotifier::Notification &) override;
     
         void HandleSend();
     
@@ -119,7 +119,7 @@ class WebServer final : public HttpServer {
     
         void OnStop() override;
     
-        int HandleHttpRequest(tcp::ConnectionProfile *) override;
+        int HandleHttpPacket(tcp::ConnectionProfile *) override;
 
         void HandleException(std::exception &ex) override;
 

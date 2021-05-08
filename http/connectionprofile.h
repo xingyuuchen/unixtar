@@ -1,6 +1,8 @@
 #pragma once
 #include "http/httprequest.h"
+#include "http/httpresponse.h"
 #include "socket/unixsocket.h"
+
 
 namespace tcp {
 struct SendContext {
@@ -37,17 +39,10 @@ class ConnectionProfile {
         kHttp3_0,
     };
     
-    /* for kFrom */
-    ConnectionProfile(uint32_t _uid, SOCKET _fd, std::string _src_ip,
-                      uint16_t _src_port);
+    ConnectionProfile(std::string _remote_ip,
+                      uint16_t _remote_port, uint32_t _uid = 0);
     
-    /* for kTo */
-    ConnectionProfile(uint32_t _uid, std::string _dst_ip,
-                      uint16_t _dst_port);
-    
-    ~ConnectionProfile();
-    
-    int Connect();
+    virtual ~ConnectionProfile();
     
     int Receive();
     
@@ -62,9 +57,11 @@ class ConnectionProfile {
      *
      * @return: 0 on success, non-0 on failure.
      */
-    virtual int ParseProtocol();
+    int ParseProtocol();
     
     virtual bool IsParseDone();
+    
+    virtual http::ParserBase *GetParser() = 0;
     
     void CloseTcpConnection();
     
@@ -73,42 +70,34 @@ class ConnectionProfile {
     SOCKET FD() const;
     
     uint64_t GetTimeoutTs() const;
-    
-    std::string &SrcIp();
-    
-    std::string &DstIp();
-    
-    uint16_t SrcPort() const;
-    
-    uint16_t DstPort() const;
-    
+
     bool IsTimeout(uint64_t _now = 0) const;
     
-    TType GetType() const;
+    virtual TType GetType() const = 0;
     
     bool IsTypeValid() const;
-    
-    http::request::Parser *GetHttpParser();
-    
-    void MakeContext();
-    
-    void MakeSendContext();
     
     http::RecvContext *GetRecvContext();
     
     SendContext *GetSendContext();
 
+    virtual void MakeRecvContext();
     
+    void MakeSendContext();
+    
+    std::string &RemoteIp();
+    
+    uint16_t RemotePort() const;
+
   private:
-    TType                   type_;
+    virtual AutoBuffer *RecvBuff() = 0;
+
+  protected:
     static const uint64_t   kDefaultTimeout;
     uint32_t                uid_;
-    std::string             src_ip_;
-    std::string             dst_ip_;
-    uint16_t                src_port_;
-    uint16_t                dst_port_;
+    std::string             remote_ip_;
+    uint16_t                remote_port_;
     Socket                  socket_;
-    http::request::Parser   http_parser_;
     uint64_t                record_;
     uint64_t                timeout_millis_;
     uint64_t                timeout_ts_;
@@ -116,6 +105,55 @@ class ConnectionProfile {
     tcp::SendContext        send_ctx_{0, INVALID_SOCKET};
     http::RecvContext       recv_ctx_{INVALID_SOCKET, nullptr};
     
+};
+
+
+class ConnectionFrom : public ConnectionProfile {
+  public:
+    
+    ConnectionFrom(SOCKET _fd, std::string _remote_ip,
+                   uint16_t _remote_port, uint32_t _uid = 0);
+    
+    ~ConnectionFrom() override;
+    
+    bool IsParseDone() override;
+    
+    TType GetType() const override;
+    
+    void MakeRecvContext() override;
+    http::ParserBase *GetParser() override;
+
+  private:
+    AutoBuffer *RecvBuff() override;
+
+  private:
+    http::request::Parser   http_req_parser_;
+
+};
+
+
+
+class ConnectionTo : public ConnectionProfile {
+  public:
+    
+    ConnectionTo(std::string _dst_ip,
+                 uint16_t _dst_port, uint32_t _uid = 0);
+    
+    ~ConnectionTo() override;
+    
+    int Connect();
+    
+    bool IsParseDone() override;
+    
+    TType GetType() const override;
+
+    http::ParserBase *GetParser() override;
+
+  private:
+    AutoBuffer *RecvBuff() override;
+
+  private:
+    http::response::Parser  http_resp_parser_;
 };
 
 }

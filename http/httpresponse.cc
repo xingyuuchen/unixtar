@@ -34,119 +34,40 @@ void Pack(http::THttpVersion _http_ver, int _resp_code, std::string &_status_des
 
 
 
-Parser::Parser(AutoBuffer *_body)
-    : resolved_len_(0)
-    , body_(_body)
-    , position_(kNone)
-    , status_line_len_(0)
-    , response_header_len_(0) {}
-    
+Parser::Parser() : http::ParserBase() {
+}
 
-AutoBuffer * Parser::GetBody() { return body_; }
-
-bool Parser::IsErr() const { return position_ == kError; }
-
-bool Parser::IsEnd() const { return position_ == kEnd; }
-
-Parser::TPosition Parser::GetPosition() const { return position_; }
+Parser::~Parser() = default;
 
 
-void Parser::__ResolveStatusLine(AutoBuffer &_buff) {
-    char *start = _buff.Ptr();
-    char *crlf = str::strnstr(start, "\r\n", _buff.Length());
+bool Parser::_ResolveFirstLine() {
+    LogI("Resolve Status Line")
+    char *start = buff_.Ptr();
+    char *crlf = str::strnstr(start, "\r\n", buff_.Length());
     if (crlf) {
         std::string req_line(start, crlf - start);
         if (status_line_.ParseFromString(req_line)) {
-            position_ = kResponseHeaders;
+            position_ = kHeaders;
             resolved_len_ = crlf - start + 2;   // 2 for CRLF
-            status_line_len_ = resolved_len_;
-            
-            if (_buff.Length() > resolved_len_) {
-                __ResolveResponseHeaders(_buff);
-            }
-            return;
+            first_line_len_ = resolved_len_;
+            return true;
             
         } else {
             position_ = kError;
+            return false;
         }
     }
+    position_ = kFirstLine;
     resolved_len_ = 0;
+    return false;
 }
 
-void Parser::__ResolveResponseHeaders(AutoBuffer &_buff) {
-    char *ret = str::strnstr(_buff.Ptr(resolved_len_),
-                            "\r\n\r\n", _buff.Length() - resolved_len_);
-    if (!ret) { return; }
-    
-    std::string headers_str(_buff.Ptr(resolved_len_), ret - _buff.Ptr(resolved_len_));
-    
-    if (headers_.ParseFromString(headers_str)) {
-        resolved_len_ += ret - _buff.Ptr(resolved_len_) + 4;  // 4 for \r\n\r\n
-        response_header_len_ = resolved_len_ - status_line_len_;
-        position_ = kBody;
-        
-        if (_buff.Length() > resolved_len_) {
-            __ResolveBody(_buff);
-        }
-    } else {
-        position_ = kError;
-        LogE("headers_.ParseFromString Err")
-    }
-}
+int Parser::GetStatusCode() const { return status_line_.StatusCode(); }
 
-void Parser::__ResolveBody(AutoBuffer &_buff) {
-    uint64_t content_length = headers_.GetContentLength();
-    if (content_length == 0) {
-        LogI("content_length = 0")
-        position_ = kError;
-        return;
-    }
-    size_t new_size = _buff.Length() - resolved_len_;
-    body_->Write(_buff.Ptr(resolved_len_), new_size);
-    resolved_len_ += new_size;
-    
-    if (content_length < body_->Length()) {
-        LogI("recv more %zd bytes than Content-Length(%lld)",
-             body_->Length(), content_length)
-        position_ = kError;
-    } else if (content_length == body_->Length()) {
-        position_ = kEnd;
-    }
-}
+THttpVersion Parser::GetVersion() const { return status_line_.GetVersion(); }
 
-void Parser::Recv(AutoBuffer &_buff) {
-    if (_buff.Length() <= 0) { return; }
-    size_t unresolved_len = _buff.Length() - resolved_len_;
-    if (unresolved_len <= 0) {
-        LogI("no bytes need to be resolved: %zd", unresolved_len)
-        return;
-    }
-    
-    if (position_ == kNone) {
-        LogI("kNone")
-        if (resolved_len_ == 0 && _buff.Length() > 0) {
-            position_ = kStatusLine;
-            __ResolveStatusLine(_buff);
-        }
-        
-    } else if (position_ == kStatusLine) {
-        LogI("kRequestLine")
-        __ResolveStatusLine(_buff);
-        
-    } else if (position_ == kResponseHeaders) {
-        LogI("kRequestHeaders")
-        __ResolveResponseHeaders(_buff);
-        
-    } else if (position_ == kBody) {
-        __ResolveBody(_buff);
-        
-    } else if (position_ == kEnd) {
-        LogI("kEnd")
-        
-    } else if (position_ == kError) {
-        LogI("error already occurred, do nothing.")
-    }
-}
+std::string &Parser::StatusDesc() { return status_line_.StatusDesc(); }
 
+bool Parser::IsHttpRequest() const { return false; }
 
 }}

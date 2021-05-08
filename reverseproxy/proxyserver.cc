@@ -7,11 +7,13 @@ const char *const ReverseProxyServer::kConfigFile = "proxyserverconf.yml";
 ReverseProxyServer::ReverseProxyServer()
         : HttpServer() {
     
+    load_balancer_.ConfigRule(LoadBalancer::kPoll);
 }
 
 
-LoadBalancer &ReverseProxyServer::GetLoadBalancer() { return load_balancer_; }
-
+WebServerProfile *ReverseProxyServer::LoadBalance(std::string &_ip) {
+    return load_balancer_.Select(_ip);
+}
 
 ServerBase::ServerConfigBase *ReverseProxyServer::_MakeConfig() {
     return new ProxyConfig();
@@ -32,11 +34,11 @@ void ReverseProxyServer::AfterConfig() {
     
 }
 
-int ReverseProxyServer::NetThread::HandleHttpRequest(tcp::ConnectionProfile *_conn) {
+int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_conn) {
     assert(_conn);
     
     tcp::ConnectionProfile::TType type = _conn->GetType();
-    AutoBuffer *http_packet = _conn->GetHttpParser()->GetBuff();
+    AutoBuffer *http_packet;
     uint32_t uid = _conn->Uid();
     
     tcp::ConnectionProfile *to;
@@ -44,17 +46,20 @@ int ReverseProxyServer::NetThread::HandleHttpRequest(tcp::ConnectionProfile *_co
     
     if (type == tcp::ConnectionProfile::kFrom) {   // Forward to web server
     
-        auto selected = ReverseProxyServer::Instance().GetLoadBalancer().Select();
+        std::string src_ip = _conn->RemoteIp();
         
-        std::string ip(selected->ip);
-        LogI("forward request to [%s:%d]", ip.c_str(), selected->port)
+        auto forward = ReverseProxyServer::Instance().LoadBalance(src_ip);
         
-        auto conn_to_webserver = MakeConnection(ip, selected->port);
+        LogI("forward request from [%s:%d] to [%s:%d]", src_ip.c_str(),
+             _conn->RemotePort(), forward->ip.c_str(), forward->port)
+        
+        auto conn_to_webserver = MakeConnection(forward->ip, forward->port);
     
         conn_to_webserver->MakeSendContext();
         
         conn_map_[conn_to_webserver->Uid()] = uid;
     
+        http_packet = _conn->GetParser()->GetBuff();
         to = conn_to_webserver;
         is_delete = false;
         
@@ -63,8 +68,11 @@ int ReverseProxyServer::NetThread::HandleHttpRequest(tcp::ConnectionProfile *_co
         assert(type == tcp::ConnectionProfile::kTo);
         
         uint32_t client_uid = conn_map_[uid];
-        
         to = GetConnection(client_uid);
+        
+        http_packet = _conn->GetParser()->GetBuff();
+        LogI("send back to client: [%s:%d]",
+             to->RemoteIp().c_str(), to->RemotePort())
         is_delete = true;
     }
     

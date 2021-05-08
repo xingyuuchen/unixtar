@@ -16,7 +16,7 @@ class ReverseProxyServer final : public HttpServer {
     
     ~ReverseProxyServer() override;
     
-    LoadBalancer &GetLoadBalancer();
+    WebServerProfile *LoadBalance(std::string &_ip);
     
     class ProxyConfig : public ServerConfigBase {
       public:
@@ -30,7 +30,7 @@ class ReverseProxyServer final : public HttpServer {
         
         ~NetThread() override;
         
-        int HandleHttpRequest(tcp::ConnectionProfile *) override;
+        int HandleHttpPacket(tcp::ConnectionProfile *) override;
     
       protected:
       

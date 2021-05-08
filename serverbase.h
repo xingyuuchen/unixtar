@@ -86,7 +86,11 @@ class ServerBase {
     
         void Run() override;
     
-        virtual void HandleNotification(EpollNotifier::Notification &);
+        /**
+         *
+         * @return: true if you handled your Notification, else false.
+         */
+        virtual bool HandleNotification(EpollNotifier::Notification &);
         
         void NotifyStop();
       

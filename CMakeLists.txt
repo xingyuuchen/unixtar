@@ -56,7 +56,9 @@ add_subdirectory(reverseproxy)
 if (NOT ${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     add_custom_command(TARGET ${PROJECT_NAME} PRE_BUILD
             COMMAND test -d /etc/unixtar || mkdir -p /etc/unixtar
+            COMMAND test -e ${PROJECT_SOURCE_DIR}/dao/dbconfig.yml || echo "Please create dbconfig.yml in framework/dao/"
             COMMAND cp ${PROJECT_SOURCE_DIR}/webserverconf.yml /etc/unixtar/webserverconf.yml
             COMMAND cp ${PROJECT_SOURCE_DIR}/reverseproxy/proxyserverconf.yml /etc/unixtar/proxyserverconf.yml
+            COMMAND cp ${PROJECT_SOURCE_DIR}/dao/dbconfig.yml /etc/unixtar/dbconfig.yml
             COMMENT "Copying unixtar config files...")
 endif()

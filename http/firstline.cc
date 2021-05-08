@@ -81,7 +81,6 @@ StatusLine::StatusLine()
     , version_(kHTTP_1_1)
     , status_desc_() {}
 
-
 void StatusLine::SetVersion(THttpVersion _version) { version_ = _version; }
 
 void StatusLine::SetStatusCode(int _status_code) { status_code_ = _status_code; }
@@ -120,5 +119,10 @@ void StatusLine::AppendToBuffer(AutoBuffer &_buffer) {
     _buffer.Write(str.data(), str.size());
 }
 
+int StatusLine::StatusCode() const { return status_code_; }
+
+THttpVersion StatusLine::GetVersion() const { return version_; }
+
+std::string &StatusLine::StatusDesc() { return status_desc_; }
 
 }

@@ -36,124 +36,38 @@ void Pack(const std::string &_host, const std::string &_url, const std::map<std:
 }
 
 
+Parser::Parser() : http::ParserBase() {
+}
 
-Parser::Parser()
-    : position_(TPosition::kNone)
-    , resolved_len_(0)
-    , request_line_len_(0)
-    , request_header_len_(0) {}
-        
+Parser::~Parser() = default;
 
-void Parser::__ResolveRequestLine() {
-    LogI("[__ResolveRequestLine]")
+
+bool Parser::_ResolveFirstLine() {
+    LogI("Resolve Request Line")
     char *start = buff_.Ptr();
     char *crlf = str::strnstr(start, "\r\n", buff_.Length());
     if (crlf) {
         std::string req_line(start, crlf - start);
         if (request_line_.ParseFromString(req_line)) {
-            position_ = kRequestHeaders;
+            position_ = kHeaders;
             resolved_len_ = crlf - start + 2;   // 2 for CRLF
-            request_line_len_ = resolved_len_;
-    
-            if (buff_.Length() > resolved_len_) {
-                __ResolveRequestHeaders();
-            }
-            return;
+            first_line_len_ = resolved_len_;
+            return true;
             
         } else {
             position_ = kError;
+            return false;
         }
     }
+    position_ = kFirstLine;
     resolved_len_ = 0;
+    return false;
 }
 
-void Parser::__ResolveRequestHeaders() {
-    LogI("[__ResolveRequestHeaders]")
-    char *ret = str::strnstr(buff_.Ptr(resolved_len_),
-                    "\r\n\r\n", buff_.Length() - resolved_len_);
-    if (!ret) { return; }
-    
-    std::string headers_str(buff_.Ptr(resolved_len_), ret - buff_.Ptr(resolved_len_));
-    
-    if (headers_.ParseFromString(headers_str)) {
-        resolved_len_ += ret - buff_.Ptr(resolved_len_) + 4;  // 4 for \r\n\r\n
-        request_header_len_ = resolved_len_ - request_line_len_;
-        
-        if (buff_.Length() > resolved_len_) {
-            position_ = kBody;
-            __ResolveBody();
-        } else if (request_line_.GetMethod() == http::THttpMethod::kGET) {
-            position_ = kEnd;
-        }
-    } else {
-        position_ = kError;
-        LogE("headers_.ParseFromString Err")
-    }
-}
-
-void Parser::__ResolveBody() {
-    uint64_t content_length = headers_.GetContentLength();
-    if (content_length == 0) {
-        LogI("Content-Length = 0")
-        position_ = kError;
-        return;
-    }
-    size_t new_size = buff_.Length() - resolved_len_;
-    resolved_len_ += new_size;
-    
-    size_t curr_body_len = buff_.Length() - request_line_len_ - request_header_len_;
-    if (content_length < curr_body_len) {
-        LogI("recv more bytes than Content-Length(%lld)", content_length)
-        position_ = kError;
-    } else if (content_length == curr_body_len) {
-        position_ = kEnd;
-    }
-
-}
-
-
-void Parser::DoParse() {
-    size_t unresolved_len = buff_.Length() - resolved_len_;
-    if (unresolved_len <= 0) {
-        LogI("no bytes need to be resolved: %zd", unresolved_len)
-        return;
-    }
-    
-    if (position_ == kNone) {
-        if (resolved_len_ == 0 && buff_.Length() > 0) {
-            position_ = kRequestLine;
-            __ResolveRequestLine();
-        }
-        
-    } else if (position_ == kRequestLine) {
-        __ResolveRequestLine();
-        
-    } else if (position_ == kRequestHeaders) {
-        __ResolveRequestHeaders();
-        
-    } else if (position_ == kBody) {
-        __ResolveBody();
-        
-    } else if (position_ == kEnd) {
-        LogI("kEnd")
-        
-    } else if (position_ == kError) {
-        LogI("error already occurred, do nothing.")
-    }
-}
-
-
-bool Parser::IsEnd() const { return position_ == kEnd; }
-
-bool Parser::IsErr() const { return position_ == kError; }
 
 bool Parser::IsMethodPost() const {
     return request_line_.GetMethod() == THttpMethod::kPOST;
 }
-
-Parser::TPosition Parser::GetPosition() const { return position_; }
-
-AutoBuffer *Parser::GetBuff() { return &buff_; }
 
 std::string &Parser::GetRequestUrl() { return request_line_.GetUrl(); }
 
@@ -162,7 +76,7 @@ char *Parser::GetBody() {
         LogI("GET, return NULL")
         return nullptr;
     }
-    return buff_.Ptr(buff_.Length() - GetContentLength());
+    return ParserBase::GetBody();
 }
 
 size_t Parser::GetContentLength() const {
@@ -170,12 +84,28 @@ size_t Parser::GetContentLength() const {
         LogI("GET, return 0")
         return 0;
     }
-    size_t content_len = headers_.GetContentLength();
-    if (content_len <= 0) {
-        LogE("content_len <= 0")
-        return 0;
+    return ParserBase::GetContentLength();
+}
+
+std::string &Parser::GetUrl() { return request_line_.GetUrl(); }
+
+THttpMethod Parser::GetMethod() const { return request_line_.GetMethod(); }
+
+THttpVersion Parser::GetVersion() const { return request_line_.GetVersion(); }
+
+bool Parser::IsHttpRequest() const { return true; }
+
+bool Parser::_ResolveBody() {
+    if (request_line_.GetMethod() == http::THttpMethod::kGET) {
+        if (buff_.Length() - resolved_len_ > 0) {
+            LogI("GET request has body")
+            position_ = kError;
+            return false;
+        }
+        position_ = kEnd;
+        return true;
     }
-    return content_len;
+    return ParserBase::_ResolveBody();
 }
 
 }}

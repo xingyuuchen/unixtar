@@ -32,7 +32,7 @@ class _Connection {
     bool IsConnected() { return status_ == kConnected; }
     
     void Config() {
-        yaml::YamlDescriptor desc = yaml::Load("../framework/dao/dbconfig.yml");
+        yaml::YamlDescriptor desc = yaml::Load("/etc/unixtar/dbconfig.yml");
         if (desc) {
             yaml::Get(desc, kDatabase, db_);
             yaml::Get(desc, kServer, svr_);

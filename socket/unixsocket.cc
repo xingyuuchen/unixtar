@@ -6,7 +6,7 @@
 #include "log.h"
 
 
-const int Socket::kBufferSize = 1024;
+const int Socket::kBufferSize = 4096;
 
 Socket::Socket(SOCKET _fd, int _type/* = SOCK_STREAM*/, bool _nonblocking/* = true*/)
         : fd_(_fd)
@@ -71,7 +71,7 @@ int Socket::Connect(std::string &_ip, uint16_t _port) const {
     int ret = connect(fd_, (struct sockaddr *) &sockaddr,
             sizeof(sockaddr));
     if (ret < 0) {
-        LogE("connect errno(%d): %s", errno, strerror(errno));
+        LogE("connect errno(%d): %s", errno, strerror(errno))
         return -1;
     }
     return ret;
@@ -79,8 +79,13 @@ int Socket::Connect(std::string &_ip, uint16_t _port) const {
 
 
 int Socket::SetNonblocking() {
+    if (fd_ < 0) {
+        LogE("invalid socket")
+        return -1;
+    }
     int old_flags = ::fcntl(fd_, F_GETFL);
     if (::fcntl(fd_, F_SETFL, old_flags | O_NONBLOCK) == -1) {
+        LogE("fcntl errno(%d): %s", errno, strerror(errno))
         return -1;
     }
     nonblocking_ = true;
@@ -115,7 +120,10 @@ ssize_t Socket::Recv(AutoBuffer *_buff, bool *_is_buffer_full) {
 }
 
 void Socket::Set(SOCKET _fd) {
-    fd_ = _fd;
+    assert(fd_ < 0);
+    if (_fd > 0) {
+        fd_ = _fd;
+    }
 }
 
 void Socket::Close() {

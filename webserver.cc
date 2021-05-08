@@ -121,10 +121,12 @@ void WebServer::NetThread::NotifySend() {
     epoll_notifier_.NotifyEpoll(notification_send_);
 }
 
-void WebServer::NetThread::HandleNotification(EpollNotifier::Notification &_notification) {
+bool WebServer::NetThread::HandleNotification(EpollNotifier::Notification &_notification) {
     if (__IsNotifySend(_notification)) {
         HandleSend();
+        return true;
     }
+    return false;
 }
 
 void WebServer::NetThread::HandleSend() {
@@ -179,7 +181,12 @@ bool WebServer::NetThread::__IsNotifySend(EpollNotifier::Notification &_notifica
     return _notification == notification_send_;
 }
 
-int WebServer::NetThread::HandleHttpRequest(tcp::ConnectionProfile *_conn) {
+int WebServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_conn) {
+    if (_conn->GetType() != tcp::ConnectionProfile::kFrom) {
+        LogE("NOT a http request, type: %d", _conn->GetType())
+        return -1;
+    }
+    
     uint32_t uid = _conn->Uid();
     
     if (IsWorkerFullyLoad()) {
