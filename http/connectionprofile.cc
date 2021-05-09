@@ -142,19 +142,22 @@ ConnectionProfile::~ConnectionProfile() = default;
 
 
 
-ConnectionTo::ConnectionTo(std::string _dst_ip, uint16_t _dst_port, uint32_t _uid)
-        : ConnectionProfile(std::move(_dst_ip),_dst_port, _uid) {
+ConnectionTo::ConnectionTo(std::string _remote_ip, uint16_t _remote_port, uint32_t _uid)
+        : ConnectionProfile(std::move(_remote_ip),_remote_port, _uid) {
     
     if (socket_.Create(AF_INET, SOCK_STREAM)) {
         LogE("Create socket_ failed")
     }
-    socket_.SetNonblocking();
 }
 
 ConnectionTo::~ConnectionTo() = default;
 
 int ConnectionTo::Connect() {
-    return socket_.Connect(remote_ip_, remote_port_);
+    int ret = socket_.Connect(remote_ip_, remote_port_);
+    if (ret == 0) {
+        socket_.SetNonblocking();
+    }
+    return ret;
 }
 
 AutoBuffer *ConnectionTo::RecvBuff() { return http_resp_parser_.GetBuff(); }
@@ -202,9 +205,8 @@ void ConnectionFrom::MakeRecvContext() {
     recv_ctx_.fd = socket_.FD();
     recv_ctx_.is_post = http_req_parser_.IsMethodPost();
     if (recv_ctx_.is_post) {
-        recv_ctx_.http_body.SetPtr(http_req_parser_.GetBody());
-        recv_ctx_.http_body.SetLength(http_req_parser_.GetContentLength());
-        recv_ctx_.http_body.ShallowCopy(true);
+        recv_ctx_.http_body.ShallowCopyFrom(http_req_parser_.GetBody(),
+                                            http_req_parser_.GetContentLength());
     }
     std::string &url = http_req_parser_.GetRequestUrl();
     recv_ctx_.full_url = std::string(url);

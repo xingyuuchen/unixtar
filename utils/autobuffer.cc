@@ -1,6 +1,7 @@
 #include "autobuffer.h"
 #include <cstdlib>
 #include <cstring>
+#include <cassert>
 #include <cstdio>
 #include "log.h"
 #include <cerrno>
@@ -28,8 +29,17 @@ size_t AutoBuffer::Pos() const {
     return pos_;
 }
 
-void AutoBuffer::Seek(const size_t _pos) {
-    pos_ = _pos;
+void AutoBuffer::Seek(TWhence _whence, size_t _pos /* = 0 */) {
+    if (_whence == kStart) {
+        pos_ = 0;
+    } else if (_whence == kCurrent) {
+        pos_ += _pos;
+    } else if (_whence == kEnd) {
+        pos_ = Length();
+    } else {
+        LogE("Invalid TWhence: %d", _whence)
+        assert(false);
+    }
 }
 
 size_t AutoBuffer::Length() const {
@@ -76,8 +86,10 @@ AutoBuffer::~AutoBuffer() {
     Reset();
 }
 
-void AutoBuffer::ShallowCopy(bool _val) {
-    is_shallow_copy_ = _val;
+void AutoBuffer::ShallowCopyFrom(char *_ptr, size_t _len) {
+    SetPtr(_ptr);
+    SetLength(_len);
+    is_shallow_copy_ = true;
 }
 
 void AutoBuffer::Reset() {

@@ -30,7 +30,7 @@ ssize_t BlockSocketSend(SOCKET _socket,
         nsend += n;
 
         if (!_wait_full) {
-            _send_buff.Seek(_send_buff.Pos() + nsend);
+            _send_buff.Seek(AutoBuffer::kCurrent, nsend);
             return nsend;
         }
         if (nsend >= ntotal) {
@@ -39,7 +39,7 @@ ssize_t BlockSocketSend(SOCKET _socket,
 
         cost_time = ::gettickcount() - start_time;
         if (cost_time > _timeout_mills) {
-            _send_buff.Seek(_send_buff.Pos() + nsend);
+            _send_buff.Seek(AutoBuffer::kCurrent, nsend);
             return nsend;
         }
     }

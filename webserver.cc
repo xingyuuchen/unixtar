@@ -133,7 +133,10 @@ void WebServer::NetThread::HandleSend() {
     tcp::SendContext *send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogD("fd(%d) doing send task", send_ctx->fd)
-        _OnWriteEvent(send_ctx, true);
+        bool is_send_done = _OnWriteEvent(send_ctx);
+        if (is_send_done) {
+            DelConnection(send_ctx->connection_uid);
+        }
     }
 }
 

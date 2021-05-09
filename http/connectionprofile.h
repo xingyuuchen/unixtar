@@ -136,8 +136,8 @@ class ConnectionFrom : public ConnectionProfile {
 class ConnectionTo : public ConnectionProfile {
   public:
     
-    ConnectionTo(std::string _dst_ip,
-                 uint16_t _dst_port, uint32_t _uid = 0);
+    ConnectionTo(std::string _remote_ip,
+                 uint16_t _remote_port, uint32_t _uid = 0);
     
     ~ConnectionTo() override;
     

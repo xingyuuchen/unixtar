@@ -1,8 +1,7 @@
-#ifndef OI_SVR_NETSCENE_HELLOSVR_H
-#define OI_SVR_NETSCENE_HELLOSVR_H
+#pragma once
 
 #include "netsceneprotobuf.h"
-#include "netscene_hellosvr.pb.h"
+#include "netscenehellosvr.pb.h"
 
 
 /**
@@ -41,5 +40,3 @@ class NetSceneHelloSvr : public NetSceneProtobuf {
 
 };
 
-
-#endif //OI_SVR_NETSCENE_HELLOSVR_H

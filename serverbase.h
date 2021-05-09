@@ -108,7 +108,11 @@ class ServerBase {
         
         virtual int _OnReadEvent(tcp::ConnectionProfile *) = 0;
     
-        virtual int _OnWriteEvent(tcp::SendContext *, bool _del) = 0;
+        /**
+         *
+         * @return: whether your write event is done.
+         */
+        virtual bool _OnWriteEvent(tcp::SendContext *) = 0;
     
         virtual int _OnErrEvent(tcp::ConnectionProfile *);
         

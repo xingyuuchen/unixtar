@@ -19,7 +19,7 @@ class HttpServer : public ServerBase {
       protected:
         int _OnReadEvent(tcp::ConnectionProfile *) final;
     
-        int _OnWriteEvent(tcp::SendContext *, bool _del) final;
+        bool _OnWriteEvent(tcp::SendContext *) final;
     
     };
     

@@ -72,7 +72,6 @@ int Socket::Connect(std::string &_ip, uint16_t _port) const {
             sizeof(sockaddr));
     if (ret < 0) {
         LogE("connect errno(%d): %s", errno, strerror(errno))
-        return -1;
     }
     return ret;
 }

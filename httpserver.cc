@@ -33,11 +33,10 @@ int HttpServer::HttpNetThread::_OnReadEvent(tcp::ConnectionProfile *_conn) {
     return 0;
 }
 
-int HttpServer::HttpNetThread::_OnWriteEvent(tcp::SendContext *_send_ctx,
-                                             bool _del) {
+bool HttpServer::HttpNetThread::_OnWriteEvent(tcp::SendContext *_send_ctx) {
     if (!_send_ctx) {
         LogE("!_send_ctx")
-        return -1;
+        return false;
     }
     AutoBuffer &resp = _send_ctx->buffer;
     size_t pos = resp.Pos();
@@ -45,40 +44,32 @@ int HttpServer::HttpNetThread::_OnWriteEvent(tcp::SendContext *_send_ctx,
     SOCKET fd = _send_ctx->fd;
     
     if (fd <= 0 || ntotal == 0) {
-        return 0;
+        return false;
     }
     
     ssize_t nsend = ::write(fd, resp.Ptr(pos), ntotal);
     
-    do {
-        if (nsend == ntotal) {
-            LogI("fd(%d), send %zd/%zu B, done", fd, nsend, ntotal)
-            resp.Seek(resp.Length());
-            break;
-        }
-        if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
-            nsend = nsend > 0 ? nsend : 0;
-            LogI("fd(%d): send %zd/%zu B", fd, nsend, ntotal)
-            resp.Seek(pos + nsend);
-            return 0;
-        }
-        if (nsend < 0) {
-            if (errno == EPIPE) {
-                // fd probably closed by peer, or cleared because of timeout.
-                LogI("fd(%d) already closed, send nothing", fd)
-                return 0;
-            }
-            LogE("fd(%d) nsend(%zd), errno(%d): %s",
-                 fd, nsend, errno, strerror(errno))
-            LogPrintStacktrace(5)
-        }
-    } while (false);
-    
-    if (_del) {
-        DelConnection(_send_ctx->connection_uid);
+    if (nsend == ntotal) {
+        LogI("fd(%d), send %zd/%zu B, done", fd, nsend, ntotal)
+        resp.Seek(AutoBuffer::kEnd);
+        return true;
     }
-    
-    return nsend < 0 ? -1 : 0;
+    if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
+        nsend = nsend > 0 ? nsend : 0;
+        LogI("fd(%d): send %zd/%zu B", fd, nsend, ntotal)
+        resp.Seek(AutoBuffer::kCurrent, nsend);
+    }
+    if (nsend < 0) {
+        if (errno == EPIPE) {
+            // fd probably closed by peer, or cleared because of timeout.
+            LogI("fd(%d) already closed, send nothing", fd)
+            return false;
+        }
+        LogE("fd(%d) nsend(%zd), errno(%d): %s",
+             fd, nsend, errno, strerror(errno))
+        LogPrintStacktrace(5)
+    }
+    return false;
 }
 
 

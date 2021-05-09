@@ -308,12 +308,16 @@ void ServerBase::NetThreadBase::Run() {
             }
             
             tcp::ConnectionProfile *profile;
+            
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
                 _OnReadEvent(profile);
             }
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
                 auto send_ctx = profile->GetSendContext();
-                _OnWriteEvent(send_ctx, true);
+                bool write_done = _OnWriteEvent(send_ctx);
+                if (write_done) {
+                    DelConnection(send_ctx->connection_uid);
+                }
             }
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
                 _OnErrEvent(profile);
@@ -353,11 +357,24 @@ void ServerBase::NetThreadBase::RegisterConnection(int _fd, std::string &_ip,
 tcp::ConnectionProfile *ServerBase::NetThreadBase::MakeConnection(std::string &_ip,
                                                                   uint16_t _port) {
     auto neo = new tcp::ConnectionTo(_ip, _port, ConnectionManager::kInvalidUid);
-    if (neo->Connect()) {
-        LogE("Connect failed")
+    
+    int retry = 3;
+    bool success = false;
+    for (int i = 0; i < retry; ++i) {
+        if (neo->Connect() < 0) {
+            LogE("connect failed, retry %d time...", i)
+            continue;
+        }
+        LogI("connect to [%s:%d] succeed", _ip.c_str(), _port)
+        success = true;
+        break;
     }
-    connection_manager_.AddConnection(neo);
-    return neo;
+    if (success) {
+        connection_manager_.AddConnection(neo);
+        return neo;
+    }
+    delete neo;
+    return nullptr;
 }
 
 tcp::ConnectionProfile *ServerBase::NetThreadBase::GetConnection(uint32_t _uid) {

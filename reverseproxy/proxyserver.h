@@ -32,6 +32,8 @@ class ReverseProxyServer final : public HttpServer {
         
         int HandleHttpPacket(tcp::ConnectionProfile *) override;
     
+        void HandleForwardFailed(tcp::ConnectionProfile * _client_conn);
+    
       protected:
       
       private:

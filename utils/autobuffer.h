@@ -31,11 +31,16 @@ class AutoBuffer {
     
     void AddCapacity(size_t _size);
     
-    void Seek(size_t _pos);
+    enum TWhence {
+        kStart = 0,
+        kCurrent,
+        kEnd,
+    };
+    void Seek(TWhence _whence, size_t _pos = 0);
     
     void Reset();
     
-    void ShallowCopy(bool _val);
+    void ShallowCopyFrom(char *_ptr, size_t _len);
 
   private:
     char *              byte_array_;

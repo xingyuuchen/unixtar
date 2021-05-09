@@ -42,18 +42,22 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
     uint32_t uid = _conn->Uid();
     
     tcp::ConnectionProfile *to;
-    bool is_delete;
     
     if (type == tcp::ConnectionProfile::kFrom) {   // Forward to web server
     
         std::string src_ip = _conn->RemoteIp();
         
-        auto forward = ReverseProxyServer::Instance().LoadBalance(src_ip);
+        auto forward_host = ReverseProxyServer::Instance().LoadBalance(src_ip);
         
         LogI("forward request from [%s:%d] to [%s:%d]", src_ip.c_str(),
-             _conn->RemotePort(), forward->ip.c_str(), forward->port)
+             _conn->RemotePort(), forward_host->ip.c_str(), forward_host->port)
         
-        auto conn_to_webserver = MakeConnection(forward->ip, forward->port);
+        auto conn_to_webserver = MakeConnection(forward_host->ip, forward_host->port);
+        if (!conn_to_webserver) {
+            LogE("connection to web server can NOT establish")
+            HandleForwardFailed(_conn);
+            return -1;
+        }
     
         conn_to_webserver->MakeSendContext();
         
@@ -61,7 +65,6 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
     
         http_packet = _conn->GetParser()->GetBuff();
         to = conn_to_webserver;
-        is_delete = false;
         
     } else {    // Send back to client
         
@@ -73,22 +76,35 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
         http_packet = _conn->GetParser()->GetBuff();
         LogI("send back to client: [%s:%d]",
              to->RemoteIp().c_str(), to->RemotePort())
-        is_delete = true;
+        
     }
     
     AutoBuffer &buff = to->GetSendContext()->buffer;
+    buff.ShallowCopyFrom(http_packet->Ptr(), http_packet->Length());
     
-    buff.SetPtr(http_packet->Ptr());
-    buff.SetLength(http_packet->Length());
-    buff.ShallowCopy(true);
+    bool send_done = _OnWriteEvent(to->GetSendContext());
     
-    _OnWriteEvent(to->GetSendContext(), is_delete);
-    
-    if (is_delete) {
+    if (type == tcp::ConnectionProfile::kTo) {
         conn_map_.erase(to->Uid());
         DelConnection(uid);
+        if (send_done) {
+            DelConnection(to->GetSendContext()->connection_uid);
+        }
     }
     return 0;
+}
+
+void ReverseProxyServer::NetThread::HandleForwardFailed(
+        tcp::ConnectionProfile * _client_conn) {
+    std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
+    std::string status_desc("OK");
+    std::map<std::string, std::string> headers;
+    http::response::Pack(http::THttpVersion::kHTTP_1_1, 200,
+                         status_desc, headers,
+                         _client_conn->GetSendContext()->buffer, forward_failed_msg);
+    if (_OnWriteEvent(_client_conn->GetSendContext())) {
+        DelConnection(_client_conn->Uid());
+    }
 }
 
 ReverseProxyServer::NetThread::~NetThread() = default;
