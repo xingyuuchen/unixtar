@@ -36,6 +36,8 @@ class NetSceneHelloSvr : public NetSceneProtobuf {
     int DoSceneImpl(const std::string &_in_buffer) override;
     
   private:
+    // This protobuf message is defined in protos/netscenehellosvr.proto,
+    // run /script/autogen.sh to generate .cc/.h files.
     NetSceneHelloSvrProto::NetSceneHelloSvrResp resp_;
 
 };

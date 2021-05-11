@@ -2,7 +2,7 @@
 
 (short for Unique-Star✨🌟✨)
 
-The framework is a high-performance HTTP Server on unix based system.
+The framework is a high-performance Http Server on unix based system.
 
 Without using any third-party libraries, the framework writes from unix system calls and standard C library functions.
 
@@ -10,15 +10,18 @@ The framework adopts the model of `Epoll + NetThreads + WorkerThreads`.
 
 
 ## Build (unix)
-```bash
+```shell
 git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
-cd framework/scripts
-bash autogen.sh   # Do this if you wanna use ProtoBuf.
+cd framework/script
+bash autogen.sh   # do this if you wanna use ProtoBuf.
 bash cmake.sh -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
 ```
 
 ## Example Usage
-Each network interface is represented by a class. They all inherit indirectly from `NetSceneBase`.
+You are only responsible to write `NetScene` to get your business logic done.
+
+Each network interface is represented by a class(`NetScene_xxx`). They all inherit indirectly from `NetSceneBase`.
+You can treat it as a `Servlet` in Java.
 
 If you use `ProtoBuf` to serialize your data, inherit from `NetSceneProtoBuf` and use the POST request.
 
@@ -28,8 +31,8 @@ After defining your network interface classes and implement your business logic,
 please register your class to the framework:
 `NetSceneDispatcher::Instance()::RegisterNetScene<NetScene_YourBusiness>();`.
 
-You can custom some configuration by changing `serverconfig.yml`.
-After configuration, call `Server::Instance().Serve();`, and the service just gets started!
+You can custom some configuration by changing `webserverconf.yml`.
+After configuration, call `WebServer::Instance().Serve();`, and the service just gets started!
 
 Hope you enjoy :)
 
@@ -141,7 +144,30 @@ size_t NetSceneGetIndexPage::Length() { return strlen(resp_); }
 
 const char *NetSceneGetIndexPage::Route() { return kUrlRoute; }
 ```
+Note: It is highly recommended to use `ProtoBuf`. Some predefined pb .proto files is in `/protos/`,
+you can run
+```shell
+cd framework/script
+bash autogen.sh
+```
+to generate protobuf c++ files, see `NetSceneHelloSvr.cc` for instance.
 
 ## Example Project
 [Plant-Recognition-Server](https://github.com/xingyuuchen/object-identify-SVR.git)
 is a web-server project, under the hood it is `unixtar` provides basic http network capability.
+
+
+## Reverse Proxy
+You can launch a reverse proxy by commands below:
+```shell
+cd framework/script
+bash launchproxy.sh
+```
+
+Reverse proxy do such things:
+* Forward. Forward Http packet to web servers who truly handles request, then pass back Http response.
+* Load Balance. You can chose three different way: `Poll`, `By weight`, `Ip Hash`.
+
+Configure your reverse proxy by editing `reverse/proxyserverconfig.yml`. You can custom:
+* Port that Reverse proxy listens on.
+* All web servers available to forward Http request.
