@@ -1,6 +1,6 @@
 #pragma once
 #include <string>
-#include <list>
+#include <vector>
 
 
 struct WebServerProfile {
@@ -12,7 +12,8 @@ struct WebServerProfile {
 class LoadBalancer {
   public:
     enum TBalanceRule {
-        kPoll = 0,
+        kUnknown = 0,
+        kPoll,
         kWeight,
         kIpHash,
     };
@@ -21,8 +22,7 @@ class LoadBalancer {
     
     ~LoadBalancer();
     
-    void RegisterWebServer(std::string &_ip, uint16_t _port,
-                           uint16_t _weight = 1);
+    void RegisterWebServer(WebServerProfile *);
     
     void ConfigRule(TBalanceRule);
     
@@ -38,9 +38,9 @@ class LoadBalancer {
     WebServerProfile *__BalanceByIpHash(std::string &_ip);
     
   private:
-    TBalanceRule                            balance_rule_;
-    std::list<WebServerProfile *>           web_servers_;
-    std::list<WebServerProfile *>::iterator last_selected_;
-    uint16_t                                curr_weight_;
+    TBalanceRule                                balance_rule_;
+    std::vector<WebServerProfile *>             web_servers_;
+    std::vector<WebServerProfile *>::iterator   last_selected_;
+    uint16_t                                    curr_weight_;
 };
 

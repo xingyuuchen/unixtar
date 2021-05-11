@@ -36,11 +36,11 @@ class ServerBase {
     class ServerConfigBase {
       public:
         ServerConfigBase();
-        static std::string      field_port;
-        uint16_t                port;
-        static std::string      field_net_thread_cnt;
-        size_t                  net_thread_cnt;
-        bool                    is_config_done;
+        static const char *const    key_port;
+        uint16_t                    port;
+        static const char *const    key_net_thread_cnt;
+        size_t                      net_thread_cnt;
+        bool                        is_config_done;
     };
     
     class ConnectionManager final {
@@ -142,7 +142,7 @@ class ServerBase {
     
     virtual ServerConfigBase *_MakeConfig();
     
-    virtual bool _CustomConfig(yaml::YamlDescriptor &_desc);
+    virtual bool _CustomConfig(yaml::YamlDescriptor *_desc);
     
     void _NotifyNetThreadsStop();
     

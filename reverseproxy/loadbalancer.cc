@@ -1,22 +1,20 @@
 #include "loadbalancer.h"
 #include "log.h"
 #include <cassert>
+#include <cerrno>
+#include <arpa/inet.h>
 
 
 LoadBalancer::LoadBalancer()
-        : balance_rule_(kPoll)
+        : balance_rule_(kUnknown)
         , curr_weight_(0) {
     
-    auto *profile = new WebServerProfile();
-    profile->ip = "127.0.0.1";
-    profile->port = 5002;
-    profile->weight = 1;
-    web_servers_.emplace_back(profile);
-    last_selected_ = web_servers_.begin();
-    curr_weight_ = (*last_selected_)->weight;
 }
 
 WebServerProfile *LoadBalancer::Select(std::string &_ip) {
+    if (web_servers_.empty()) {
+        return nullptr;
+    }
     WebServerProfile *ret = nullptr;
     if (balance_rule_ == kPoll) {
         ret = __BalanceByPoll();
@@ -25,25 +23,16 @@ WebServerProfile *LoadBalancer::Select(std::string &_ip) {
     } else if (balance_rule_ == kIpHash) {
         ret = __BalanceByIpHash(_ip);
     } else {
-        LogE("wtf is the rule? %d", balance_rule_)
+        LogE("please configure Balance Rule first")
     }
     return ret ? ret : web_servers_.front();
 }
 
-LoadBalancer::~LoadBalancer() {
-    for (auto &profile : web_servers_) {
-        delete profile, profile = nullptr;
-    }
-}
+LoadBalancer::~LoadBalancer() = default;
 
-void LoadBalancer::RegisterWebServer(std::string &_ip,
-                                     uint16_t _port,
-                                     uint16_t _weight/* = 1*/) {
-    auto *neo = new WebServerProfile();
-    neo->ip = std::string(_ip);
-    neo->port = _port;
-    neo->weight = _weight;
-    web_servers_.push_back(neo);
+void LoadBalancer::RegisterWebServer(WebServerProfile *_webserver) {
+    web_servers_.push_back(_webserver);
+    last_selected_ = web_servers_.begin();
 }
 
 
@@ -52,33 +41,47 @@ LoadBalancer::TBalanceRule LoadBalancer::BalanceRule() const {
 }
 
 void LoadBalancer::ConfigRule(LoadBalancer::TBalanceRule _rule) {
-    if (_rule != kPoll && _rule != kWeight && _rule != kIpHash) {
-        LogE("wtf is the rule? %d", _rule)
-        assert(false);
-    }
+    assert(_rule == kPoll || _rule == kWeight || _rule == kIpHash);
     balance_rule_ = _rule;
 }
 
 WebServerProfile *LoadBalancer::__BalanceByPoll() {
-    ++last_selected_;
-    if (last_selected_ == web_servers_.end()) {
-        last_selected_ = web_servers_.begin();
-    }
+    do {
+        ++last_selected_;
+        if (last_selected_ == web_servers_.end()) {
+            last_selected_ = web_servers_.begin();
+        }
+    } while ((*last_selected_)->weight <= 0);
     return *last_selected_;
 }
 
 WebServerProfile *LoadBalancer::__BalanceByWeight() {
     if (curr_weight_-- == 0) {
-        ++last_selected_;
-        if (last_selected_ == web_servers_.end()) {
-            last_selected_ = web_servers_.begin();
-        }
+        do {
+            ++last_selected_;
+            if (last_selected_ == web_servers_.end()) {
+                last_selected_ = web_servers_.begin();
+            }
+        } while ((*last_selected_)->weight <= 0);
         curr_weight_ = (*last_selected_)->weight;
     }
     return *last_selected_;
 }
 
+
+// FIXME: get rid of webservers with weight 0.
 WebServerProfile *LoadBalancer::__BalanceByIpHash(std::string &_ip) {
-    // TODO
+    uint32_t ip;
+    int ret = inet_pton(AF_INET, _ip.c_str(), &ip);
+    if (ret == 1) {
+        size_t idx = ip % web_servers_.size();
+        last_selected_ = web_servers_.begin() + (int) idx;
+        curr_weight_ = (*last_selected_)->weight;
+        return *last_selected_;
+    } else if (ret == 0) {
+        LogE("the address was not parseable in the specified address family")
+    } else {
+        LogE("ret: %d, errno(%d): %s", ret, errno, strerror(errno))
+    }
     return nullptr;
 }

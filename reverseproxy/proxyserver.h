@@ -21,7 +21,12 @@ class ReverseProxyServer final : public HttpServer {
     class ProxyConfig : public ServerConfigBase {
       public:
         ProxyConfig();
-        
+        ~ProxyConfig();
+        static const char *const        key_webservers;
+        static const char *const        key_ip;
+        static const char *const        key_port;
+        static const char *const        key_weight;
+        std::vector<WebServerProfile *> webservers;
     };
     
     class NetThread : public HttpNetThread {
@@ -41,7 +46,7 @@ class ReverseProxyServer final : public HttpServer {
     };
     
   protected:
-    bool _CustomConfig(yaml::YamlDescriptor &_desc) override;
+    bool _CustomConfig(yaml::YamlDescriptor *_desc) override;
     
     void AfterConfig() override;
     

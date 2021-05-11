@@ -11,7 +11,7 @@ namespace str {
 
 inline char *strnstr(const char *_haystack,
                      const char *_needle, size_t _len) {
-    if (_haystack == NULL || _needle == NULL) { return NULL; }
+    if (_haystack == nullptr || _needle == nullptr) { return nullptr; }
     
     int len1, len2;
     len2 = (int) strlen(_needle);
@@ -29,7 +29,7 @@ inline char *strnstr(const char *_haystack,
         _haystack++;
     }
     
-    return NULL;
+    return nullptr;
 }
 
 inline void split(const std::string &_src, const std::string &_separator,
@@ -52,6 +52,31 @@ inline void split(const std::string &_src, const std::string &_separator,
     if (has && last < _src.size()) {
         _res.push_back(_src.substr(last, _src.size() - last));
     }
+}
+
+inline std::string &trim(std::string &_s) {
+    if (_s.empty()) {
+        return _s;
+    }
+    _s.erase(0, _s.find_first_not_of(' '));
+    _s.erase(_s.find_last_not_of(' ') + 1);
+    return _s;
+}
+
+inline std::string &delafter(std::string &_str, std::string &_whence) {
+    std::string::size_type pos = _str.find_first_of(_whence);
+    if (pos != std::string::npos) {
+        _str.erase(pos);
+    }
+    return _str;
+}
+
+inline std::string &delafter(std::string &_str, char _whence) {
+    std::string::size_type pos = _str.find_first_of(_whence);
+    if (pos != std::string::npos) {
+        _str.erase(pos);
+    }
+    return _str;
 }
 
 }

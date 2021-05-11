@@ -23,10 +23,10 @@ class WebServer final : public HttpServer {
     class ServerConfig : public ServerBase::ServerConfigBase {
       public:
         ServerConfig();
-        static std::string      field_max_backlog;
-        size_t                  max_backlog;
-        static std::string      field_worker_thread_cnt;
-        size_t                  worker_thread_cnt;
+        static const char *const    key_max_backlog;
+        size_t                      max_backlog;
+        static const char *const    key_worker_thread_cnt;
+        size_t                      worker_thread_cnt;
     };
 
     class WorkerThread : public Thread {
@@ -142,7 +142,7 @@ class WebServer final : public HttpServer {
   protected:
     ServerConfigBase *_MakeConfig() override;
     
-    bool _CustomConfig(yaml::YamlDescriptor &_desc) override;
+    bool _CustomConfig(yaml::YamlDescriptor *_desc) override;
     
   private:
     static const char* const kConfigFile;

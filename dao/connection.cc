@@ -8,10 +8,10 @@
 
 namespace Dao {
 
-static std::string kDatabase = "database";
-static std::string kServer = "server";
-static std::string kUser = "user";
-static std::string kPassword = "password";
+static const char *const kDatabase = "database";
+static const char *const kServer = "server";
+static const char *const kUser = "user";
+static const char *const kPassword = "password";
 
 class _Connection {
     
@@ -32,12 +32,12 @@ class _Connection {
     bool IsConnected() { return status_ == kConnected; }
     
     void Config() {
-        yaml::YamlDescriptor desc = yaml::Load("/etc/unixtar/dbconfig.yml");
+        yaml::YamlDescriptor *desc = yaml::Load("/etc/unixtar/dbconfig.yml");
         if (desc) {
-            yaml::Get(desc, kDatabase, db_);
-            yaml::Get(desc, kServer, svr_);
-            yaml::Get(desc, kUser, usr_);
-            yaml::Get(desc, kPassword, pwd_);
+            desc->GetLeaf(kDatabase)->To(db_);
+            desc->GetLeaf(kServer)->To(svr_);
+            desc->GetLeaf(kUser)->To(usr_);
+            desc->GetLeaf(kPassword)->To(pwd_);
             yaml::Close(desc);
             LogI("db: %s, svr: %s, usr: %s, pwd: %s", db_.c_str(),
                  svr_.c_str(), usr_.c_str(), pwd_.c_str())

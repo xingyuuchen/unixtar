@@ -4,8 +4,8 @@
 #include <cstring>
 
 
-std::string WebServer::ServerConfig::field_max_backlog("max_backlog");
-std::string WebServer::ServerConfig::field_worker_thread_cnt("worker_thread_cnt");
+const char *const WebServer::ServerConfig::key_max_backlog("max_backlog");
+const char *const WebServer::ServerConfig::key_worker_thread_cnt("worker_thread_cnt");
 const char *const WebServer::kConfigFile = "webserverconf.yml";
 
 WebServer::ServerConfig::ServerConfig()
@@ -209,20 +209,24 @@ ServerBase::ServerConfigBase *WebServer::_MakeConfig() {
     return new ServerConfig();
 }
 
-bool WebServer::_CustomConfig(yaml::YamlDescriptor &_desc) {
+bool WebServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
     
     auto *config = (ServerConfig *) config_;
     
-    if (yaml::Get(_desc, ServerConfig::field_max_backlog,
-                  (int &) config->max_backlog) < 0) {
+    yaml::ValueLeaf *max_backlog = _desc->GetLeaf(ServerConfig::key_max_backlog);
+    if (!max_backlog) {
         LogE("Load max_backlog from yaml failed.")
         return false;
     }
-    if (yaml::Get(_desc, ServerConfig::field_worker_thread_cnt,
-                  (int &) config->worker_thread_cnt) < 0) {
+    max_backlog->To((int &) config->max_backlog);
+
+    yaml::ValueLeaf *worker_cnt = _desc->GetLeaf(ServerConfig::key_worker_thread_cnt);
+    if (!worker_cnt) {
         LogE("Load worker_thread_cnt from yaml failed.")
         return false;
     }
+    worker_cnt->To((int &) config->worker_thread_cnt);
+    
     if (config->worker_thread_cnt < 1) {
         LogE("Illegal worker_thread_cnt: %zu", config->worker_thread_cnt)
         return false;

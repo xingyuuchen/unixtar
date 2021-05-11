@@ -7,7 +7,7 @@ namespace http { namespace response {
 
 
 void Pack(http::THttpVersion _http_ver, int _resp_code, std::string &_status_desc,
-            std::map<std::string, std::string> &_headers,
+            std::map<std::string, std::string> *_headers,
             AutoBuffer &_out_buff, std::string &_send_body) {
 
     _out_buff.Reset();
@@ -19,8 +19,10 @@ void Pack(http::THttpVersion _http_ver, int _resp_code, std::string &_status_des
     status_line.AppendToBuffer(_out_buff);
     
     HeaderField header_field;
-    for (auto & header : _headers) {
-        header_field.InsertOrUpdate(header.first, header.second);
+    if (_headers) {
+        for (auto & header : *_headers) {
+            header_field.InsertOrUpdate(header.first, header.second);
+        }
     }
     
     char len_str[9] = {0, };

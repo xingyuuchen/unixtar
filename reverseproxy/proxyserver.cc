@@ -3,6 +3,11 @@
 
 
 const char *const ReverseProxyServer::kConfigFile = "proxyserverconf.yml";
+const char *const ReverseProxyServer::ProxyConfig::key_ip = "ip";
+const char *const ReverseProxyServer::ProxyConfig::key_port = "port";
+const char *const ReverseProxyServer::ProxyConfig::key_weight = "weight";
+const char *const ReverseProxyServer::ProxyConfig::key_webservers = "webservers";
+
 
 ReverseProxyServer::ReverseProxyServer()
         : HttpServer() {
@@ -23,15 +28,25 @@ ReverseProxyServer::ProxyConfig::ProxyConfig()
         : ServerConfigBase() {
 }
 
+ReverseProxyServer::ProxyConfig::~ProxyConfig() {
+    for (auto & webserver : webservers) {
+        delete webserver, webserver = nullptr;
+    }
+}
+
 
 ReverseProxyServer::NetThread::NetThread()
         : HttpNetThread() {
 }
 
 void ReverseProxyServer::AfterConfig() {
-    
     SetNetThreadImpl<NetThread>();
     
+    auto *conf = (ProxyConfig *) config_;
+    for (auto & webserver : conf->webservers) {
+        load_balancer_.RegisterWebServer(webserver);
+    }
+    LogI("register %ld webservers to load balancer", conf->webservers.size())
 }
 
 int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_conn) {
@@ -48,7 +63,11 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
         std::string src_ip = _conn->RemoteIp();
         
         auto forward_host = ReverseProxyServer::Instance().LoadBalance(src_ip);
-        
+        if (!forward_host) {
+            LogE("no web server to forward")
+            HandleForwardFailed(_conn);
+            return -1;
+        }
         LogI("forward request from [%s:%d] to [%s:%d]", src_ip.c_str(),
              _conn->RemotePort(), forward_host->ip.c_str(), forward_host->port)
         
@@ -95,12 +114,11 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
 }
 
 void ReverseProxyServer::NetThread::HandleForwardFailed(
-        tcp::ConnectionProfile * _client_conn) {
-    std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
+                tcp::ConnectionProfile * _client_conn) {
+    static std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
     std::string status_desc("OK");
-    std::map<std::string, std::string> headers;
     http::response::Pack(http::THttpVersion::kHTTP_1_1, 200,
-                         status_desc, headers,
+                         status_desc, nullptr,
                          _client_conn->GetSendContext()->buffer, forward_failed_msg);
     if (_OnWriteEvent(_client_conn->GetSendContext())) {
         DelConnection(_client_conn->Uid());
@@ -109,8 +127,21 @@ void ReverseProxyServer::NetThread::HandleForwardFailed(
 
 ReverseProxyServer::NetThread::~NetThread() = default;
 
-bool ReverseProxyServer::_CustomConfig(yaml::YamlDescriptor &_desc) {
+bool ReverseProxyServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
+    auto *conf = (ProxyConfig *) config_;
     
+    std::vector<yaml::ValueObj *> & webservers_yml =
+            _desc->GetArray(ProxyConfig::key_webservers)->AsYmlObjects();
+    
+    for (auto & webserver_yml : webservers_yml) {
+        auto neo = new WebServerProfile();
+        webserver_yml->GetLeaf(ProxyConfig::key_ip)->To(neo->ip);
+        webserver_yml->GetLeaf(ProxyConfig::key_port)->To(neo->port);
+        webserver_yml->GetLeaf(ProxyConfig::key_weight)->To(neo->weight);
+        LogI("config webserver from yml: [%s:%d] weight: %d", neo->ip.c_str(),
+                    neo->port, neo->weight)
+        conf->webservers.push_back(neo);
+    }
     return true;
 }
 

@@ -5,8 +5,8 @@
 
 
 
-std::string ServerBase::ServerConfigBase::field_port("port");
-std::string ServerBase::ServerConfigBase::field_net_thread_cnt("net_thread_cnt");
+const char *const ServerBase::ServerConfigBase::key_port("port");
+const char *const ServerBase::ServerConfigBase::key_net_thread_cnt("net_thread_cnt");
 
 ServerBase::ServerConfigBase::ServerConfigBase()
         : port(0)
@@ -42,7 +42,7 @@ void ServerBase::Config() {
     char config_path[128] = {0, };
     snprintf(config_path, sizeof(config_path), "/etc/unixtar/%s", ConfigFile());
     
-    yaml::YamlDescriptor config_yaml = yaml::Load(config_path);
+    yaml::YamlDescriptor *config_yaml = yaml::Load(config_path);
     
     if (!config_yaml) {
         LogE("Open %s failed.", ConfigFile())
@@ -50,16 +50,21 @@ void ServerBase::Config() {
     }
     
     do {
-        if (yaml::Get(config_yaml, ServerConfigBase::field_port,
-                      config_->port) < 0) {
+        yaml::ValueLeaf *port = config_yaml->GetLeaf(ServerConfigBase::key_port);
+        if (!port) {
             LogE("Load port from yaml failed.")
             break;
         }
-        if (yaml::Get(config_yaml, ServerConfigBase::field_net_thread_cnt,
-                      (int &) config_->net_thread_cnt) < 0) {
+        port->To(config_->port);
+
+        yaml::ValueLeaf *net_thread_cnt = config_yaml->GetLeaf(
+                ServerConfigBase::key_net_thread_cnt);
+        if (!net_thread_cnt) {
             LogE("Load net_thread_cnt from yaml failed.")
             break;
         }
+        net_thread_cnt->To((int &) config_->net_thread_cnt);
+        
         if (config_->net_thread_cnt < 1) {
             LogE("Illegal net_thread_cnt: %zu", config_->net_thread_cnt)
             break;
@@ -79,15 +84,10 @@ void ServerBase::Config() {
     
     yaml::Close(config_yaml);
     
-    if (_CreateListenFd() < 0) {
-        LogE("_CreateListenFd failed.")
-        assert(false);
-    }
+    assert(_CreateListenFd() >= 0);
     
-    if (listenfd_.Bind(AF_INET, config_->port) < 0) {
-        LogE("Bind failed.")
-        assert(false);
-    }
+    assert(listenfd_.Bind(AF_INET, config_->port) >= 0);
+    
     
     SignalHandler::Instance().RegisterCallback(SIGINT, [this] {
         NotifyStop();
@@ -356,7 +356,8 @@ void ServerBase::NetThreadBase::RegisterConnection(int _fd, std::string &_ip,
 
 tcp::ConnectionProfile *ServerBase::NetThreadBase::MakeConnection(std::string &_ip,
                                                                   uint16_t _port) {
-    auto neo = new tcp::ConnectionTo(_ip, _port, ConnectionManager::kInvalidUid);
+    auto neo = new tcp::ConnectionTo(_ip, _port,
+                                     ConnectionManager::kInvalidUid);
     
     int retry = 3;
     bool success = false;
@@ -365,7 +366,7 @@ tcp::ConnectionProfile *ServerBase::NetThreadBase::MakeConnection(std::string &_
             LogE("connect failed, retry %d time...", i)
             continue;
         }
-        LogI("connect to [%s:%d] succeed", _ip.c_str(), _port)
+        LogI("connect to [%s:%d] succeed, fd(%d)", _ip.c_str(), _port, neo->FD())
         success = true;
         break;
     }
@@ -406,7 +407,7 @@ ServerBase::ServerConfigBase *ServerBase::_MakeConfig() {
     return new ServerConfigBase();
 }
 
-bool ServerBase::_CustomConfig(yaml::YamlDescriptor &_desc) {
+bool ServerBase::_CustomConfig(yaml::YamlDescriptor *_desc) {
     return true;
 }
 

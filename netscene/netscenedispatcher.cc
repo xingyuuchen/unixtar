@@ -165,7 +165,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleOverload(http::RecvContext *_recv
         base_resp.SerializeToString(&resp);
     }
     http::response::Pack(http::kHTTP_1_1, resp_code,status_desc,
-                         headers, _recv_ctx->send_context->buffer, resp);
+                         &headers, _recv_ctx->send_context->buffer, resp);
 }
 
 void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
@@ -192,7 +192,7 @@ void NetSceneDispatcher::NetSceneWorker::__PackHttpRespPacket(
     int resp_code = 200;
     
     http::response::Pack(http::kHTTP_1_1, resp_code,status_desc,
-                         headers, _http_msg, _net_scene->GetRespBuffer());
+                         &headers, _http_msg, _net_scene->GetRespBuffer());
     
 }
 

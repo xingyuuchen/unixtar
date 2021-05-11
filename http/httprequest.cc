@@ -9,7 +9,8 @@
 namespace http { namespace request {
 
 
-void Pack(const std::string &_host, const std::string &_url, const std::map<std::string, std::string> &_headers,
+void Pack(const std::string &_host, const std::string &_url,
+          const std::map<std::string, std::string> *_headers,
           AutoBuffer& _send_body, AutoBuffer &_out_buff) {
     _out_buff.Reset();
     
@@ -22,8 +23,10 @@ void Pack(const std::string &_host, const std::string &_url, const std::map<std:
     HeaderField header_field;
     header_field.InsertOrUpdate(HeaderField::kHost, _host);
     header_field.InsertOrUpdate(HeaderField::kConnection, HeaderField::kConnectionClose);
-    for (const auto & _header : _headers) {
-        header_field.InsertOrUpdate(_header.first, _header.second);
+    if (_headers) {
+        for (const auto & header : *_headers) {
+            header_field.InsertOrUpdate(header.first, header.second);
+        }
     }
     
     char len_str[9] = {0, };

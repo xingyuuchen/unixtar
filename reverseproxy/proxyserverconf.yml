@@ -4,3 +4,18 @@ port: 80
 # Number of threads who handles network events
 net_thread_cnt: 4
 
+# All the webservers that reverse proxy can forward to.
+webservers:
+  -
+  ip: 127.0.0.1
+  port: 5002
+  weight: 1
+  -
+  ip: 127.0.0.1
+  port: 5003
+  weight: 0
+  -
+  ip: 127.0.0.1
+  port: 5004
+  weight: 0
+

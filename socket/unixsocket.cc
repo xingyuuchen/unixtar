@@ -150,10 +150,7 @@ bool Socket::IsNonblocking() const {
 int Socket::SetSocketOpt(int _level, int _option_name,
                          const void *_option_value,
                          socklen_t _option_len) const {
-    if (fd_ < 0) {
-        LogE("fd_(%d) < 0", fd_)
-        assert(false);
-    }
+    assert(fd_ > 0);
     return ::setsockopt(fd_, _level, _option_name, _option_value, _option_len);
 }
 
