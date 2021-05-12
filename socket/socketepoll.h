@@ -1,5 +1,4 @@
-#ifndef OI_SVR_SOCKETEPOLL_H
-#define OI_SVR_SOCKETEPOLL_H
+#pragma once
 
 #ifdef __linux__
 #include <sys/epoll.h>
@@ -80,8 +79,8 @@ class SocketEpoll {
     int __EpollCtl(int _op, SOCKET _fd, struct epoll_event *_event = nullptr);
     
   private:
-    int                         epoll_fd_;
-    int                         listen_fd_;
+    SOCKET                      epoll_fd_;
+    SOCKET                      listen_fd_;
     struct epoll_event *        epoll_events_;
     int                         errno_;
     static const int            kMaxFds;
@@ -99,6 +98,7 @@ class EpollNotifier {
         friend class EpollNotifier;
         
       public:
+        
         /**
          * NotifyId is merely a flag for you to tell
          * which notification it is, and the address it points to
@@ -133,5 +133,3 @@ class EpollNotifier {
     SocketEpoll *   socket_epoll_;
 };
 
-
-#endif //OI_SVR_SOCKETEPOLL_H

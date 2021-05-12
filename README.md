@@ -46,7 +46,7 @@ Hope you enjoy :)
 
 int main(int ac, char **argv) {
 #ifdef DAEMON
-    if (daemon::Daemonize() < 0) {
+    if (unixtar::Daemonize() < 0) {
         printf("daemonize failed\n");
         return 0;
     }

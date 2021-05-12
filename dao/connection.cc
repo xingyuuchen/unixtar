@@ -6,7 +6,7 @@
 #include "threadpool/threadpool.h"
 
 
-namespace Dao {
+namespace dao {
 
 static const char *const kDatabase = "database";
 static const char *const kServer = "server";

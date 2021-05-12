@@ -119,12 +119,12 @@ class ServerBase {
       private:
         bool __IsNotifyStop(EpollNotifier::Notification &) const;
 
-      protected:
-        EpollNotifier                       epoll_notifier_;
       private:
         SocketEpoll                         socket_epoll_;
         ConnectionManager                   connection_manager_;
         EpollNotifier::Notification         notification_stop_;
+      protected:
+        EpollNotifier                       epoll_notifier_;
     };
     
     

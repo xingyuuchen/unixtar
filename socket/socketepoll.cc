@@ -2,14 +2,15 @@
 #include <unistd.h>
 #include <cerrno>
 #include <cstring>
+#include <cassert>
 #include "log.h"
 
 
 const int SocketEpoll::kMaxFds = 1024;
 
 SocketEpoll::SocketEpoll(int _max_fds)
-        : epoll_fd_(-1)
-        , listen_fd_(-1)
+        : epoll_fd_(INVALID_SOCKET)
+        , listen_fd_(INVALID_SOCKET)
         , epoll_events_(nullptr)
         , errno_(0)
 {
@@ -79,10 +80,12 @@ int SocketEpoll::__EpollCtl(int _op, int _fd, struct epoll_event *_event/* = nul
         LogE("fd_ < 0")
         return -1;
     }
+    assert(epoll_fd_ > 0);
+    
     int ret = ::epoll_ctl(epoll_fd_, _op, _fd, _event);
     if (ret < 0) {
         errno_ = errno;
-        LogE("errno(%d): %s", errno_, strerror(errno))
+        LogE("fd(%d), errno(%d): %s", _fd, errno_, strerror(errno_))
     }
     return ret;
 #else
@@ -95,6 +98,7 @@ int SocketEpoll::EpollWait(int _timeout_mills/* = -1*/,
                            int _max_events/* = kMaxFds*/) {
 #ifdef __linux__
     if (_timeout_mills < -1) { _timeout_mills = -1; }
+    assert(epoll_fd_ > 0);
     
     int retry = 3;
     while (--retry) {
@@ -209,7 +213,7 @@ SocketEpoll::~SocketEpoll() {
         delete[] epoll_events_, epoll_events_ = nullptr;
     }
     if (epoll_fd_ != -1) {
-        LogI("close epfd")
+        LogI("close epfd: %d", epoll_fd_)
         ::close(epoll_fd_);
         epoll_fd_ = -1;
     }
@@ -231,10 +235,7 @@ EpollNotifier::EpollNotifier()
 }
 
 void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
-    if (socket_epoll_) {
-        LogE("socket_epoll_ already set!")
-        return;
-    }
+    assert(!socket_epoll_);
     if (_epoll) {
         socket_epoll_ = _epoll;
         socket_epoll_->AddSocketRead(socket_.FD());
@@ -242,9 +243,8 @@ void EpollNotifier::SetSocketEpoll(SocketEpoll *_epoll) {
 }
 
 void EpollNotifier::NotifyEpoll(Notification &_notification) {
-    if (socket_epoll_) {
-        socket_epoll_->ModSocketWrite(socket_.FD(), (uint64_t) _notification.notify_id_);
-    }
+    assert(socket_epoll_);
+    socket_epoll_->ModSocketWrite(socket_.FD(), (uint64_t) _notification.notify_id_);
 }
 
 SOCKET EpollNotifier::GetNotifyFd() const { return socket_.FD(); }
