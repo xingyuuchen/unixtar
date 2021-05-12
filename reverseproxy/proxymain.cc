@@ -7,8 +7,8 @@
 
 int main(int ac, char **argv) {
 #ifdef DAEMON
-    if (Daemon::Daemonize() < 0) {
-        printf("Daemonize failed\n");
+    if (unixtar::Daemonize() < 0) {
+        printf("daemonize failed\n");
         return 0;
     }
 #endif

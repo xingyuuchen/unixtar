@@ -46,14 +46,16 @@ Hope you enjoy :)
 
 int main(int ac, char **argv) {
 #ifdef DAEMON
-    if (Daemon::Daemonize() < 0) {
-        printf("Daemonize failed\n");
+    if (daemon::Daemonize() < 0) {
+        printf("daemonize failed\n");
         return 0;
     }
 #endif
     
     logger::OpenLog(argv[0]);
 
+    WebServer::Instance().Config();
+    
     LogI("Launching Server...")
     
     // NetScene_YourBusiness must inherit from NetSceneBase, which is your
@@ -65,7 +67,7 @@ int main(int ac, char **argv) {
     
     WebServer::Instance().Serve();
     
-    LogI("Server Down")
+    LogI("Webserver Down")
     return 0;
 }
 ```
@@ -144,7 +146,8 @@ size_t NetSceneGetIndexPage::Length() { return strlen(resp_); }
 
 const char *NetSceneGetIndexPage::Route() { return kUrlRoute; }
 ```
-Note: It is highly recommended to use `ProtoBuf`. Some predefined pb .proto files is in `/protos/`,
+Note: It is highly recommended to use `ProtoBuf`.
+Some predefined protobuf .proto files is in `/protos/`,
 you can run
 ```shell
 cd framework/script
@@ -168,6 +171,7 @@ Reverse proxy do such things:
 * Forward. Forward Http packet to web servers who truly handles request, then pass back Http response.
 * Load Balance. You can chose three different way: `Poll`, `By weight`, `Ip Hash`.
 
-Configure your reverse proxy by editing `reverse/proxyserverconfig.yml`. You can custom:
-* Port that Reverse proxy listens on.
+Configure your reverse proxy by editing `reverseproxy/proxyserverconf.yml`. You can custom:
+* Port that reverse proxy server listens on.
 * All web servers available to forward Http request.
+* Number of threads who handles network events.

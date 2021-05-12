@@ -1,9 +1,13 @@
 #include "loadbalancer.h"
 #include "log.h"
+#include "timeutil.h"
 #include <cassert>
 #include <cerrno>
 #include <arpa/inet.h>
 
+
+// 10 min
+const uint64_t LoadBalancer::kDefaultRetryPeriod = 10 * 60 * 1000;
 
 LoadBalancer::LoadBalancer()
         : balance_rule_(kUnknown)
@@ -28,13 +32,15 @@ WebServerProfile *LoadBalancer::Select(std::string &_ip) {
     return ret ? ret : web_servers_.front();
 }
 
-LoadBalancer::~LoadBalancer() = default;
+void LoadBalancer::ReportWebServerDown(WebServerProfile *_down_svr) {
+    _down_svr->is_down = true;
+    _down_svr->last_down_ts = ::gettickcount();
+}
 
 void LoadBalancer::RegisterWebServer(WebServerProfile *_webserver) {
     web_servers_.push_back(_webserver);
     last_selected_ = web_servers_.begin();
 }
-
 
 LoadBalancer::TBalanceRule LoadBalancer::BalanceRule() const {
     return balance_rule_;
@@ -51,7 +57,7 @@ WebServerProfile *LoadBalancer::__BalanceByPoll() {
         if (last_selected_ == web_servers_.end()) {
             last_selected_ = web_servers_.begin();
         }
-    } while ((*last_selected_)->weight <= 0);
+    } while (!__IsWebServerAvailable(*last_selected_));
     return *last_selected_;
 }
 
@@ -62,12 +68,12 @@ WebServerProfile *LoadBalancer::__BalanceByWeight() {
             if (last_selected_ == web_servers_.end()) {
                 last_selected_ = web_servers_.begin();
             }
-        } while ((*last_selected_)->weight <= 0);
+        } while (!__IsWebServerAvailable(*last_selected_));
+        
         curr_weight_ = (*last_selected_)->weight;
     }
     return *last_selected_;
 }
-
 
 // FIXME: get rid of webservers with weight 0.
 WebServerProfile *LoadBalancer::__BalanceByIpHash(std::string &_ip) {
@@ -84,4 +90,40 @@ WebServerProfile *LoadBalancer::__BalanceByIpHash(std::string &_ip) {
         LogE("ret: %d, errno(%d): %s", ret, errno, strerror(errno))
     }
     return nullptr;
+}
+
+bool LoadBalancer::__IsWebServerAvailable(WebServerProfile *_svr) {
+    if (_svr->weight <= 0) {
+        return false;
+    }
+    if (!_svr->is_down) {
+        return true;
+    }
+    uint64_t now = ::gettickcount();
+    if (_svr->last_down_ts + kDefaultRetryPeriod >= now) {
+        // just trying.
+        // If it is still down, a call to ReportWebServerDown() is necessary.
+        _svr->is_down = false;
+        return true;
+    }
+    return false;
+}
+
+LoadBalancer::~LoadBalancer() = default;
+
+
+uint64_t WebServerProfile::kInvalidSeq = 0;
+
+WebServerProfile::WebServerProfile()
+    : svr_id(MakeSeq())
+    , port(0)
+    , weight(0)
+    , is_down(false)
+    , last_down_ts(0) {
+    
+}
+
+uint64_t WebServerProfile::MakeSeq() {
+    static uint64_t seq = kInvalidSeq;
+    return ++seq;
 }

@@ -5,7 +5,7 @@
 #include <csignal>
 
 
-namespace Daemon {
+namespace unixtar {
 
 int Daemonize() {
     pid_t pid = fork();

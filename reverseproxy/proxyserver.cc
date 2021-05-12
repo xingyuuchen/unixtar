@@ -62,20 +62,25 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
     
         std::string src_ip = _conn->RemoteIp();
         
-        auto forward_host = ReverseProxyServer::Instance().LoadBalance(src_ip);
-        if (!forward_host) {
-            LogE("no web server to forward")
-            HandleForwardFailed(_conn);
-            return -1;
-        }
-        LogI("forward request from [%s:%d] to [%s:%d]", src_ip.c_str(),
-             _conn->RemotePort(), forward_host->ip.c_str(), forward_host->port)
-        
-        auto conn_to_webserver = MakeConnection(forward_host->ip, forward_host->port);
-        if (!conn_to_webserver) {
-            LogE("connection to web server can NOT establish")
-            HandleForwardFailed(_conn);
-            return -1;
+        tcp::ConnectionProfile *conn_to_webserver;
+        while (true) {
+            auto forward_host = ReverseProxyServer::Instance().LoadBalance(src_ip);
+            if (!forward_host) {
+                LogE("no web server to forward")
+                HandleForwardFailed(_conn);
+                return -1;
+            }
+            LogI("try forward request from [%s:%d] to [%s:%d]", src_ip.c_str(),
+                 _conn->RemotePort(), forward_host->ip.c_str(), forward_host->port)
+    
+            conn_to_webserver = MakeConnection(forward_host->ip, forward_host->port);
+            if (!conn_to_webserver) {
+                LoadBalancer::ReportWebServerDown(forward_host);
+                LogE("connection to web server [%s:%d] can NOT establish",
+                        conn_to_webserver->RemoteIp().c_str(), conn_to_webserver->RemotePort())
+                continue;
+            }
+            break;
         }
     
         conn_to_webserver->MakeSendContext();

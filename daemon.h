@@ -2,7 +2,7 @@
 #define OI_SVR_DAEMON_H
 
 
-namespace Daemon {
+namespace unixtar {
 
 int Daemonize();
 
