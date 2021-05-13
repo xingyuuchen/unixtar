@@ -91,6 +91,15 @@ int Socket::SetNonblocking() {
     return 0;
 }
 
+int Socket::Listen(int _backlog) const {
+    assert(_backlog > 0);
+    int ret = ::listen(fd_, _backlog);
+    if (ret < 0) {
+        LogE("listen errno(%d): %s", errno, strerror(errno))
+    }
+    return ret;
+}
+
 ssize_t Socket::Recv(AutoBuffer *_buff, bool *_is_buffer_full) {
     assert(_buff && _is_buffer_full);
     

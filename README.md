@@ -1,6 +1,6 @@
-# Unixtar
+# 🌟Unixtar
 
-(short for Unique-Star✨🌟✨)
+### Short for `✨Unique Star✨`
 
 The framework is a high-performance Http Server on unix based system.
 
@@ -9,7 +9,7 @@ Without using any third-party libraries, the framework writes from unix system c
 The framework adopts the model of `Epoll + NetThreads + WorkerThreads`.
 
 
-## Build (unix)
+## ✨ Build (unix)
 ```shell
 git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
 cd framework/script
@@ -17,7 +17,7 @@ bash autogen.sh   # do this if you wanna use ProtoBuf.
 bash cmake.sh -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
 ```
 
-## Example Usage
+## ✨ Example Usage
 You are only responsible to write `NetScene` to get your business logic done.
 
 Each network interface is represented by a class(`NetScene_xxx`). They all inherit indirectly from `NetSceneBase`.
@@ -31,7 +31,7 @@ After defining your network interface classes and implement your business logic,
 please register your class to the framework:
 `NetSceneDispatcher::Instance()::RegisterNetScene<NetScene_YourBusiness>();`.
 
-You can custom some configuration by changing `webserverconf.yml`.
+You can custom some configuration by editing `webserverconf.yml`.
 After configuration, call `WebServer::Instance().Serve();`, and the service just gets started!
 
 Hope you enjoy :)
@@ -155,12 +155,12 @@ bash autogen.sh
 ```
 to generate protobuf c++ files, see `NetSceneHelloSvr.cc` for instance.
 
-## Example Project
+## ✨ Example Project
 [Plant-Recognition-Server](https://github.com/xingyuuchen/object-identify-SVR.git)
 is a web-server project, under the hood it is `unixtar` provides basic http network capability.
 
 
-## Reverse Proxy
+## ✨ Reverse Proxy
 You can launch a reverse proxy by commands below:
 ```shell
 cd framework/script
@@ -169,7 +169,7 @@ bash launchproxy.sh
 
 Reverse proxy do such things:
 * Forward. Forward Http packet to web servers who truly handles request, then pass back Http response.
-* Load Balance. You can chose three different way: `Poll`, `By weight`, `Ip Hash`.
+* Load Balance. You can chose among three different ways: `Poll`, `By weight`, `IP Hash`.
 
 Configure your reverse proxy by editing `reverseproxy/proxyserverconf.yml`. You can custom:
 * Port that reverse proxy server listens on.

@@ -24,7 +24,7 @@ class NetSceneGetIndexPage : public NetSceneCustom {
     
     const char *ContentType() override;
 
-private:
+  private:
     char                        resp_[128] {0, };
     static uint64_t             visit_times_start;
     static uint64_t             visit_times_this_boot;
@@ -59,4 +59,29 @@ class DBItemVisit : public DBItem {
   private:
     uint64_t                    visit_times;
     bool                        has_visit_times;
+};
+
+
+class NetSceneGetFavIcon : public NetSceneCustom {
+  public:
+    NetSceneGetFavIcon();
+    
+    int GetType() override;
+    
+    NetSceneBase *NewInstance() override;
+    
+    int DoSceneImpl(const std::string &_in_buffer) override;
+    
+    void *Data() override;
+    
+    size_t Length() override;
+    
+    const char *Route() override;
+    
+    const char *ContentType() override;
+
+  private:
+    static const char *const    kUrlRoute;
+    static std::string          kFavIconData;
+    
 };

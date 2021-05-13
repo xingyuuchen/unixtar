@@ -5,6 +5,8 @@
 
 
 
+const size_t ServerBase::kDefaultListenBacklog = 4096;
+
 const char *const ServerBase::ServerConfigBase::key_port("port");
 const char *const ServerBase::ServerConfigBase::key_net_thread_cnt("net_thread_cnt");
 
@@ -104,7 +106,7 @@ void ServerBase::Serve() {
     
     running_ = true;
     
-    ::listen(listenfd_.FD(), 1024);
+    assert(listenfd_.Listen(kDefaultListenBacklog) >= 0);
     
     socket_epoll_.SetListenFd(listenfd_.FD());
     
@@ -307,7 +309,7 @@ void ServerBase::NetThreadBase::Run() {
                 continue;
             }
             
-            tcp::ConnectionProfile *profile;
+            tcp::ConnectionProfile *profile = nullptr;
             
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
                 _OnReadEvent(profile);

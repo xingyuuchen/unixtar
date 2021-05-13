@@ -73,7 +73,7 @@ class _Connection {
         return -1;
     }
     
-    int Query(const char *_sql, std::vector<std::string> &_res, int _col_cnt) {
+    int Query(const char *_sql, std::vector<std::string> &_res) {
         if (!__CheckConnection()) {
             LogE("kNotConnected")
             return -1;
@@ -85,8 +85,8 @@ class _Connection {
                 mysqlpp::StoreQueryResult::const_iterator it;
                 for (it = res.begin(); it != res.end(); ++it) {
                     mysqlpp::Row row = *it;
-                    for (int i = 0; i < _col_cnt; ++i) {
-                        _res.emplace_back(row[i]);
+                    for (const auto & col : row) {
+                        _res.emplace_back(col);
                     }
                 }
             }
@@ -217,8 +217,8 @@ int Update(DBItem &_o, DBItem &_n) {
     return _Connection::Instance().Update(_o, _n);
 }
 
-int Query(const char *_sql, std::vector<std::string> &_res, int _col_cnt) {
-    return _Connection::Instance().Query(_sql, _res, _col_cnt);
+int Query(const char *_sql, std::vector<std::string> &_res) {
+    return _Connection::Instance().Query(_sql, _res);
 }
 
 int QueryExist(DBItem &_row, bool &_exist) {

@@ -1,5 +1,5 @@
-#ifndef OI_SVR_AUTOBUFFER_H
-#define OI_SVR_AUTOBUFFER_H
+#pragma once
+
 #include <cstddef>
 
 
@@ -25,7 +25,7 @@ class AutoBuffer {
     
     void SetPtr(char *_ptr);
     
-    size_t GetCapacity() const;
+    size_t Capacity() const;
     
     size_t AvailableSize() const;
     
@@ -52,5 +52,3 @@ class AutoBuffer {
     
 };
 
-
-#endif //OI_SVR_AUTOBUFFER_H

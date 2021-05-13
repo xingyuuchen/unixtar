@@ -13,6 +13,7 @@ NetSceneDispatcher::NetSceneDispatcher() {
     RegisterNetScene<NetSceneGetIndexPage>();
     RegisterNetScene<NetSceneHelloSvr>();
     RegisterNetScene<NetScene404NotFound>();
+    RegisterNetScene<NetSceneGetFavIcon>();
     
     // pad nullptr to unused reserved NetScenes.
     for (size_t i = selectors_.size(); i <= kReservedTypeOffset; ++i) {

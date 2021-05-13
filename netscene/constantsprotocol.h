@@ -13,6 +13,7 @@ const int kReservedTypeOffset = 10;
 const int kNetSceneTypeGetIndexPage     = 0;
 const int kNetSceneTypeHelloSvr         = 1;
 const int kNetSceneType404NotFound      = 2;
+const int kNetSceneTypeGetFavIcon       = 3;
 
 
 /**

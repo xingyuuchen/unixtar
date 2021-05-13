@@ -3,6 +3,8 @@
 #include "log.h"
 #include "http/headerfield.h"
 #include "signalhandler.h"
+#include "fileutil.h"
+#include <cassert>
 
 
 const char *const NetSceneGetIndexPage::kUrlRoute = "/";
@@ -23,7 +25,7 @@ NetSceneGetIndexPage::NetSceneGetIndexPage()
         snprintf(sql, sizeof(sql), "select %s from %s;",
                  DBItemVisit::kFieldNameVisitTimes,
                  DBItemVisit::kTable);
-        int db_ret = dao::Query(sql, visit_times, 1);
+        int db_ret = dao::Query(sql, visit_times);
         if (db_ret < 0) {
             LogE("query visit times failed, db err")
             return;
@@ -116,4 +118,39 @@ void DBItemVisit::SetVisitTimes(uint64_t _times) {
 uint64_t DBItemVisit::GetVisitTimes() const { return visit_times; }
 
 DBItemVisit::~DBItemVisit() = default;
+
+
+
+const char *const NetSceneGetFavIcon::kUrlRoute = "/favicon.ico";
+std::string NetSceneGetFavIcon::kFavIconData;
+
+NetSceneGetFavIcon::NetSceneGetFavIcon()
+        : NetSceneCustom() {
+    NETSCENE_INIT_START
+        std::string curr(__FILE__);
+        std::string path404 = curr.substr(0, curr.rfind('/')) + "/res/favicon.png";
+        
+        if (!file::ReadFile(path404.c_str(), kFavIconData)) {
+            LogE("read favicon.jpeg failed")
+            assert(false);
+        }
+    NETSCENE_INIT_END
+}
+
+int NetSceneGetFavIcon::GetType() { return kNetSceneTypeGetFavIcon; }
+
+NetSceneBase *NetSceneGetFavIcon::NewInstance() { return new NetSceneGetFavIcon(); }
+
+int NetSceneGetFavIcon::DoSceneImpl(const std::string &_in_buffer) {
+    // nothing to do.
+    return 0;
+}
+
+void *NetSceneGetFavIcon::Data() { return (void *) kFavIconData.data(); }
+
+size_t NetSceneGetFavIcon::Length() { return kFavIconData.size(); }
+
+const char *NetSceneGetFavIcon::Route() { return kUrlRoute; }
+
+const char *NetSceneGetFavIcon::ContentType() { return http::HeaderField::kImagePng; }
 

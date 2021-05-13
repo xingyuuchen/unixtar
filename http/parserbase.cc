@@ -16,6 +16,8 @@ bool http::ParserBase::IsEnd() const { return position_ == kEnd; }
 
 bool http::ParserBase::IsErr() const { return position_ == kError; }
 
+http::HeaderField &http::ParserBase::Headers() { return headers_; }
+
 AutoBuffer *http::ParserBase::GetBuff() { return &buff_; }
 
 char *http::ParserBase::GetBody() {
@@ -25,7 +27,7 @@ char *http::ParserBase::GetBody() {
 http::ParserBase::TPosition http::ParserBase::GetPosition() const { return position_; }
 
 size_t http::ParserBase::GetContentLength() const {
-    size_t content_len = headers_.GetContentLength();
+    size_t content_len = headers_.ContentLength();
     if (content_len <= 0) {
         LogE("content_len: %zu", content_len)
         return 0;
@@ -57,7 +59,7 @@ bool http::ParserBase::_ResolveHeaders() {
 }
 
 bool http::ParserBase::_ResolveBody() {
-    uint64_t content_length = headers_.GetContentLength();
+    uint64_t content_length = headers_.ContentLength();
     if (content_length == 0) {
         LogI("content_length = 0")
         position_ = kError;
@@ -117,6 +119,14 @@ void http::ParserBase::DoParse() {
             return;
         }
     }
+}
 
+void http::ParserBase::Reset() {
+    position_ = TPosition::kNone;
+    headers_.Reset();
+    first_line_len_ = 0;
+    header_len_ = 0;
+    resolved_len_ = 0;
+    buff_.Reset();      // careful
 }
 

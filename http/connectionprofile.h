@@ -61,6 +61,8 @@ class ConnectionProfile {
     
     virtual bool IsParseDone();
     
+    virtual bool IsLongLink();
+    
     virtual http::ParserBase *GetParser() = 0;
     
     void CloseTcpConnection();
@@ -121,6 +123,9 @@ class ConnectionFrom : public ConnectionProfile {
     TType GetType() const override;
     
     void MakeRecvContext() override;
+    
+    bool IsLongLink() override;
+    
     http::ParserBase *GetParser() override;
 
   private:

@@ -10,9 +10,15 @@ namespace http {
 const char *const HeaderField::kHost = "Host";
 const char *const HeaderField::kContentLength = "Content-Length";
 const char *const HeaderField::kContentType = "Content-Type";
+const char *const HeaderField::kAccept = "Accept";
+const char *const HeaderField::kAcceptEncoding = "Accept-Encoding";
+const char *const HeaderField::kUserAgent = "User-Agent";
+const char *const HeaderField::kAcceptLanguage = "Accept-Language";
 const char *const HeaderField::kTransferEncoding = "Transfer-Encoding";
 const char *const HeaderField::kConnection = "Connection";
+const char *const HeaderField::kCacheControl = "Cache-Control";
 const char *const HeaderField::kAccessControlAllowOrigin = "Access-Control-Allow-Origin";
+const char *const HeaderField::kCookie = "Cookie";
 const char *const HeaderField::kSetCookie = "Set-Cookie";
 
 
@@ -25,6 +31,7 @@ const char *const HeaderField::kTextCss = "text/css";
 const char *const HeaderField::kImageJpg = "image/jpeg";
 const char *const HeaderField::kImagePng = "image/png";
 const char *const HeaderField::kConnectionClose = "close";
+const char *const HeaderField::kKeepAlive = "keep-alive";
 const char *const HeaderField::kAccessControlOriginAll = "*";
 const char *const HeaderField::kTransferChunked = "chunked";
 
@@ -45,13 +52,23 @@ size_t HeaderField::GetHeaderSize() {
     return ret;
 }
 
-uint64_t HeaderField::GetContentLength() const {
+bool HeaderField::IsKeepAlive() const {
     for (const auto & header_field : header_fields_) {
-        if (0 == strcmp(header_field.first.c_str(), kContentLength)) {
-            return strtoul(header_field.second.c_str(), nullptr, 10);;
+        if (0 == strcmp(header_field.first.c_str(), kConnection)) {
+            return 0 == strcmp(header_field.second.c_str(), kKeepAlive);
         }
     }
-    LogI("No such field: Content-Length")
+    LogI("No such field: %s", kConnection)
+    return false;
+}
+
+uint64_t HeaderField::ContentLength() const {
+    for (const auto & header_field : header_fields_) {
+        if (0 == strcmp(header_field.first.c_str(), kContentLength)) {
+            return strtoul(header_field.second.c_str(), nullptr, 10);
+        }
+    }
+    LogI("No such field: %s", kContentLength)
     return 0;
 }
 
@@ -79,6 +96,10 @@ bool HeaderField::ParseFromString(std::string &_from) {
         InsertOrUpdate(header_pair[0], header_pair[1]);
     }
     return true;
+}
+
+void HeaderField::Reset() {
+    header_fields_.clear();
 }
 
 void HeaderField::AppendToBuffer(AutoBuffer &_out_buff) {

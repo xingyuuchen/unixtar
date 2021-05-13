@@ -24,9 +24,13 @@ class ParserBase {
     
     void DoParse();
     
+    void Reset();
+    
     bool IsEnd() const;
     
     bool IsErr() const;
+    
+    http::HeaderField &Headers();
     
     virtual bool IsHttpRequest() const = 0;
     

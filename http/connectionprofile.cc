@@ -98,6 +98,10 @@ bool ConnectionProfile::IsParseDone() {
     return true;
 }
 
+bool ConnectionProfile::IsLongLink() {
+    return false;
+}
+
 void ConnectionProfile::CloseTcpConnection() { socket_.Close(); }
 
 ConnectionProfile::TApplicationProtocol ConnectionProfile::GetApplicationProtocol() const {
@@ -193,6 +197,10 @@ bool ConnectionFrom::IsParseDone() {
         return false;
     }
     return http_req_parser_.IsEnd();
+}
+
+bool ConnectionFrom::IsLongLink() {
+    return http_req_parser_.Headers().IsKeepAlive();
 }
 
 http::ParserBase *ConnectionFrom::GetParser() { return &http_req_parser_; }

@@ -74,7 +74,7 @@ void AutoBuffer::AddCapacity(size_t _size_to_add) {
     byte_array_ = (char *) p;
 }
 
-size_t AutoBuffer::GetCapacity() const {
+size_t AutoBuffer::Capacity() const {
     return capacity_;
 }
 
@@ -93,11 +93,10 @@ void AutoBuffer::ShallowCopyFrom(char *_ptr, size_t _len) {
 }
 
 void AutoBuffer::Reset() {
-    if (is_shallow_copy_) { return; }
     capacity_ = 0;
     length_ = 0;
     pos_ = 0;
-    if (byte_array_) {
+    if (!is_shallow_copy_ && byte_array_) {
         free(byte_array_), byte_array_ = nullptr;
     }
 }

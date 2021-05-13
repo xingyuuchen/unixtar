@@ -165,6 +165,7 @@ class ServerBase {
     EpollNotifier::Notification         notification_stop_;
     bool                                running_;
     Socket                              listenfd_;
+    static const size_t                 kDefaultListenBacklog;
     
 };
 

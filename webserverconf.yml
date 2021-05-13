@@ -1,11 +1,11 @@
-# The port on which the server process listens on.
+# The port on which the server process listens.
 port: 5002
 
 # Number of threads who handles network events,
 # by default one NetThread corresponds to one WorkerThread.
 net_thread_cnt: 4
 
-# Number of thread who handles upper level business logic.
+# Number of threads who handles upper level business logic.
 worker_thread_cnt: 4
 
 # The maximum backlog of waiting queue (who holds parsed HTTP packets
