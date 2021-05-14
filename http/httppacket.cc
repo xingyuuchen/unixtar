@@ -5,15 +5,14 @@
 
 
 
-http::HttpPacket::HttpPacket() {
-
+http::HttpPacket::HttpPacket()
+        : ApplicationPacket() {
 }
 
 http::HeaderField *http::HttpPacket::Headers() { return &headers_; }
 
 AutoBuffer *http::HttpPacket::Body() {
     return &body_;
-//    return buffer_.Ptr(buffer_.Length() - ContentLength());
 }
 
 TApplicationProtocol http::HttpPacket::ApplicationProtocol() const {
@@ -29,20 +28,19 @@ size_t http::HttpPacket::ContentLength() const {
     return content_len;
 }
 
-http::HttpPacket::~HttpPacket() {
-
-}
+http::HttpPacket::~HttpPacket() = default;
 
 void http::HttpPacket::SetBody(char *_ptr, size_t _length) {
     body_.ShallowCopyFrom(_ptr, _length);
 }
 
 
-http::HttpParser::HttpParser(http::HeaderField *_headers,
+http::HttpParser::HttpParser(http::HttpPacket *_http_packet,
                              AutoBuffer *_buff)
-        : ApplicationProtocolParser()
+        : ApplicationProtocolParser(_http_packet, _buff)
+        , http_packet_(_http_packet)
         , position_(TPosition::kNone)
-        , headers_(_headers)
+        , headers_(http_packet_->Headers())
         , buffer_(_buff)
         , resolved_len_(0)
         , first_line_len_(0)
@@ -60,8 +58,6 @@ bool http::HttpParser::IsErr() const { return position_ == kError; }
 
 
 http::HttpParser::TPosition http::HttpParser::GetPosition() const { return position_; }
-
-AutoBuffer *http::HttpParser::Buffer() { return buffer_; }
 
 
 bool http::HttpParser::_ResolveHeaders() {
@@ -105,6 +101,8 @@ bool http::HttpParser::_ResolveBody() {
         return false;
     } else if (content_length == curr_body_len) {
         position_ = kEnd;
+        http_packet_->SetBody(buffer_->Ptr(buffer_->Length()
+                    - content_length), content_length);
         return true;
     }
     return false;

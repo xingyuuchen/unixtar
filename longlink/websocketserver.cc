@@ -1,12 +1,16 @@
 #include "websocketserver.h"
+#include "websocketpacket.h"
 
 
 
 const char *const WebSocketServer::kConfigFile = "longlinkserverconf.yml";
 
-WebSocketServer::~WebSocketServer() {
-
+WebSocketServer::WebSocketServer()
+        : ServerBase() {
+    
 }
+
+WebSocketServer::~WebSocketServer() = default;
 
 void WebSocketServer::BeforeConfig() {
 
@@ -16,9 +20,7 @@ void WebSocketServer::AfterConfig() {
 
 }
 
-const char *WebSocketServer::ConfigFile() {
-    return kConfigFile;
-}
+const char *WebSocketServer::ConfigFile() { return kConfigFile; }
 
 ServerBase::ServerConfigBase *WebSocketServer::_MakeConfig() {
     return ServerBase::_MakeConfig();
@@ -30,8 +32,19 @@ bool WebSocketServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
 
 
 
-WebSocketServer::NetThread::~NetThread() {
+WebSocketServer::NetThread::NetThread()
+        : NetThreadBase() {
+}
 
+int WebSocketServer::NetThread::HandleApplicationPacket(
+                tcp::ConnectionProfile *_conn) {
+    if (_conn->ApplicationProtocol() != kWebSocket) {
+        LogE("%s Not a WebSocket packet", _conn->ApplicationProtocolName())
+        DelConnection(_conn->Uid());
+        return -1;
+    }
+    // TODO
+    return 0;
 }
 
 void WebSocketServer::NetThread::OnStart() {
@@ -42,6 +55,12 @@ void WebSocketServer::NetThread::OnStop() {
 
 }
 
+void WebSocketServer::NetThread::ConfigApplicationLayer(
+                tcp::ConnectionProfile *_conn) {
+    _conn->ConfigApplicationLayer<ws::WebSocketPacket,
+                                  ws::WebSocketParser>();
+}
+
 int WebSocketServer::NetThread::HandShake(tcp::ConnectionProfile *_conn) {
     if (_conn->Receive() < 0) {
         DelConnection(_conn->Uid());
@@ -49,10 +68,5 @@ int WebSocketServer::NetThread::HandShake(tcp::ConnectionProfile *_conn) {
     return 0;
 }
 
-int WebSocketServer::NetThread::_OnReadEvent(tcp::ConnectionProfile *_conn) {
-    return 0;
-}
+WebSocketServer::NetThread::~NetThread() = default;
 
-bool WebSocketServer::NetThread::_OnWriteEvent(tcp::SendContext *_send_ctx) {
-    return false;
-}

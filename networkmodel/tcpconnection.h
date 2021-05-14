@@ -1,6 +1,7 @@
 #pragma once
+#include <cassert>
 #include "socket/unixsocket.h"
-#include "applicationpacket.h"
+#include "applicationlayer.h"
 #include "log.h"
 
 
@@ -10,9 +11,8 @@ struct SendContext {
     SOCKET          fd;
     AutoBuffer      buffer;
 };
-}
 
-namespace http {
+
 struct RecvContext {
     SOCKET                  fd;
     tcp::SendContext      * send_context;
@@ -43,16 +43,15 @@ class ConnectionProfile {
     
     /**
      *
-     * Override these two if you use other application protocol
-     * other than Http1_1. :)
-     *
      * @return: 0 on success, non-0 on failure.
      */
     int ParseProtocol();
     
     bool IsParseDone();
     
-    template<class ApplicationPacketImpl, class ApplicationParserImpl>
+    
+    template<class ApplicationPacketImpl /* : public ApplicationPacket */,
+             class ApplicationParserImpl /* : public ApplicationProtocolParser */>
     void
     ConfigApplicationLayer() {
         if (application_packet_ && !application_packet_->IsLongLink()) {
@@ -65,11 +64,15 @@ class ConnectionProfile {
         application_packet_ = new ApplicationPacketImpl();
         application_protocol_parser_ = new ApplicationParserImpl(
                 &tcp_byte_arr_, (ApplicationPacketImpl *) application_packet_);
-        LogI("application protocol config to: %d",
-             application_packet_->ApplicationProtocol())
+        
+        LogI("application protocol config to: %s", ApplicationProtocolName())
     }
     
-    virtual bool IsLongLink();
+    TApplicationProtocol ApplicationProtocol();
+    
+    const char *ApplicationProtocolName();
+    
+    bool IsLongLinkApplicationProtocol();
     
     AutoBuffer *TcpByteArray();
     
@@ -85,9 +88,9 @@ class ConnectionProfile {
     
     bool IsTypeValid() const;
     
-    http::RecvContext *GetRecvContext();
+    tcp::RecvContext *GetRecvContext();
     
-    SendContext *GetSendContext();
+    tcp::SendContext *GetSendContext();
 
     virtual void MakeRecvContext();
     
@@ -98,21 +101,19 @@ class ConnectionProfile {
     uint16_t RemotePort() const;
 
   protected:
-    static const uint64_t   kDefaultTimeout;
-    uint32_t                uid_;
-    std::string             remote_ip_;
-    uint16_t                remote_port_;
-    Socket                  socket_;
-    uint64_t                record_;
-    uint64_t                timeout_millis_;
-    uint64_t                timeout_ts_;
-    AutoBuffer              tcp_byte_arr_;
-    
-    ApplicationPacket     * application_packet_;
-    ApplicationProtocolParser     * application_protocol_parser_;
-    
-    tcp::SendContext        send_ctx_{0, INVALID_SOCKET};
-    http::RecvContext       recv_ctx_{INVALID_SOCKET, nullptr};
+    static const uint64_t       kDefaultTimeout;
+    uint32_t                    uid_;
+    std::string                 remote_ip_;
+    uint16_t                    remote_port_;
+    Socket                      socket_;
+    uint64_t                    record_;
+    uint64_t                    timeout_millis_;
+    uint64_t                    timeout_ts_;
+    AutoBuffer                  tcp_byte_arr_;
+    ApplicationPacket         * application_packet_;
+    ApplicationProtocolParser * application_protocol_parser_;
+    tcp::SendContext            send_ctx_{0, INVALID_SOCKET};
+    tcp::RecvContext            recv_ctx_{INVALID_SOCKET, nullptr};
     
 };
 

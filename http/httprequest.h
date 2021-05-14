@@ -25,7 +25,6 @@ class Parser : public http::HttpParser {
     bool _ResolveBody() override;
 
   private:
-    http::request::HttpRequest            * http_request_;
     http::RequestLine                     * request_line_;
 };
 

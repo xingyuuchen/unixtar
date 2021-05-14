@@ -1,12 +1,12 @@
 #pragma once
 
-#include "httpserver.h"
+#include "serverbase.h"
 #include "netscenebase.h"
 #include "messagequeue.h"
 #include "singleton.h"
 
 
-class WebServer final : public HttpServer {
+class WebServer final : public ServerBase {
     
     SINGLETON(WebServer, )
     
@@ -35,9 +35,9 @@ class WebServer final : public HttpServer {
         
         void Run() final;
     
-        virtual void HandleImpl(http::RecvContext *) = 0;
+        virtual void HandleImpl(tcp::RecvContext *) = 0;
         
-        virtual void HandleOverload(http::RecvContext *) = 0;
+        virtual void HandleOverload(tcp::RecvContext *) = 0;
     
         void BindNetThread(NetThread *_net_thread);
     
@@ -79,12 +79,12 @@ class WebServer final : public HttpServer {
         }
     }
     
-    using RecvQueue = MessageQueue::ThreadSafeDeque<http::RecvContext *>;
+    using RecvQueue = MessageQueue::ThreadSafeDeque<tcp::RecvContext *>;
     using SendQueue = MessageQueue::ThreadSafeDeque<tcp::SendContext *>;
     
   private:
     
-    class NetThread : public HttpNetThread {
+    class NetThread : public NetThreadBase {
       public:
         
         NetThread();
@@ -119,7 +119,9 @@ class WebServer final : public HttpServer {
     
         void OnStop() override;
     
-        int HandleHttpPacket(tcp::ConnectionProfile *) override;
+        void ConfigApplicationLayer(tcp::ConnectionProfile *) override;
+    
+        int HandleApplicationPacket(tcp::ConnectionProfile *) override;
 
         void HandleException(std::exception &ex) override;
 

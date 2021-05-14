@@ -1,5 +1,5 @@
 #pragma once
-#include "httpserver.h"
+#include "serverbase.h"
 #include "singleton.h"
 #include "loadbalancer.h"
 #include <string>
@@ -7,7 +7,7 @@
 
 
 
-class ReverseProxyServer final : public HttpServer {
+class ReverseProxyServer final : public ServerBase {
 
     SINGLETON(ReverseProxyServer, )
 
@@ -29,15 +29,17 @@ class ReverseProxyServer final : public HttpServer {
         std::vector<WebServerProfile *> webservers;
     };
     
-    class NetThread : public HttpNetThread {
+    class NetThread : public NetThreadBase {
       public:
         NetThread();
         
         ~NetThread() override;
         
-        int HandleHttpPacket(tcp::ConnectionProfile *) override;
+        void ConfigApplicationLayer(tcp::ConnectionProfile *profile) override;
     
-        void HandleForwardFailed(tcp::ConnectionProfile * _client_conn);
+        int HandleApplicationPacket(tcp::ConnectionProfile *) override;
+    
+        void HandleForwardFailed(tcp::ConnectionProfile *_client_conn);
     
       protected:
       

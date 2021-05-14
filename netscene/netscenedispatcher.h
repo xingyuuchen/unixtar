@@ -45,9 +45,9 @@ class NetSceneDispatcher final {
       public:
         ~NetSceneWorker() override;
         
-        void HandleImpl(http::RecvContext *_recv_ctx) override;
+        void HandleImpl(tcp::RecvContext *_recv_ctx) override;
         
-        void HandleOverload(http::RecvContext *_recv_ctx) override;
+        void HandleOverload(tcp::RecvContext *_recv_ctx) override;
     
         void HandleException(std::exception &ex) override;
 

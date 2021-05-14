@@ -38,7 +38,7 @@ void Pack(http::THttpVersion _http_ver, int _resp_code, std::string &_status_des
 
 
 Parser::Parser(AutoBuffer *_buff, HttpResponse *_http_resp)
-        : http::HttpParser(_http_resp->Headers(), _buff)
+        : http::HttpParser(_http_resp, _buff)
         , status_line_(_http_resp->getStatusLine()) {
     
     assert(_http_resp && status_line_);

@@ -1,6 +1,5 @@
 #include "tcpconnection.h"
 #include <cstring>
-#include <cassert>
 #include <utility>
 #include "timeutil.h"
 #include "socket/unixsocket.h"
@@ -91,7 +90,21 @@ bool ConnectionProfile::IsParseDone() {
     return application_protocol_parser_->IsEnd();
 }
 
-bool ConnectionProfile::IsLongLink() {
+TApplicationProtocol ConnectionProfile::ApplicationProtocol() {
+    if (!application_packet_) {
+        return kUnknown;
+    }
+    return application_packet_->ApplicationProtocol();
+}
+
+const char *ConnectionProfile::ApplicationProtocolName() {
+    if (application_packet_) {
+        return ApplicationProtoToString[ApplicationProtocol()];
+    }
+    return nullptr;
+}
+
+bool ConnectionProfile::IsLongLinkApplicationProtocol() {
     if (!application_packet_) {
         return false;
     }
@@ -104,13 +117,16 @@ void ConnectionProfile::CloseTcpConnection() { socket_.Close(); }
 
 SOCKET ConnectionProfile::FD() const { return socket_.FD(); }
 
-http::RecvContext *ConnectionProfile::GetRecvContext() { return &recv_ctx_; }
+tcp::RecvContext *ConnectionProfile::GetRecvContext() { return &recv_ctx_; }
 
 SendContext *ConnectionProfile::GetSendContext() { return &send_ctx_; }
 
 uint64_t ConnectionProfile::GetTimeoutTs() const { return timeout_ts_; }
 
 bool ConnectionProfile::IsTimeout(uint64_t _now) const {
+    if (application_packet_ && application_packet_->IsLongLink()) {
+        return false;
+    }
     if (_now == 0) {
         _now = ::gettickcount();
     }
@@ -134,9 +150,12 @@ std::string &ConnectionProfile::RemoteIp() { return remote_ip_; }
 
 uint16_t ConnectionProfile::RemotePort() const { return remote_port_; }
 
-ConnectionProfile::~ConnectionProfile() = default;
-
-
+ConnectionProfile::~ConnectionProfile() {
+    delete application_protocol_parser_;
+    application_protocol_parser_ = nullptr;
+    delete application_packet_;
+    application_packet_ = nullptr;
+}
 
 
 
@@ -180,23 +199,10 @@ void ConnectionFrom::MakeRecvContext() {
         return;
     }
     recv_ctx_.fd = socket_.FD();
-//    recv_ctx_.is_post = http_req_.IsMethodPost();
-//    if (recv_ctx_.is_post) {
-//        recv_ctx_.http_body.ShallowCopyFrom(http_req_.Body(),
-//                                            http_req_.ContentLength());
-//    }
-//    std::string &url = http_req_.Url();
-//    recv_ctx_.full_url = std::string(url);
     recv_ctx_.application_packet = application_packet_;
     recv_ctx_.send_context = &send_ctx_;
 }
 
-ConnectionFrom::~ConnectionFrom() {
-    delete application_protocol_parser_;
-    application_protocol_parser_ = nullptr;
-    delete application_packet_;
-    application_packet_ = nullptr;
-}
-
+ConnectionFrom::~ConnectionFrom() = default;
 
 }

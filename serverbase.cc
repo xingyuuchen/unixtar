@@ -2,6 +2,7 @@
 #include "signalhandler.h"
 #include "log.h"
 #include "timeutil.h"
+#include <unistd.h>
 
 
 
@@ -314,6 +315,7 @@ void ServerBase::NetThreadBase::Run() {
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
                 _OnReadEvent(profile);
             }
+            
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
                 auto send_ctx = profile->GetSendContext();
                 bool write_done = _OnWriteEvent(send_ctx);
@@ -321,6 +323,7 @@ void ServerBase::NetThreadBase::Run() {
                     DelConnection(send_ctx->connection_uid);
                 }
             }
+            
             if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
                 _OnErrEvent(profile);
             }
@@ -392,6 +395,65 @@ void ServerBase::NetThreadBase::DelConnection(uint32_t _uid) {
 }
 
 void ServerBase::NetThreadBase::ClearTimeout() { connection_manager_.ClearTimeout(); }
+
+
+int ServerBase::NetThreadBase::_OnReadEvent(tcp::ConnectionProfile *_conn) {
+    assert(_conn);
+    
+    SOCKET fd = _conn->FD();
+    uint32_t uid = _conn->Uid();
+    LogI("fd(%d), uid: %u", fd, uid)
+    
+    if (_conn->Receive() < 0) {
+        DelConnection(uid);
+        return -1;
+    }
+    
+    if (_conn->IsParseDone()) {
+        LogI("fd(%d) %s parse succeed", fd, _conn->ApplicationProtocolName())
+        return HandleApplicationPacket(_conn);
+    }
+    return 0;
+}
+
+bool ServerBase::NetThreadBase::_OnWriteEvent(tcp::SendContext *_send_ctx) {
+    if (!_send_ctx) {
+        LogE("!_send_ctx")
+        return false;
+    }
+    AutoBuffer &resp = _send_ctx->buffer;
+    size_t pos = resp.Pos();
+    size_t ntotal = resp.Length() - pos;
+    SOCKET fd = _send_ctx->fd;
+    
+    if (fd <= 0 || ntotal == 0) {
+        return false;
+    }
+    
+    ssize_t nsend = ::write(fd, resp.Ptr(pos), ntotal);
+    
+    if (nsend == ntotal) {
+        LogI("fd(%d), send %zd/%zu B, done", fd, nsend, ntotal)
+        resp.Seek(AutoBuffer::kEnd);
+        return true;
+    }
+    if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
+        nsend = nsend > 0 ? nsend : 0;
+        LogI("fd(%d): send %zd/%zu B", fd, nsend, ntotal)
+        resp.Seek(AutoBuffer::kCurrent, nsend);
+    }
+    if (nsend < 0) {
+        if (errno == EPIPE) {
+            // fd probably closed by peer, or cleared because of timeout.
+            LogI("fd(%d) already closed, send nothing", fd)
+            return false;
+        }
+        LogE("fd(%d) nsend(%zd), errno(%d): %s",
+             fd, nsend, errno, strerror(errno))
+        LogPrintStacktrace(5)
+    }
+    return false;
+}
 
 int ServerBase::NetThreadBase::_OnErrEvent(tcp::ConnectionProfile *_conn) {
     if (!_conn) {

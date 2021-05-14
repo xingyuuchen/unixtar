@@ -1,7 +1,11 @@
-#include "applicationpacket.h"
+#include "applicationlayer.h"
 
 
-ApplicationProtocolParser::ApplicationProtocolParser() = default;
+ApplicationProtocolParser::ApplicationProtocolParser(ApplicationPacket *_packet,
+                                                     AutoBuffer *_buff)
+        : application_packet_(_packet)
+        , buffer_(_buff) {
+}
 
 ApplicationProtocolParser::~ApplicationProtocolParser() = default;
 

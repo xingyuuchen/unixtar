@@ -3,7 +3,7 @@
 #include "firstline.h"
 #include "headerfield.h"
 #include "autobuffer.h"
-#include "networkmodel/applicationpacket.h"
+#include "networkmodel/applicationlayer.h"
 #include <map>
 
 
@@ -47,7 +47,7 @@ class HttpParser : public ApplicationProtocolParser {
         kError,
     };
     
-    HttpParser(http::HeaderField *_headers,
+    HttpParser(http::HttpPacket *_http_packet,
                AutoBuffer *_buff);
     
     ~HttpParser() override;
@@ -62,8 +62,6 @@ class HttpParser : public ApplicationProtocolParser {
     
     TPosition GetPosition() const;
     
-    AutoBuffer *Buffer();
-
   protected:
     virtual bool _ResolveFirstLine() = 0;
     
@@ -73,6 +71,7 @@ class HttpParser : public ApplicationProtocolParser {
     
   protected:
     TPosition                               position_;
+    http::HttpPacket                      * http_packet_;
     http::HeaderField                     * headers_;
     size_t                                  first_line_len_;
     size_t                                  header_len_;

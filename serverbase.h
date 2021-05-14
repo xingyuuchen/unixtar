@@ -91,6 +91,8 @@ class ServerBase {
          * @return: true if you handled your Notification, else false.
          */
         virtual bool HandleNotification(EpollNotifier::Notification &);
+    
+        virtual int HandleApplicationPacket(tcp::ConnectionProfile *) = 0;
         
         void NotifyStop();
       
@@ -108,13 +110,12 @@ class ServerBase {
 
       protected:
         
-        virtual int _OnReadEvent(tcp::ConnectionProfile *) = 0;
+        int _OnReadEvent(tcp::ConnectionProfile *);
     
         /**
-         *
-         * @return: whether your write event is done.
+         * @return: whether write event is done.
          */
-        virtual bool _OnWriteEvent(tcp::SendContext *) = 0;
+        static bool _OnWriteEvent(tcp::SendContext *);
     
         virtual int _OnErrEvent(tcp::ConnectionProfile *);
         

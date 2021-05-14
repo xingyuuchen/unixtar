@@ -1,6 +1,7 @@
 #include "webserver.h"
 #include "utils/log.h"
 #include "timeutil.h"
+#include "http/httprequest.h"
 #include <cstring>
 
 
@@ -15,7 +16,7 @@ WebServer::ServerConfig::ServerConfig()
 }
 
 
-WebServer::WebServer() : HttpServer() {
+WebServer::WebServer() : ServerBase() {
 }
 
 void WebServer::AfterConfig() {
@@ -48,7 +49,7 @@ void WebServer::WorkerThread::Run() {
     
     while (true) {
         
-        http::RecvContext *recv_ctx;
+        tcp::RecvContext *recv_ctx;
         if (recv_queue->pop_front_to(recv_ctx)) {
         
             if (net_thread_->IsWorkerOverload()) {
@@ -104,7 +105,7 @@ WebServer::WorkerThread::~WorkerThread() = default;
 const size_t WebServer::NetThread::kDefaultMaxBacklog = 1024;
 
 WebServer::NetThread::NetThread()
-        : HttpNetThread()
+        : NetThreadBase()
         , max_backlog_(kDefaultMaxBacklog) {
     
 }
@@ -184,22 +185,36 @@ bool WebServer::NetThread::__IsNotifySend(EpollNotifier::Notification &_notifica
     return _notification == notification_send_;
 }
 
-int WebServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_conn) {
-    if (_conn->GetType() != tcp::ConnectionProfile::kFrom) {
-        LogE("NOT a http request, type: %d", _conn->GetType())
-        return -1;
-    }
+void WebServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn) {
+    assert(_conn->GetType() == tcp::ConnectionProfile::kFrom);
+    _conn->ConfigApplicationLayer<http::request::HttpRequest,
+                                  http::request::Parser>();
+}
+
+int WebServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn) {
+    assert(_conn);
+    uint32_t uid;
+    do {
+        uid = _conn->Uid();
+        if (_conn->ApplicationProtocol() != kHttp1_1) {
+            LogE("%s is NOT a http1.1 packet", _conn->ApplicationProtocolName())
+            break;
+        }
+        if (_conn->GetType() != tcp::ConnectionProfile::kFrom) {
+            LogE("NOT a http request, type: %d", _conn->GetType())
+            break;
+        }
+        if (IsWorkerFullyLoad()) {
+            LogI("worker fully loaded, drop connection directly")
+            break;
+        }
+        recv_queue_.push_back(_conn->GetRecvContext());
+        return 0;
+        
+    } while (false);
     
-    uint32_t uid = _conn->Uid();
-    
-    if (IsWorkerFullyLoad()) {
-        LogI("worker fully loaded, drop connection directly")
-        DelConnection(uid);
-        return -1;
-    }
-    
-    recv_queue_.push_back(_conn->GetRecvContext());
-    return 0;
+    DelConnection(uid);
+    return -1;
 }
 
 WebServer::NetThread::~NetThread() = default;

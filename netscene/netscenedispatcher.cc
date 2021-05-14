@@ -80,7 +80,7 @@ int NetSceneDispatcher::__GetNetSceneTypeByRoute(std::string &_full_url) {
 
 NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() = default;
 
-void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx) {
+void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext *_recv_ctx) {
     if (!_recv_ctx) {
         return;
     }
@@ -148,7 +148,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
 
 }
 
-void NetSceneDispatcher::NetSceneWorker::HandleOverload(http::RecvContext *_recv_ctx) {
+void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext *_recv_ctx) {
     if (!_recv_ctx) {
         return;
     }

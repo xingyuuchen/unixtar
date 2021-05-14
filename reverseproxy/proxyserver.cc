@@ -11,7 +11,7 @@ const char *const ReverseProxyServer::ProxyConfig::key_webservers = "webservers"
 
 
 ReverseProxyServer::ReverseProxyServer()
-        : HttpServer() {
+        : ServerBase() {
     
     load_balancer_.ConfigRule(LoadBalancer::kPoll);
 }
@@ -37,7 +37,7 @@ ReverseProxyServer::ProxyConfig::~ProxyConfig() {
 
 
 ReverseProxyServer::NetThread::NetThread()
-        : HttpNetThread() {
+        : NetThreadBase() {
 }
 
 void ReverseProxyServer::AfterConfig() {
@@ -50,8 +50,19 @@ void ReverseProxyServer::AfterConfig() {
     LogI("register %ld webservers to load balancer", conf->webservers.size())
 }
 
-int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_conn) {
+void ReverseProxyServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn) {
+    assert(_conn->GetType() == tcp::ConnectionProfile::kFrom);
+    _conn->ConfigApplicationLayer<http::response::HttpResponse,
+            http::response::Parser>();
+}
+
+int ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn) {
     assert(_conn);
+    if (_conn->ApplicationProtocol() != kHttp1_1) {
+        LogE("%s NOT a Http1.1 packet", _conn->ApplicationProtocolName())
+        HandleForwardFailed(_conn);
+        return -1;
+    }
     
     tcp::ConnectionProfile::TType type = _conn->GetType();
     uint32_t uid = _conn->Uid();
