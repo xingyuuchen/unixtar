@@ -1,7 +1,7 @@
 #pragma once
-#include "http/httprequest.h"
-#include "http/httpresponse.h"
 #include "socket/unixsocket.h"
+#include "applicationpacket.h"
+#include "log.h"
 
 
 namespace tcp {
@@ -14,11 +14,9 @@ struct SendContext {
 
 namespace http {
 struct RecvContext {
-    SOCKET              fd;
-    tcp::SendContext *  send_context;
-    bool                is_post;
-    std::string         full_url;
-    AutoBuffer          http_body;
+    SOCKET                  fd;
+    tcp::SendContext      * send_context;
+    ApplicationPacket     * application_packet;
 };
 }
 
@@ -30,13 +28,6 @@ class ConnectionProfile {
     enum TType {
         kFrom = 0,
         kTo,
-    };
-    
-    enum TApplicationProtocol {
-        kUnknown = 0,
-        kHttp1_1,   // default
-        kHttp2_0,
-        kHttp3_0,
     };
     
     ConnectionProfile(std::string _remote_ip,
@@ -59,15 +50,30 @@ class ConnectionProfile {
      */
     int ParseProtocol();
     
-    virtual bool IsParseDone();
+    bool IsParseDone();
+    
+    template<class ApplicationPacketImpl, class ApplicationParserImpl>
+    void
+    ConfigApplicationLayer() {
+        if (application_packet_ && !application_packet_->IsLongLink()) {
+            LogE("application protocol already configured.")
+            assert(false);
+        }
+        delete application_packet_, application_packet_ = nullptr;
+        delete application_protocol_parser_, application_protocol_parser_ = nullptr;
+        
+        application_packet_ = new ApplicationPacketImpl();
+        application_protocol_parser_ = new ApplicationParserImpl(
+                &tcp_byte_arr_, (ApplicationPacketImpl *) application_packet_);
+        LogI("application protocol config to: %d",
+             application_packet_->ApplicationProtocol())
+    }
     
     virtual bool IsLongLink();
     
-    virtual http::ParserBase *GetParser() = 0;
+    AutoBuffer *TcpByteArray();
     
     void CloseTcpConnection();
-    
-    TApplicationProtocol GetApplicationProtocol() const;
     
     SOCKET FD() const;
     
@@ -91,9 +97,6 @@ class ConnectionProfile {
     
     uint16_t RemotePort() const;
 
-  private:
-    virtual AutoBuffer *RecvBuff() = 0;
-
   protected:
     static const uint64_t   kDefaultTimeout;
     uint32_t                uid_;
@@ -103,7 +106,11 @@ class ConnectionProfile {
     uint64_t                record_;
     uint64_t                timeout_millis_;
     uint64_t                timeout_ts_;
-    TApplicationProtocol    application_protocol_;
+    AutoBuffer              tcp_byte_arr_;
+    
+    ApplicationPacket     * application_packet_;
+    ApplicationProtocolParser     * application_protocol_parser_;
+    
     tcp::SendContext        send_ctx_{0, INVALID_SOCKET};
     http::RecvContext       recv_ctx_{INVALID_SOCKET, nullptr};
     
@@ -118,22 +125,12 @@ class ConnectionFrom : public ConnectionProfile {
     
     ~ConnectionFrom() override;
     
-    bool IsParseDone() override;
-    
     TType GetType() const override;
     
     void MakeRecvContext() override;
     
-    bool IsLongLink() override;
-    
-    http::ParserBase *GetParser() override;
-
   private:
-    AutoBuffer *RecvBuff() override;
-
-  private:
-    http::request::Parser   http_req_parser_;
-
+  
 };
 
 
@@ -148,17 +145,10 @@ class ConnectionTo : public ConnectionProfile {
     
     int Connect();
     
-    bool IsParseDone() override;
-    
     TType GetType() const override;
 
-    http::ParserBase *GetParser() override;
-
   private:
-    AutoBuffer *RecvBuff() override;
-
-  private:
-    http::response::Parser  http_resp_parser_;
+  
 };
 
 }

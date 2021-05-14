@@ -1,4 +1,4 @@
-# 🌟Unixtar
+# 🌟 Unixtar
 
 ### Short for `✨Unique Star✨`
 
@@ -169,7 +169,7 @@ bash launchproxy.sh
 
 Reverse proxy do such things:
 * Forward. Forward Http packet to web servers who truly handles request, then pass back Http response.
-* Load Balance. You can chose among three different ways: `Poll`, `By weight`, `IP Hash`.
+* Load Balance. You can chose among three different rules: `Poll`, `By weight`, `IP Hash`.
 
 Configure your reverse proxy by editing `reverseproxy/proxyserverconf.yml`. You can custom:
 * Port that reverse proxy server listens on.

@@ -1,37 +1,23 @@
 #pragma once
 
-#include "parserbase.h"
+#include "httppacket.h"
 
 
 namespace http { namespace request {
 
+class HttpRequest;
 
 void Pack(const std::string &_host, const std::string &_url,
           const std::map<std::string, std::string> *_headers,
           AutoBuffer &_send_body, AutoBuffer &_out_buff);
 
 
-class Parser : public http::ParserBase {
+class Parser : public http::HttpParser {
   public:
-    Parser();
+    
+    Parser(AutoBuffer *_buff, HttpRequest *_http_request);
     
     ~Parser() override;
-    
-    bool IsMethodPost() const;
-    
-    char *GetBody() override;
-    
-    std::string &GetRequestUrl();
-    
-    size_t GetContentLength() const override;
-    
-    std::string &GetUrl();
-    
-    THttpMethod GetMethod() const;
-    
-    THttpVersion GetVersion() const;
-    
-    bool IsHttpRequest() const override;
     
   protected:
     bool _ResolveFirstLine() override;
@@ -39,8 +25,34 @@ class Parser : public http::ParserBase {
     bool _ResolveBody() override;
 
   private:
-    http::RequestLine                       request_line_;
+    http::request::HttpRequest            * http_request_;
+    http::RequestLine                     * request_line_;
+};
+
+
+
+class HttpRequest : public http::HttpPacket {
+  public:
+    HttpRequest();
     
+    ~HttpRequest() override;
+    
+    AutoBuffer *Body() override;
+    
+    size_t ContentLength() const override;
+    
+    http::RequestLine *GetRequestLine();
+    
+    std::string &Url();
+    
+    THttpMethod Method() const;
+    
+    bool IsMethodPost() const;
+    
+    THttpVersion Version() const;
+    
+  private:
+    http::RequestLine   request_line_;
 };
 
 }}

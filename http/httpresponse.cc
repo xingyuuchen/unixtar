@@ -1,6 +1,7 @@
 #include "httpresponse.h"
 #include "strutil.h"
 #include "log.h"
+#include <cassert>
 
 
 namespace http { namespace response {
@@ -36,19 +37,22 @@ void Pack(http::THttpVersion _http_ver, int _resp_code, std::string &_status_des
 
 
 
-Parser::Parser() : http::ParserBase() {
+Parser::Parser(AutoBuffer *_buff, HttpResponse *_http_resp)
+        : http::HttpParser(_http_resp->Headers(), _buff)
+        , status_line_(_http_resp->getStatusLine()) {
+    
+    assert(_http_resp && status_line_);
 }
 
 Parser::~Parser() = default;
 
-
 bool Parser::_ResolveFirstLine() {
     LogI("Resolve Status Line")
-    char *start = buff_.Ptr();
-    char *crlf = str::strnstr(start, "\r\n", buff_.Length());
+    char *start = buffer_->Ptr();
+    char *crlf = str::strnstr(start, "\r\n", buffer_->Length());
     if (crlf) {
         std::string req_line(start, crlf - start);
-        if (status_line_.ParseFromString(req_line)) {
+        if (status_line_->ParseFromString(req_line)) {
             position_ = kHeaders;
             resolved_len_ = crlf - start + 2;   // 2 for CRLF
             first_line_len_ = resolved_len_;
@@ -64,12 +68,22 @@ bool Parser::_ResolveFirstLine() {
     return false;
 }
 
-int Parser::GetStatusCode() const { return status_line_.StatusCode(); }
 
-THttpVersion Parser::GetVersion() const { return status_line_.GetVersion(); }
 
-std::string &Parser::StatusDesc() { return status_line_.StatusDesc(); }
+HttpResponse::HttpResponse()
+        : http::HttpPacket() {
+    
+}
 
-bool Parser::IsHttpRequest() const { return false; }
+http::StatusLine *HttpResponse::getStatusLine() { return &status_line_; }
+
+int HttpResponse::StatusCode() const { return status_line_.StatusCode(); }
+
+THttpVersion HttpResponse::Version() const { return status_line_.GetVersion(); }
+
+std::string &HttpResponse::StatusDesc() { return status_line_.StatusDesc(); }
+
+HttpResponse::~HttpResponse() = default;
+
 
 }}

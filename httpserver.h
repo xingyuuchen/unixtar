@@ -15,6 +15,8 @@ class HttpServer : public ServerBase {
         ~HttpNetThread() override;
         
         virtual int HandleHttpPacket(tcp::ConnectionProfile *) = 0;
+    
+        void ConfigApplicationLayer(tcp::ConnectionProfile *) override;
 
       protected:
         int _OnReadEvent(tcp::ConnectionProfile *) final;

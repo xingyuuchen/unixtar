@@ -3,6 +3,7 @@
 #include "headerfield.h"
 #include "log.h"
 #include <cstring>
+#include <cassert>
 #include "strutil.h"
 
 
@@ -39,7 +40,12 @@ void Pack(const std::string &_host, const std::string &_url,
 }
 
 
-Parser::Parser() : http::ParserBase() {
+Parser::Parser(AutoBuffer *_buff, http::request::HttpRequest  *_http_request)
+        : http::HttpParser(_http_request->Headers(), _buff)
+        , http_request_(_http_request)
+        , request_line_(_http_request->GetRequestLine()) {
+    
+    assert(http_request_ && request_line_);
 }
 
 Parser::~Parser() = default;
@@ -47,11 +53,11 @@ Parser::~Parser() = default;
 
 bool Parser::_ResolveFirstLine() {
     LogI("Resolve Request Line")
-    char *start = buff_.Ptr();
-    char *crlf = str::strnstr(start, "\r\n", buff_.Length());
+    char *start = buffer_->Ptr();
+    char *crlf = str::strnstr(start, "\r\n", buffer_->Length());
     if (crlf) {
         std::string req_line(start, crlf - start);
-        if (request_line_.ParseFromString(req_line)) {
+        if (request_line_->ParseFromString(req_line)) {
             position_ = kHeaders;
             resolved_len_ = crlf - start + 2;   // 2 for CRLF
             first_line_len_ = resolved_len_;
@@ -67,40 +73,9 @@ bool Parser::_ResolveFirstLine() {
     return false;
 }
 
-
-bool Parser::IsMethodPost() const {
-    return request_line_.GetMethod() == THttpMethod::kPOST;
-}
-
-std::string &Parser::GetRequestUrl() { return request_line_.GetUrl(); }
-
-char *Parser::GetBody() {
-    if (request_line_.GetMethod() == http::THttpMethod::kGET) {
-        LogI("GET, return NULL")
-        return nullptr;
-    }
-    return ParserBase::GetBody();
-}
-
-size_t Parser::GetContentLength() const {
-    if (request_line_.GetMethod() == http::THttpMethod::kGET) {
-        LogI("GET, return 0")
-        return 0;
-    }
-    return ParserBase::GetContentLength();
-}
-
-std::string &Parser::GetUrl() { return request_line_.GetUrl(); }
-
-THttpMethod Parser::GetMethod() const { return request_line_.GetMethod(); }
-
-THttpVersion Parser::GetVersion() const { return request_line_.GetVersion(); }
-
-bool Parser::IsHttpRequest() const { return true; }
-
 bool Parser::_ResolveBody() {
-    if (request_line_.GetMethod() == http::THttpMethod::kGET) {
-        if (buff_.Length() - resolved_len_ > 0) {
+    if (request_line_->GetMethod() == http::THttpMethod::kGET) {
+        if (buffer_->Length() - resolved_len_ > 0) {
             LogI("GET request has body")
             position_ = kError;
             return false;
@@ -108,8 +83,44 @@ bool Parser::_ResolveBody() {
         position_ = kEnd;
         return true;
     }
-    return ParserBase::_ResolveBody();
+    return HttpParser::_ResolveBody();
 }
+
+
+
+HttpRequest::HttpRequest()
+        : http::HttpPacket() {
+    
+}
+
+AutoBuffer *HttpRequest::Body() {
+    if (request_line_.GetMethod() == http::THttpMethod::kGET) {
+        LogD("GET, return NULL")
+        return nullptr;
+    }
+    return HttpPacket::Body();
+}
+
+
+size_t HttpRequest::ContentLength() const {
+    if (request_line_.GetMethod() == http::THttpMethod::kGET) {
+        LogD("GET, return 0")
+        return 0;
+    }
+    return HttpPacket::ContentLength();
+}
+
+std::string &HttpRequest::Url() { return request_line_.GetUrl(); }
+
+THttpMethod HttpRequest::Method() const { return request_line_.GetMethod(); }
+
+bool HttpRequest::IsMethodPost() const { return Method() == THttpMethod::kPOST; }
+
+THttpVersion HttpRequest::Version() const { return request_line_.GetVersion(); }
+
+http::RequestLine *HttpRequest::GetRequestLine() { return &request_line_; }
+
+HttpRequest::~HttpRequest() = default;
 
 }}
 

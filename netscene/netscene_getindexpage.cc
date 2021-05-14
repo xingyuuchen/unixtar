@@ -12,7 +12,7 @@ uint64_t NetSceneGetIndexPage::visit_times_start = 0;
 uint64_t NetSceneGetIndexPage::visit_times_this_boot = 0;
 
 const char *const NetSceneGetIndexPage::kRespFormat =
-        "If you see this, the server is running normally, %llu visits since last boot.";
+        "If you see this, the server is running normally, %llu total historical visits.";
 
 std::mutex NetSceneGetIndexPage::mutex_;
 

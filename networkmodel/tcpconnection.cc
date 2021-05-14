@@ -1,8 +1,8 @@
-#include "connectionprofile.h"
+#include "tcpconnection.h"
 #include <cstring>
+#include <cassert>
 #include <utility>
 #include "timeutil.h"
-#include "log.h"
 #include "socket/unixsocket.h"
 
 
@@ -15,23 +15,22 @@ ConnectionProfile::ConnectionProfile(std::string _remote_ip,
         : uid_(_uid)
         , remote_ip_(std::move(_remote_ip))
         , remote_port_(_remote_port)
-        , application_protocol_(TApplicationProtocol::kHttp1_1)
         , record_(::gettickcount())
         , timeout_millis_(kDefaultTimeout)
         , socket_(INVALID_SOCKET)
-        , timeout_ts_(record_ + timeout_millis_) {
+        , timeout_ts_(record_ + timeout_millis_)
+        , application_packet_(nullptr)
+        , application_protocol_parser_(nullptr) {
 }
 
 
 int ConnectionProfile::Receive() {
     
-    AutoBuffer *recv_buff = RecvBuff();
-    
     SOCKET fd = socket_.FD();
     while (true) {
     
         bool has_more_data;
-        ssize_t n = socket_.Recv(recv_buff, &has_more_data);
+        ssize_t n = socket_.Recv(&tcp_byte_arr_, &has_more_data);
     
         if (socket_.IsEAgain()) {
             LogI("EAGAIN")
@@ -49,8 +48,7 @@ int ConnectionProfile::Receive() {
         int ret = ParseProtocol();
         
         if (ret == -1) {
-            LogE("Please override func: ParseProtocol "
-                           "when using other protocol than Http1.1")
+            LogE("No application_protocol_parser set")
             return -1;
         } else if (ret == -2) {
             return -1;
@@ -73,17 +71,14 @@ uint32_t ConnectionProfile::Uid() const { return uid_; }
 void ConnectionProfile::SetUid(uint32_t _uid) { uid_ = _uid; }
 
 int ConnectionProfile::ParseProtocol() {
-    if (application_protocol_ != TApplicationProtocol::kHttp1_1) {
-        // Override me if you use other application protocol
-        // other than Http1_1. :)
+    if (!application_protocol_parser_) {
+        LogE("please config application protocol first")
         return -1;
     }
     
-    http::ParserBase *parser = GetParser();
+    application_protocol_parser_->DoParse();
     
-    parser->DoParse();
-    
-    if (parser->IsErr()) {
+    if (application_protocol_parser_->IsErr()) {
         LogI("parser error")
         return -2;
     }
@@ -92,21 +87,20 @@ int ConnectionProfile::ParseProtocol() {
 
 
 bool ConnectionProfile::IsParseDone() {
-    if (application_protocol_ != TApplicationProtocol::kHttp1_1) {
-        return false;
-    }
-    return true;
+    assert(application_protocol_parser_);
+    return application_protocol_parser_->IsEnd();
 }
 
 bool ConnectionProfile::IsLongLink() {
-    return false;
+    if (!application_packet_) {
+        return false;
+    }
+    return application_packet_->IsLongLink();
 }
+
+AutoBuffer *ConnectionProfile::TcpByteArray() { return &tcp_byte_arr_; }
 
 void ConnectionProfile::CloseTcpConnection() { socket_.Close(); }
-
-ConnectionProfile::TApplicationProtocol ConnectionProfile::GetApplicationProtocol() const {
-    return application_protocol_;
-}
 
 SOCKET ConnectionProfile::FD() const { return socket_.FD(); }
 
@@ -164,18 +158,7 @@ int ConnectionTo::Connect() {
     return ret;
 }
 
-AutoBuffer *ConnectionTo::RecvBuff() { return http_resp_parser_.GetBuff(); }
-
-bool ConnectionTo::IsParseDone() {
-    if (!ConnectionProfile::IsParseDone()) {
-        return false;
-    }
-    return http_resp_parser_.IsEnd();
-}
-
 ConnectionProfile::TType ConnectionTo::GetType() const { return kTo; }
-
-http::ParserBase *ConnectionTo::GetParser() { return &http_resp_parser_; }
 
 
 
@@ -190,20 +173,6 @@ ConnectionFrom::ConnectionFrom(SOCKET _fd, std::string _remote_ip,
 
 ConnectionProfile::TType ConnectionFrom::GetType() const { return kFrom; }
 
-AutoBuffer *ConnectionFrom::RecvBuff() { return http_req_parser_.GetBuff(); }
-
-bool ConnectionFrom::IsParseDone() {
-    if (!ConnectionProfile::IsParseDone()) {
-        return false;
-    }
-    return http_req_parser_.IsEnd();
-}
-
-bool ConnectionFrom::IsLongLink() {
-    return http_req_parser_.Headers().IsKeepAlive();
-}
-
-http::ParserBase *ConnectionFrom::GetParser() { return &http_req_parser_; }
 
 void ConnectionFrom::MakeRecvContext() {
     if (!IsParseDone()) {
@@ -211,17 +180,23 @@ void ConnectionFrom::MakeRecvContext() {
         return;
     }
     recv_ctx_.fd = socket_.FD();
-    recv_ctx_.is_post = http_req_parser_.IsMethodPost();
-    if (recv_ctx_.is_post) {
-        recv_ctx_.http_body.ShallowCopyFrom(http_req_parser_.GetBody(),
-                                            http_req_parser_.GetContentLength());
-    }
-    std::string &url = http_req_parser_.GetRequestUrl();
-    recv_ctx_.full_url = std::string(url);
+//    recv_ctx_.is_post = http_req_.IsMethodPost();
+//    if (recv_ctx_.is_post) {
+//        recv_ctx_.http_body.ShallowCopyFrom(http_req_.Body(),
+//                                            http_req_.ContentLength());
+//    }
+//    std::string &url = http_req_.Url();
+//    recv_ctx_.full_url = std::string(url);
+    recv_ctx_.application_packet = application_packet_;
     recv_ctx_.send_context = &send_ctx_;
 }
 
-ConnectionFrom::~ConnectionFrom() = default;
+ConnectionFrom::~ConnectionFrom() {
+    delete application_protocol_parser_;
+    application_protocol_parser_ = nullptr;
+    delete application_packet_;
+    application_packet_ = nullptr;
+}
 
 
 }

@@ -354,6 +354,8 @@ void ServerBase::NetThreadBase::RegisterConnection(int _fd, std::string &_ip,
     auto neo = new tcp::ConnectionFrom(_fd, _ip, _port,
                                        ConnectionManager::kInvalidUid);
     connection_manager_.AddConnection(neo);
+    
+    ConfigApplicationLayer(neo);
 }
 
 tcp::ConnectionProfile *ServerBase::NetThreadBase::MakeConnection(std::string &_ip,
@@ -374,6 +376,7 @@ tcp::ConnectionProfile *ServerBase::NetThreadBase::MakeConnection(std::string &_
     }
     if (success) {
         connection_manager_.AddConnection(neo);
+        ConfigApplicationLayer(neo);
         return neo;
     }
     delete neo;

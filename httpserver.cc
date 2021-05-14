@@ -1,6 +1,8 @@
 #include "httpserver.h"
 #include "log.h"
 #include <unistd.h>
+#include "httprequest.h"
+#include "httpresponse.h"
 
 
 
@@ -12,6 +14,14 @@ HttpServer::~HttpServer() = default;
 
 HttpServer::HttpNetThread::HttpNetThread()
         : NetThreadBase() {
+}
+
+void HttpServer::HttpNetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn) {
+    if (_conn->GetType() == tcp::ConnectionProfile::kFrom) {
+        _conn->ConfigApplicationLayer<http::request::HttpRequest, http::request::Parser>();
+    } else {
+        _conn->ConfigApplicationLayer<http::response::HttpResponse, http::response::Parser>();
+    }
 }
 
 int HttpServer::HttpNetThread::_OnReadEvent(tcp::ConnectionProfile *_conn) {

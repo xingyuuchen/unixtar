@@ -7,7 +7,7 @@
 #include <vector>
 #include <cassert>
 #include "thread.h"
-#include "http/connectionprofile.h"
+#include "networkmodel/tcpconnection.h"
 #include "socket/socketepoll.h"
 #include "yamlutil.h"
 
@@ -84,7 +84,7 @@ class ServerBase {
     
         ~NetThreadBase() override;
     
-        void Run() override;
+        void Run() final;
     
         /**
          *
@@ -95,6 +95,8 @@ class ServerBase {
         void NotifyStop();
       
         void RegisterConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
+    
+        virtual void ConfigApplicationLayer(tcp::ConnectionProfile *) = 0;
     
         tcp::ConnectionProfile *MakeConnection(std::string &_ip, uint16_t _port);
     

@@ -5,6 +5,7 @@
 #include "netscene_hellosvr.h"
 #include "netscene_404notfound.h"
 #include "timeutil.h"
+#include "http/httprequest.h"
 #include "http/httpresponse.h"
 #include "constantsprotocol.h"
 
@@ -83,30 +84,33 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     if (!_recv_ctx) {
         return;
     }
+    assert(_recv_ctx->application_packet->ApplicationProtocol() == kHttp1_1);
+    auto *http_request = (http::request::HttpRequest *) _recv_ctx->application_packet;
+    
     SOCKET fd = _recv_ctx->fd;
-    AutoBuffer &http_body = _recv_ctx->http_body;
+    AutoBuffer *http_body = http_request->Body();
     
     int type = kNetSceneType404NotFound;
     std::string req_buffer;
     do {
-        std::string &full_url = _recv_ctx->full_url;
+        std::string &full_url = http_request->Url();
         type = NetSceneDispatcher::Instance().__GetNetSceneTypeByRoute(full_url);
-        if (!_recv_ctx->is_post) {
+        if (!http_request->IsMethodPost()) {
             LogI("fd(%d), GET, url: %s", fd, full_url.c_str())
             break;
         }
         if (type != kNetSceneType404NotFound) {
             LogI("fd(%d), POST, url: %s", fd, full_url.c_str())
-            req_buffer = std::string(http_body.Ptr(), http_body.Length());
+            req_buffer = std::string(http_body->Ptr(), http_body->Length());
             break;
         }
-        if (!http_body.Ptr() || http_body.Length() <= 0) {
+        if (!http_body->Ptr() || http_body->Length() <= 0) {
             LogI("fd(%d), POST but no http body, return 404", fd)
             break;
         }
-        LogI("fd(%d) http_body.len: %zd", fd, http_body.Length());
+        LogI("fd(%d) http_body.len: %zd", fd, http_body->Length());
         BaseNetSceneReq::BaseNetSceneReq base_req;
-        base_req.ParseFromArray(http_body.Ptr(), http_body.Length());
+        base_req.ParseFromArray(http_body->Ptr(), http_body->Length());
     
         if (!base_req.has_net_scene_type()) {
             LogI("fd(%d) base_req.has_net_scene_type(): false", fd)
@@ -129,10 +133,10 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(http::RecvContext *_recv_ctx
     }
     
     uint64_t start = ::gettickcount();
-    if (_recv_ctx->is_post) {
+    if (http_request->IsMethodPost()) {
         net_scene->DoScene(req_buffer);
     } else {
-        net_scene->DoScene(_recv_ctx->full_url);
+        net_scene->DoScene(http_request->Url());
     }
     uint64_t cost = ::gettickcount() - start;
     LogI("fd(%d) type(%d), cost %llu ms", fd, type, cost)
@@ -148,13 +152,16 @@ void NetSceneDispatcher::NetSceneWorker::HandleOverload(http::RecvContext *_recv
     if (!_recv_ctx) {
         return;
     }
+    assert(_recv_ctx->application_packet->ApplicationProtocol() == kHttp1_1);
+    auto *http_request = (http::request::HttpRequest *) _recv_ctx->application_packet;
+    
     std::string resp_str = "server is busy now";
     std::string status_desc = "OK";
     int resp_code = 200;
     
     std::string resp;
     std::map<std::string, std::string> headers;
-    if (!_recv_ctx->is_post) {
+    if (!http_request->IsMethodPost()) {
         resp = resp_str;
         headers[http::HeaderField::kContentType] = http::HeaderField::kTextPlain;
         

@@ -1,5 +1,6 @@
 #include "proxyserver.h"
 #include "log.h"
+#include "http/httpresponse.h"
 
 
 const char *const ReverseProxyServer::kConfigFile = "proxyserverconf.yml";
@@ -53,7 +54,6 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
     assert(_conn);
     
     tcp::ConnectionProfile::TType type = _conn->GetType();
-    AutoBuffer *http_packet;
     uint32_t uid = _conn->Uid();
     
     tcp::ConnectionProfile *to;
@@ -87,7 +87,6 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
         
         conn_map_[conn_to_webserver->Uid()] = uid;
     
-        http_packet = _conn->GetParser()->GetBuff();
         to = conn_to_webserver;
         
     } else {    // Send back to client
@@ -97,12 +96,12 @@ int ReverseProxyServer::NetThread::HandleHttpPacket(tcp::ConnectionProfile *_con
         uint32_t client_uid = conn_map_[uid];
         to = GetConnection(client_uid);
         
-        http_packet = _conn->GetParser()->GetBuff();
         LogI("send back to client: [%s:%d]",
              to->RemoteIp().c_str(), to->RemotePort())
         
     }
     
+    AutoBuffer *http_packet = _conn->TcpByteArray();
     AutoBuffer &buff = to->GetSendContext()->buffer;
     buff.ShallowCopyFrom(http_packet->Ptr(), http_packet->Length());
     
