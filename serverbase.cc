@@ -102,6 +102,13 @@ void ServerBase::Config() {
 void ServerBase::AfterConfig() {
     // implement if needed
 }
+void ServerBase::LoopingEpollWait() {
+    // implement if needed
+}
+
+int ServerBase::EpollLoopInterval() {
+    return 30 * 1000;
+}
 
 void ServerBase::Serve() {
     
@@ -116,9 +123,11 @@ void ServerBase::Serve() {
     for (auto &net_thread : net_threads_) {
         net_thread->Start();
     }
+    const int kEpollWaitInterval = EpollLoopInterval();
+    uint64_t last_invoke = 0;
     
     while (running_) {
-        int n_events = socket_epoll_.EpollWait();
+        int n_events = socket_epoll_.EpollWait(kEpollWaitInterval);
         
         if (n_events < 0) {
             int epoll_errno = socket_epoll_.GetErrNo();
@@ -145,6 +154,12 @@ void ServerBase::Serve() {
             if (auto fd = (SOCKET) socket_epoll_.IsErrSet(i)) {
                 _OnEpollErr(fd);
             }
+        }
+        
+        uint64_t now = ::gettickcount();
+        if (now - last_invoke > kEpollWaitInterval) {
+            LoopingEpollWait();
+            last_invoke = now;
         }
     }
     

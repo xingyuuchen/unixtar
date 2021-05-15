@@ -119,7 +119,9 @@ WebServerProfile::WebServerProfile()
     , port(0)
     , weight(0)
     , is_down(false)
-    , last_down_ts(0) {
+    , backlog(0)
+    , last_down_ts(0)
+    , last_heartbeat_ts(0) {
     
 }
 

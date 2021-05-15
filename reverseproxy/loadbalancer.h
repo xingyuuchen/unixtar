@@ -9,7 +9,9 @@ struct WebServerProfile {
     uint16_t        port;
     uint16_t        weight;
     uint64_t        last_down_ts;
+    uint64_t        last_heartbeat_ts;
     bool            is_down;
+    uint64_t        backlog;
     static uint64_t MakeSeq();
     static uint64_t kInvalidSeq;
     uint64_t        svr_id;

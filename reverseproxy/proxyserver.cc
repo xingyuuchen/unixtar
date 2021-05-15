@@ -1,6 +1,8 @@
 #include "proxyserver.h"
 #include "log.h"
+#include "http/httprequest.h"
 #include "http/httpresponse.h"
+#include "netscenesvrheartbeat.pb.h"
 
 
 const char *const ReverseProxyServer::kConfigFile = "proxyserverconf.yml";
@@ -69,7 +71,12 @@ int ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfil
     
     tcp::ConnectionProfile *to;
     
-    if (type == tcp::ConnectionProfile::kFrom) {   // Forward to web server
+    if (type == tcp::ConnectionProfile::kFrom) {   // Forward to web server or heartbeat
+    
+        if (ReverseProxyServer::Instance().CheckHeartbeat(_conn)) {
+            DelConnection(_conn->Uid());
+            return 0;
+        }
     
         std::string src_ip = _conn->RemoteIp();
         
@@ -132,7 +139,7 @@ void ReverseProxyServer::NetThread::HandleForwardFailed(
                 tcp::ConnectionProfile * _client_conn) {
     static std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
     std::string status_desc("OK");
-    http::response::Pack(http::THttpVersion::kHTTP_1_1, 200,
+    http::response::Pack(http::THttpVersion::kHTTP_1_1, 500,
                          status_desc, nullptr,
                          _client_conn->GetSendContext()->buffer, forward_failed_msg);
     if (_OnWriteEvent(_client_conn->GetSendContext())) {
@@ -162,6 +169,36 @@ bool ReverseProxyServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
 
 const char *ReverseProxyServer::ConfigFile() {
     return kConfigFile;
+}
+
+bool ReverseProxyServer::CheckHeartbeat(tcp::ConnectionProfile *_conn) {
+    std::string &ip = _conn->RemoteIp();
+    uint16_t port = _conn->RemotePort();
+    auto &webservers = ((ProxyConfig *) config_)->webservers;
+    
+    WebServerProfile *from = nullptr;
+    bool is_webserver = std::any_of(webservers.begin(), webservers.end(),
+                   [&] (WebServerProfile *webserver) {
+           if (webserver->ip == ip && webserver->port == port) {
+               from = webserver;
+               return true;
+           }
+           return false;
+    });
+    if (!is_webserver) {
+        return false;
+    }
+    
+    auto http_req = (http::request::HttpRequest *) _conn->
+            GetRecvContext()->application_packet;
+    AutoBuffer *body = http_req->Body();
+    NetSceneSvrHeartbeatProto::NetSceneSvrHeartbeatReq req;
+    req.ParseFromArray(body->Ptr(), body->Length());
+    
+    from->is_down = false;
+    from->backlog = req.request_backlog();
+    from->last_heartbeat_ts = ::gettickcount();
+    return true;
 }
 
 ReverseProxyServer::~ReverseProxyServer() = default;

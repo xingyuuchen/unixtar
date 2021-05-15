@@ -12,6 +12,10 @@ class ReverseProxyServer final : public ServerBase {
     SINGLETON(ReverseProxyServer, )
 
   public:
+    void AfterConfig() override;
+    
+    bool CheckHeartbeat(tcp::ConnectionProfile *);
+    
     const char *ConfigFile() override;
     
     ~ReverseProxyServer() override;
@@ -49,8 +53,6 @@ class ReverseProxyServer final : public ServerBase {
     
   protected:
     bool _CustomConfig(yaml::YamlDescriptor *_desc) override;
-    
-    void AfterConfig() override;
     
     ServerConfigBase *_MakeConfig() override;
 

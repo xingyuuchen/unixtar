@@ -18,15 +18,27 @@ class WebServer final : public ServerBase {
     
     const char *ConfigFile() override;
     
+    void LoopingEpollWait() override;
+    
+    int EpollLoopInterval() override;
+    
+    void SendHeartbeat();
+    
     ~WebServer() override;
     
     class ServerConfig : public ServerBase::ServerConfigBase {
       public:
         ServerConfig();
         static const char *const    key_max_backlog;
-        size_t                      max_backlog;
         static const char *const    key_worker_thread_cnt;
+        static const char *const    key_reverse_proxy;
+        static const char *const    key_ip;
+        static const char *const    key_heartbeat_period;
+        size_t                      max_backlog;
         size_t                      worker_thread_cnt;
+        std::string                 reverse_proxy_ip;
+        uint16_t                    reverse_proxy_port;
+        int                         heartbeat_period;
     };
 
     class WorkerThread : public Thread {
@@ -96,6 +108,8 @@ class WebServer final : public ServerBase {
         bool IsWorkerFullyLoad();
     
         size_t GetMaxBacklog() const;
+        
+        size_t Backlog();
     
         /**
          * @param _backlog: The maximum backlog for waiting queue (which holds parsed HTTP packets
@@ -147,6 +161,7 @@ class WebServer final : public ServerBase {
     bool _CustomConfig(yaml::YamlDescriptor *_desc) override;
     
   private:
-    static const char* const kConfigFile;
+    static const char* const    kConfigFile;
+    static const int            kDefaultHeartBeatPeriod;
 };
 

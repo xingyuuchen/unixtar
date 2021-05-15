@@ -1,0 +1,14 @@
+syntax = "proto2";
+
+package NetSceneSvrHeartbeatProto;
+
+
+message NetSceneSvrHeartbeatReq {
+    optional uint32 request_backlog = 1;
+
+}
+
+//message NetSceneSvrHeartbeatResp {
+//    optional bool ok = 1;
+//}
+

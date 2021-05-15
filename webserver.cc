@@ -2,17 +2,24 @@
 #include "utils/log.h"
 #include "timeutil.h"
 #include "http/httprequest.h"
+#include "netscenesvrheartbeat.pb.h"
 #include <cstring>
 
 
 const char *const WebServer::ServerConfig::key_max_backlog("max_backlog");
 const char *const WebServer::ServerConfig::key_worker_thread_cnt("worker_thread_cnt");
+const char *const WebServer::ServerConfig::key_reverse_proxy("reverse_proxy");
+const char *const WebServer::ServerConfig::key_ip("ip");
+const char *const WebServer::ServerConfig::key_heartbeat_period("heartbeat_period");
 const char *const WebServer::kConfigFile = "webserverconf.yml";
+const int WebServer::kDefaultHeartBeatPeriod = 60;
 
 WebServer::ServerConfig::ServerConfig()
         : ServerBase::ServerConfigBase()
         , max_backlog(0)
-        , worker_thread_cnt(0) {
+        , worker_thread_cnt(0)
+        , reverse_proxy_port(0)
+        , heartbeat_period(kDefaultHeartBeatPeriod) {
 }
 
 
@@ -25,6 +32,36 @@ void WebServer::AfterConfig() {
     for (NetThreadBase *p : net_threads_) {
         auto *net_thread = (NetThread *) p;
         net_thread->SetMaxBacklog(((ServerConfig *) config_)->max_backlog);
+    }
+}
+
+void WebServer::SendHeartbeat() {
+    auto *config = (ServerConfig *) config_;
+    if (!config->is_config_done) {
+        LogE("config not done, give up sending heartbeat")
+        return;
+    }
+    NetSceneSvrHeartbeatProto::NetSceneSvrHeartbeatReq req;
+    uint32_t backlog = 0;
+    for (auto & net_thread : net_threads_) {
+        backlog += ((NetThread *) net_thread)->Backlog();
+    }
+    req.set_request_backlog(backlog);
+    std::string ba = req.SerializeAsString();
+    
+    auto *net_thread = ((NetThread *) net_threads_[0]);
+    auto conn = net_thread->MakeConnection(config->reverse_proxy_ip,
+                                           config->reverse_proxy_port);
+    if (!conn) {
+        LogE("reverse proxy down.")
+        return;
+    }
+    conn->MakeSendContext();
+    http::request::Pack(config->reverse_proxy_ip, "/",
+                        nullptr, ba,
+                        conn->GetSendContext()->buffer);
+    if (NetThread::_OnWriteEvent(conn->GetSendContext())) {
+        net_thread->DelConnection(conn->Uid());
     }
 }
 
@@ -115,6 +152,8 @@ bool WebServer::NetThread::IsWorkerOverload() { return recv_queue_.size() > max_
 bool WebServer::NetThread::IsWorkerFullyLoad() { return recv_queue_.size() >= max_backlog_; }
 
 size_t WebServer::NetThread::GetMaxBacklog() const { return max_backlog_; }
+
+size_t WebServer::NetThread::Backlog() { return recv_queue_.size(); }
 
 void WebServer::NetThread::SetMaxBacklog(size_t _backlog) { max_backlog_ = _backlog; }
 
@@ -242,6 +281,15 @@ bool WebServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
     }
     worker_cnt->To((int &) config->worker_thread_cnt);
     
+    yaml::ValueObj *reverse_proxy = _desc->GetYmlObj(ServerConfig::key_reverse_proxy);
+    if (!reverse_proxy) {
+        LogE("Load reverse_proxy from yaml failed.")
+        return false;
+    }
+    reverse_proxy->GetLeaf(ServerConfig::key_ip)->To(config->reverse_proxy_ip);
+    reverse_proxy->GetLeaf(ServerConfig::key_port)->To(config->reverse_proxy_port);
+    reverse_proxy->GetLeaf(ServerConfig::key_heartbeat_period)->To(config->heartbeat_period);
+    
     if (config->worker_thread_cnt < 1) {
         LogE("Illegal worker_thread_cnt: %zu", config->worker_thread_cnt)
         return false;
@@ -253,15 +301,33 @@ bool WebServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
     if (config->worker_thread_cnt > 4 * config->net_thread_cnt) {
         LogW("Excessive proportion of worker_thread / net_thread "
              "may lower performance of net_thread.")
+        config->worker_thread_cnt = 4 * config->net_thread_cnt;
     }
     if (config->max_backlog < 0) {
         LogE("Please config max_backlog a positive number.")
         return false;
     }
+    if (config->heartbeat_period < 30) {
+        LogE("Please config Heartbeat period greater than 30 seconds.")
+        return false;
+    }
+    LogI("port: %d, net_thread_cnt: %zu, worker_thread_cnt: %zu, max_backlog: %zu, "
+         "reverse_proxy: [%s:%d], heartbeat_period: %d", config->port, config->worker_thread_cnt,
+         config->max_backlog, config->worker_thread_cnt, config->reverse_proxy_ip.c_str(),
+         config->reverse_proxy_port, config->heartbeat_period)
     return true;
 }
 
 const char *WebServer::ConfigFile() {
     return kConfigFile;
+}
+
+void WebServer::LoopingEpollWait() {
+    SendHeartbeat();
+}
+
+int WebServer::EpollLoopInterval() {
+    assert(config_->is_config_done);
+    return ((ServerConfig *) config_)->heartbeat_period;
 }
 

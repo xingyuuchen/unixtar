@@ -12,7 +12,7 @@ namespace http { namespace request {
 
 void Pack(const std::string &_host, const std::string &_url,
           const std::map<std::string, std::string> *_headers,
-          AutoBuffer& _send_body, AutoBuffer &_out_buff) {
+          std::string &_send_body, AutoBuffer &_out_buff) {
     _out_buff.Reset();
     
     RequestLine request_line;
@@ -31,11 +31,11 @@ void Pack(const std::string &_host, const std::string &_url,
     }
     
     char len_str[9] = {0, };
-    snprintf(len_str, sizeof(len_str), "%zu", _send_body.Length());
+    snprintf(len_str, sizeof(len_str), "%zu", _send_body.size());
     header_field.InsertOrUpdate(HeaderField::kContentLength, len_str);
     
     header_field.AppendToBuffer(_out_buff);
-    _out_buff.Write(_send_body.Ptr(), _send_body.Length());
+    _out_buff.Write(_send_body.data(), _send_body.size());
     
 }
 

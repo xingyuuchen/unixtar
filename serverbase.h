@@ -29,7 +29,10 @@ class ServerBase {
     
     virtual void AfterConfig();
     
-    virtual void Serve();
+    virtual void LoopingEpollWait();
+    virtual int EpollLoopInterval();
+    
+    void Serve();
     
     void NotifyStop();
     
