@@ -23,6 +23,10 @@ WebServerProfile *ReverseProxyServer::LoadBalance(std::string &_ip) {
     return load_balancer_.Select(_ip);
 }
 
+void ReverseProxyServer::ReportWebServerDown(WebServerProfile *_down_svr) {
+    load_balancer_.ReportWebServerDown(_down_svr);
+}
+
 ServerBase::ServerConfigBase *ReverseProxyServer::_MakeConfig() {
     return new ProxyConfig();
 }
@@ -53,9 +57,13 @@ void ReverseProxyServer::AfterConfig() {
 }
 
 void ReverseProxyServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn) {
-    assert(_conn->GetType() == tcp::ConnectionProfile::kFrom);
-    _conn->ConfigApplicationLayer<http::response::HttpResponse,
-            http::response::Parser>();
+    if (_conn->GetType() == tcp::ConnectionProfile::kFrom) {
+        _conn->ConfigApplicationLayer<http::request::HttpRequest,
+                                      http::request::Parser>();
+    } else {
+        _conn->ConfigApplicationLayer<http::response::HttpResponse,
+                                      http::response::Parser>();
+    }
 }
 
 int ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn) {
@@ -79,8 +87,8 @@ int ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfil
         }
     
         std::string src_ip = _conn->RemoteIp();
-        
         tcp::ConnectionProfile *conn_to_webserver;
+        
         while (true) {
             auto forward_host = ReverseProxyServer::Instance().LoadBalance(src_ip);
             if (!forward_host) {
@@ -93,9 +101,9 @@ int ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfil
     
             conn_to_webserver = MakeConnection(forward_host->ip, forward_host->port);
             if (!conn_to_webserver) {
-                LoadBalancer::ReportWebServerDown(forward_host);
                 LogE("connection to web server [%s:%d] can NOT establish",
                         conn_to_webserver->RemoteIp().c_str(), conn_to_webserver->RemotePort())
+                ReverseProxyServer::Instance().ReportWebServerDown(forward_host);
                 continue;
             }
             break;
@@ -116,7 +124,6 @@ int ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfil
         
         LogI("send back to client: [%s:%d]",
              to->RemoteIp().c_str(), to->RemotePort())
-        
     }
     
     AutoBuffer *http_packet = _conn->TcpByteArray();
@@ -173,32 +180,37 @@ const char *ReverseProxyServer::ConfigFile() {
 
 bool ReverseProxyServer::CheckHeartbeat(tcp::ConnectionProfile *_conn) {
     std::string &ip = _conn->RemoteIp();
-    uint16_t port = _conn->RemotePort();
     auto &webservers = ((ProxyConfig *) config_)->webservers;
     
-    WebServerProfile *from = nullptr;
-    bool is_webserver = std::any_of(webservers.begin(), webservers.end(),
-                   [&] (WebServerProfile *webserver) {
-           if (webserver->ip == ip && webserver->port == port) {
-               from = webserver;
-               return true;
-           }
-           return false;
-    });
-    if (!is_webserver) {
-        return false;
+    bool has_parsed = false;
+    uint16_t port;
+    uint32_t request_backlog;
+    
+    for (auto & webserver : webservers) {
+        if (webserver->ip != ip) {
+            continue;
+        }
+        if (!has_parsed) {
+            auto http_req = (http::request::HttpRequest *) _conn->
+                    GetRecvContext()->application_packet;
+            AutoBuffer *body = http_req->Body();
+            
+            NetSceneSvrHeartbeatProto::NetSceneSvrHeartbeatReq req;
+            req.ParseFromArray(body->Ptr(), (int) body->Length());
+            if (!req.has_port()) {
+                return false;
+            }
+            port = req.port();
+            request_backlog = req.request_backlog();
+            has_parsed = true;
+        }
+        if (webserver->port == port) {
+            load_balancer_.ReceiveHeartbeat(webserver, request_backlog);
+            LogI("heartbeat from [%s:%d]", ip.c_str(), port)
+            return true;
+        }
     }
-    
-    auto http_req = (http::request::HttpRequest *) _conn->
-            GetRecvContext()->application_packet;
-    AutoBuffer *body = http_req->Body();
-    NetSceneSvrHeartbeatProto::NetSceneSvrHeartbeatReq req;
-    req.ParseFromArray(body->Ptr(), body->Length());
-    
-    from->is_down = false;
-    from->backlog = req.request_backlog();
-    from->last_heartbeat_ts = ::gettickcount();
-    return true;
+    return false;
 }
 
 ReverseProxyServer::~ReverseProxyServer() = default;

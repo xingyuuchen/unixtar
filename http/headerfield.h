@@ -1,5 +1,4 @@
-#ifndef OI_SVR_HEADERFIELD_H
-#define OI_SVR_HEADERFIELD_H
+#pragma once
 
 #include <map>
 #include <string>
@@ -39,6 +38,7 @@ class HeaderField {
     static const char *const kImagePng;
     static const char *const kConnectionClose;
     static const char *const kKeepAlive;
+    static const char *const kConnectionUpgrade;
     static const char *const kAccessControlOriginAll;
     static const char *const kTransferChunked;
     
@@ -49,15 +49,22 @@ class HeaderField {
     
     bool IsKeepAlive() const;
     
+    bool IsConnectionClose() const;
+    
+    bool IsConnectionUpgrade() const;
+    
     void AppendToBuffer(AutoBuffer &_out_buff);
 
-    size_t GetHeaderSize();
+    size_t HeaderSize();
     
     void ToString(std::string &_target);
     
     bool ParseFromString(std::string &_from);
     
     void Reset();
+
+  private:
+    bool __IsConnection(const char *_value) const;
     
   private:
     std::map<std::string, std::string>  header_fields_;
@@ -66,4 +73,3 @@ class HeaderField {
 
 }
 
-#endif //OI_SVR_HEADERFIELD_H

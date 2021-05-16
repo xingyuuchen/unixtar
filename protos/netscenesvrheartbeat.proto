@@ -4,11 +4,13 @@ package NetSceneSvrHeartbeatProto;
 
 
 message NetSceneSvrHeartbeatReq {
-    optional uint32 request_backlog = 1;
+    optional uint32 port = 1;
+    optional uint32 request_backlog = 2;
 
 }
 
+
+// No Resp
 //message NetSceneSvrHeartbeatResp {
-//    optional bool ok = 1;
 //}
 

@@ -9,7 +9,7 @@ webservers:
   -
   ip: 127.0.0.1
   port: 5002
-  weight: 1
+  weight: 1     # from 0 to 10
   -
   ip: 127.0.0.1
   port: 5003

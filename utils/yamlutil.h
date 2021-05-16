@@ -90,6 +90,8 @@ struct ValueLeaf : public AbsValue {
     
     void Insert(Node *) override;
     
+    int To(bool &_res) const;
+    
     int To(int &_res) const;
     
     int To(uint16_t &_res) const;

@@ -146,6 +146,15 @@ YamlDescriptor *Load(const char *_path) {
     return nullptr;
 }
 
+int ValueLeaf::To(bool &_res) const {
+    if (data == "true") {
+        _res = true;
+        return 0;
+    }
+    _res = false;
+    return data == "false" ? 0 : -1;
+}
+
 int ValueLeaf::To(int &_res) const {
     _res = (int) strtol(data.c_str(), nullptr, 10);
     return 0;

@@ -98,10 +98,10 @@ TApplicationProtocol ConnectionProfile::ApplicationProtocol() {
 }
 
 const char *ConnectionProfile::ApplicationProtocolName() {
-    if (application_packet_) {
-        return ApplicationProtoToString[ApplicationProtocol()];
+    if (!application_packet_) {
+        return nullptr;
     }
-    return nullptr;
+    return ApplicationProtoToString[ApplicationProtocol()];
 }
 
 bool ConnectionProfile::IsLongLinkApplicationProtocol() {

@@ -33,11 +33,13 @@ class WebServer final : public ServerBase {
         static const char *const    key_worker_thread_cnt;
         static const char *const    key_reverse_proxy;
         static const char *const    key_ip;
+        static const char *const    key_is_send_heartbeat;
         static const char *const    key_heartbeat_period;
         size_t                      max_backlog;
         size_t                      worker_thread_cnt;
         std::string                 reverse_proxy_ip;
         uint16_t                    reverse_proxy_port;
+        bool                        is_send_heartbeat;
         int                         heartbeat_period;
     };
 

@@ -22,6 +22,8 @@ class ReverseProxyServer final : public ServerBase {
     
     WebServerProfile *LoadBalance(std::string &_ip);
     
+    void ReportWebServerDown(WebServerProfile *);
+    
     class ProxyConfig : public ServerConfigBase {
       public:
         ProxyConfig();
@@ -39,7 +41,7 @@ class ReverseProxyServer final : public ServerBase {
         
         ~NetThread() override;
         
-        void ConfigApplicationLayer(tcp::ConnectionProfile *profile) override;
+        void ConfigApplicationLayer(tcp::ConnectionProfile *) override;
     
         int HandleApplicationPacket(tcp::ConnectionProfile *) override;
     

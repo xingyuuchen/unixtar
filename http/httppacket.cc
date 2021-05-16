@@ -2,6 +2,7 @@
 #include "log.h"
 #include "strutil.h"
 #include <cassert>
+#include "websocketpacket.h"
 
 
 
@@ -75,6 +76,10 @@ bool http::HttpParser::_ResolveHeaders() {
         resolved_len_ += ret - buffer_->Ptr(resolved_len_) + 4;  // 4 for \r\n\r\n
         header_len_ = resolved_len_ - first_line_len_;
         position_ = kBody;
+        if (headers_->IsConnectionUpgrade()) {
+            position_ = kEnd;
+            bool upgrade = true;
+        }
         return true;
         
     } else {

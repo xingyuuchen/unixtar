@@ -10,6 +10,7 @@ const char *const WebServer::ServerConfig::key_max_backlog("max_backlog");
 const char *const WebServer::ServerConfig::key_worker_thread_cnt("worker_thread_cnt");
 const char *const WebServer::ServerConfig::key_reverse_proxy("reverse_proxy");
 const char *const WebServer::ServerConfig::key_ip("ip");
+const char *const WebServer::ServerConfig::key_is_send_heartbeat("send_heartbeat");
 const char *const WebServer::ServerConfig::key_heartbeat_period("heartbeat_period");
 const char *const WebServer::kConfigFile = "webserverconf.yml";
 const int WebServer::kDefaultHeartBeatPeriod = 60;
@@ -19,6 +20,7 @@ WebServer::ServerConfig::ServerConfig()
         , max_backlog(0)
         , worker_thread_cnt(0)
         , reverse_proxy_port(0)
+        , is_send_heartbeat(false)
         , heartbeat_period(kDefaultHeartBeatPeriod) {
 }
 
@@ -47,13 +49,14 @@ void WebServer::SendHeartbeat() {
         backlog += ((NetThread *) net_thread)->Backlog();
     }
     req.set_request_backlog(backlog);
+    req.set_port(config->port);
     std::string ba = req.SerializeAsString();
     
     auto *net_thread = ((NetThread *) net_threads_[0]);
     auto conn = net_thread->MakeConnection(config->reverse_proxy_ip,
                                            config->reverse_proxy_port);
     if (!conn) {
-        LogE("reverse proxy down.")
+        LogE("reverse proxy down, give up sending heartbeat")
         return;
     }
     conn->MakeSendContext();
@@ -63,6 +66,7 @@ void WebServer::SendHeartbeat() {
     if (NetThread::_OnWriteEvent(conn->GetSendContext())) {
         net_thread->DelConnection(conn->Uid());
     }
+    LogD("pit pat")
 }
 
 WebServer::~WebServer() = default;
@@ -225,7 +229,9 @@ bool WebServer::NetThread::__IsNotifySend(EpollNotifier::Notification &_notifica
 }
 
 void WebServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn) {
-    assert(_conn->GetType() == tcp::ConnectionProfile::kFrom);
+    if (_conn->GetType() != tcp::ConnectionProfile::kFrom) {
+        return;     // heartbeat packet, pass.
+    }
     _conn->ConfigApplicationLayer<http::request::HttpRequest,
                                   http::request::Parser>();
 }
@@ -288,6 +294,7 @@ bool WebServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
     }
     reverse_proxy->GetLeaf(ServerConfig::key_ip)->To(config->reverse_proxy_ip);
     reverse_proxy->GetLeaf(ServerConfig::key_port)->To(config->reverse_proxy_port);
+    reverse_proxy->GetLeaf(ServerConfig::key_is_send_heartbeat)->To(config->is_send_heartbeat);
     reverse_proxy->GetLeaf(ServerConfig::key_heartbeat_period)->To(config->heartbeat_period);
     
     if (config->worker_thread_cnt < 1) {
@@ -311,10 +318,13 @@ bool WebServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
         LogE("Please config Heartbeat period greater than 30 seconds.")
         return false;
     }
+    config->heartbeat_period *= 1000;   // ms => s
+    
     LogI("port: %d, net_thread_cnt: %zu, worker_thread_cnt: %zu, max_backlog: %zu, "
-         "reverse_proxy: [%s:%d], heartbeat_period: %d", config->port, config->worker_thread_cnt,
-         config->max_backlog, config->worker_thread_cnt, config->reverse_proxy_ip.c_str(),
-         config->reverse_proxy_port, config->heartbeat_period)
+         "reverse_proxy: [%s:%d], send_heart_beat: %d, heartbeat_period: %d",
+         config->port, config->net_thread_cnt, config->worker_thread_cnt,
+         config->max_backlog, config->reverse_proxy_ip.c_str(), config->reverse_proxy_port,
+         config->is_send_heartbeat, config->heartbeat_period)
     return true;
 }
 
@@ -323,11 +333,17 @@ const char *WebServer::ConfigFile() {
 }
 
 void WebServer::LoopingEpollWait() {
-    SendHeartbeat();
+    if (((ServerConfig *) config_)->is_send_heartbeat) {
+        SendHeartbeat();
+    }
 }
 
 int WebServer::EpollLoopInterval() {
     assert(config_->is_config_done);
-    return ((ServerConfig *) config_)->heartbeat_period;
+    auto *config = (ServerConfig *) config_;
+    if (config->is_send_heartbeat) {
+        return ((ServerConfig *) config_)->heartbeat_period;
+    }
+    return ServerBase::EpollLoopInterval();
 }
 

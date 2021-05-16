@@ -32,6 +32,7 @@ const char *const HeaderField::kImageJpg = "image/jpeg";
 const char *const HeaderField::kImagePng = "image/png";
 const char *const HeaderField::kConnectionClose = "close";
 const char *const HeaderField::kKeepAlive = "keep-alive";
+const char *const HeaderField::kConnectionUpgrade = "upgrade";
 const char *const HeaderField::kAccessControlOriginAll = "*";
 const char *const HeaderField::kTransferChunked = "chunked";
 
@@ -42,7 +43,7 @@ void HeaderField::InsertOrUpdate(const std::string &_key,
 }
 
 
-size_t HeaderField::GetHeaderSize() {
+size_t HeaderField::HeaderSize() {
     size_t ret = 0;
     for (auto & header_field : header_fields_) {
         ret += header_field.first.size();
@@ -53,13 +54,15 @@ size_t HeaderField::GetHeaderSize() {
 }
 
 bool HeaderField::IsKeepAlive() const {
-    for (const auto & header_field : header_fields_) {
-        if (0 == strcmp(header_field.first.c_str(), kConnection)) {
-            return 0 == strcmp(header_field.second.c_str(), kKeepAlive);
-        }
-    }
-    LogI("No such field: %s", kConnection)
-    return false;
+    return __IsConnection(kKeepAlive);
+}
+
+bool HeaderField::IsConnectionClose() const {
+    return __IsConnection(kConnectionClose);
+}
+
+bool HeaderField::IsConnectionUpgrade() const {
+    return __IsConnection(kConnectionUpgrade);
 }
 
 uint64_t HeaderField::ContentLength() const {
@@ -108,5 +111,14 @@ void HeaderField::AppendToBuffer(AutoBuffer &_out_buff) {
     _out_buff.Write(str.data(), str.size());
 }
 
+bool HeaderField::__IsConnection(const char *_value) const {
+    for (const auto & header_field : header_fields_) {
+        if (0 == strcmp(header_field.first.c_str(), kConnection)) {
+            return 0 == strcmp(header_field.second.c_str(), _value);
+        }
+    }
+    LogI("No such field: %s", kConnection)
+    return false;
+}
 
 }

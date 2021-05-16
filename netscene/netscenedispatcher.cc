@@ -110,7 +110,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext *_recv_ctx)
         }
         LogI("fd(%d) http_body.len: %zd", fd, http_body->Length());
         BaseNetSceneReq::BaseNetSceneReq base_req;
-        base_req.ParseFromArray(http_body->Ptr(), http_body->Length());
+        base_req.ParseFromArray(http_body->Ptr(), (int) http_body->Length());
     
         if (!base_req.has_net_scene_type()) {
             LogI("fd(%d) base_req.has_net_scene_type(): false", fd)

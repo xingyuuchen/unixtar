@@ -18,4 +18,6 @@ max_backlog: 4096
 reverse_proxy:
   ip: 127.0.0.1
   port: 80
-  heatbeat_period: 60    # in seconds
+  send_heartbeat: true    # whether to send heartbeat to reverse proxy.
+  heartbeat_period: 60    # in seconds.
+

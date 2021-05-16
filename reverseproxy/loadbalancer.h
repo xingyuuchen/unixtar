@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include <mutex>
 
 
 struct WebServerProfile {
@@ -11,6 +12,7 @@ struct WebServerProfile {
     uint64_t        last_down_ts;
     uint64_t        last_heartbeat_ts;
     bool            is_down;
+    bool            is_overload;
     uint64_t        backlog;
     static uint64_t MakeSeq();
     static uint64_t kInvalidSeq;
@@ -36,7 +38,9 @@ class LoadBalancer {
     
     WebServerProfile *Select(std::string &_ip);
     
-    static void ReportWebServerDown(WebServerProfile *);
+    void ReportWebServerDown(WebServerProfile *);
+    
+    void ReceiveHeartbeat(WebServerProfile *, uint64_t _backlog);
     
     TBalanceRule BalanceRule() const;
 
@@ -51,9 +55,12 @@ class LoadBalancer {
     
   private:
     static const uint64_t                       kDefaultRetryPeriod;
+    static const uint16_t                       kMaxWeight;
+    static const uint64_t                       kOverloadBacklog;
     TBalanceRule                                balance_rule_;
     std::vector<WebServerProfile *>             web_servers_;
     std::vector<WebServerProfile *>::iterator   last_selected_;
     uint16_t                                    curr_weight_;
+    std::mutex                                  mutex_;
 };
 
