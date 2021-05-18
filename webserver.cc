@@ -63,7 +63,7 @@ void WebServer::SendHeartbeat() {
     http::request::Pack(config->reverse_proxy_ip, "/",
                         nullptr, ba,
                         conn->GetSendContext()->buffer);
-    if (NetThread::_OnWriteEvent(conn->GetSendContext())) {
+    if (NetThread::TryWrite(conn->GetSendContext())) {
         net_thread->DelConnection(conn->Uid());
     }
     LogD("pit pat")
@@ -177,7 +177,7 @@ void WebServer::NetThread::HandleSend() {
     tcp::SendContext *send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogD("fd(%d) doing send task", send_ctx->fd)
-        bool is_send_done = _OnWriteEvent(send_ctx);
+        bool is_send_done = TryWrite(send_ctx);
         if (is_send_done) {
             DelConnection(send_ctx->connection_uid);
         }
@@ -236,30 +236,32 @@ void WebServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn)
                                   http::request::Parser>();
 }
 
-int WebServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn) {
+bool WebServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn) {
     assert(_conn);
     uint32_t uid;
+    SOCKET fd = _conn->FD();
     do {
         uid = _conn->Uid();
         if (_conn->ApplicationProtocol() != kHttp1_1) {
-            LogE("%s is NOT a http1.1 packet", _conn->ApplicationProtocolName())
+            LogE("%s is NOT a http1.1 packet, fd(%d), uid: %u",
+                 _conn->ApplicationProtocolName(), fd, uid)
             break;
         }
         if (_conn->GetType() != tcp::ConnectionProfile::kFrom) {
-            LogE("NOT a http request, type: %d", _conn->GetType())
+            LogE("NOT a http request, type: %d, fd(%d), uid: %u", fd, uid, _conn->GetType())
             break;
         }
         if (IsWorkerFullyLoad()) {
-            LogI("worker fully loaded, drop connection directly")
+            LogE("worker fully loaded, drop connection directly: fd(%d), uid: %u, ", fd, uid)
             break;
         }
         recv_queue_.push_back(_conn->GetRecvContext());
-        return 0;
+        return false;
         
     } while (false);
     
     DelConnection(uid);
-    return -1;
+    return true;
 }
 
 WebServer::NetThread::~NetThread() = default;
@@ -273,29 +275,23 @@ bool WebServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
     
     auto *config = (ServerConfig *) config_;
     
-    yaml::ValueLeaf *max_backlog = _desc->GetLeaf(ServerConfig::key_max_backlog);
-    if (!max_backlog) {
-        LogE("Load max_backlog from yaml failed.")
-        return false;
-    }
-    max_backlog->To((int &) config->max_backlog);
-
-    yaml::ValueLeaf *worker_cnt = _desc->GetLeaf(ServerConfig::key_worker_thread_cnt);
-    if (!worker_cnt) {
-        LogE("Load worker_thread_cnt from yaml failed.")
-        return false;
-    }
-    worker_cnt->To((int &) config->worker_thread_cnt);
+    try {
+        yaml::ValueLeaf *max_backlog = _desc->GetLeaf(ServerConfig::key_max_backlog);
+        max_backlog->To((int &) config->max_backlog);
     
-    yaml::ValueObj *reverse_proxy = _desc->GetYmlObj(ServerConfig::key_reverse_proxy);
-    if (!reverse_proxy) {
-        LogE("Load reverse_proxy from yaml failed.")
+        yaml::ValueLeaf *worker_cnt = _desc->GetLeaf(ServerConfig::key_worker_thread_cnt);
+        worker_cnt->To((int &) config->worker_thread_cnt);
+    
+        yaml::ValueObj *reverse_proxy = _desc->GetYmlObj(ServerConfig::key_reverse_proxy);
+        reverse_proxy->GetLeaf(ServerConfig::key_ip)->To(config->reverse_proxy_ip);
+        reverse_proxy->GetLeaf(ServerConfig::key_port)->To(config->reverse_proxy_port);
+        reverse_proxy->GetLeaf(ServerConfig::key_is_send_heartbeat)->To(config->is_send_heartbeat);
+        reverse_proxy->GetLeaf(ServerConfig::key_heartbeat_period)->To(config->heartbeat_period);
+        
+    } catch (std::exception &ex) {
+        LogE("Yaml Exception: %s", ex.what())
         return false;
     }
-    reverse_proxy->GetLeaf(ServerConfig::key_ip)->To(config->reverse_proxy_ip);
-    reverse_proxy->GetLeaf(ServerConfig::key_port)->To(config->reverse_proxy_port);
-    reverse_proxy->GetLeaf(ServerConfig::key_is_send_heartbeat)->To(config->is_send_heartbeat);
-    reverse_proxy->GetLeaf(ServerConfig::key_heartbeat_period)->To(config->heartbeat_period);
     
     if (config->worker_thread_cnt < 1) {
         LogE("Illegal worker_thread_cnt: %zu", config->worker_thread_cnt)

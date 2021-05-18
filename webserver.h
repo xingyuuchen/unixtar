@@ -137,7 +137,7 @@ class WebServer final : public ServerBase {
     
         void ConfigApplicationLayer(tcp::ConnectionProfile *) override;
     
-        int HandleApplicationPacket(tcp::ConnectionProfile *) override;
+        bool HandleApplicationPacket(tcp::ConnectionProfile *) override;
 
         void HandleException(std::exception &ex) override;
 

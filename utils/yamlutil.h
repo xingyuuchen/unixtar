@@ -2,10 +2,31 @@
 #include <cstdlib>
 #include <string>
 #include <vector>
+#include "exception.h"
 
 
 namespace yaml {
 
+class NoSuchFieldException : public unixtar::Exception {
+  public:
+    explicit NoSuchFieldException(const char *_field);
+    ~NoSuchFieldException() override;
+};
+class NotAnYamlObjectException : public unixtar::Exception {
+  public:
+    explicit NotAnYamlObjectException(const char *_field);
+    ~NotAnYamlObjectException() override;
+};
+class NotAnYamlArrayException : public unixtar::Exception {
+public:
+    explicit NotAnYamlArrayException(const char *_field);
+    ~NotAnYamlArrayException() override;
+};
+class NotAnYamlLeafException : public unixtar::Exception {
+  public:
+    explicit NotAnYamlLeafException(const char *_field);
+    ~NotAnYamlLeafException() override;
+};
 
 class Node;
 class AbsValue;

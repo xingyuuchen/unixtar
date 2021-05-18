@@ -53,20 +53,18 @@ void ServerBase::Config() {
     }
     
     do {
-        yaml::ValueLeaf *port = config_yaml->GetLeaf(ServerConfigBase::key_port);
-        if (!port) {
-            LogE("Load port from yaml failed.")
+        try {
+            yaml::ValueLeaf *port = config_yaml->GetLeaf(ServerConfigBase::key_port);
+            port->To(config_->port);
+    
+            yaml::ValueLeaf *net_thread_cnt = config_yaml->GetLeaf(
+                    ServerConfigBase::key_net_thread_cnt);
+            net_thread_cnt->To((int &) config_->net_thread_cnt);
+            
+        } catch (std::exception &exception) {
+            LogE("catch yaml exception: %s", exception.what())
             break;
         }
-        port->To(config_->port);
-
-        yaml::ValueLeaf *net_thread_cnt = config_yaml->GetLeaf(
-                ServerConfigBase::key_net_thread_cnt);
-        if (!net_thread_cnt) {
-            LogE("Load net_thread_cnt from yaml failed.")
-            break;
-        }
-        net_thread_cnt->To((int &) config_->net_thread_cnt);
         
         if (config_->net_thread_cnt < 1) {
             LogE("Illegal net_thread_cnt: %zu", config_->net_thread_cnt)
@@ -147,12 +145,13 @@ void ServerBase::Serve() {
                 break;
             }
             
-            if (socket_epoll_.IsNewConnect(i)) {
-                _OnConnect();
-            }
-            
             if (auto fd = (SOCKET) socket_epoll_.IsErrSet(i)) {
                 _OnEpollErr(fd);
+                continue;
+            }
+
+            if (socket_epoll_.IsNewConnect(i)) {
+                _OnConnect();
             }
         }
         
@@ -325,22 +324,26 @@ void ServerBase::NetThreadBase::Run() {
                 continue;
             }
             
-            tcp::ConnectionProfile *profile = nullptr;
+            tcp::ConnectionProfile *tcp_conn = nullptr;
             
-            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
-                _OnReadEvent(profile);
+            if ((tcp_conn = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
+                __OnErrEvent(tcp_conn);
+                continue;
             }
             
-            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
-                auto send_ctx = profile->GetSendContext();
-                bool write_done = _OnWriteEvent(send_ctx);
-                if (write_done) {
-                    DelConnection(send_ctx->connection_uid);
+            if ((tcp_conn = (tcp::ConnectionProfile *) socket_epoll_.IsReadSet(i))) {
+                bool deleted = __OnReadEvent(tcp_conn);
+                if (deleted) {
+                    continue;
                 }
             }
             
-            if ((profile = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
-                _OnErrEvent(profile);
+            if ((tcp_conn = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
+                auto send_ctx = tcp_conn->GetSendContext();
+                bool write_done = __OnWriteEvent(send_ctx);
+                if (write_done) {
+                    DelConnection(send_ctx->connection_uid);
+                }
             }
         }
         
@@ -412,26 +415,32 @@ void ServerBase::NetThreadBase::DelConnection(uint32_t _uid) {
 void ServerBase::NetThreadBase::ClearTimeout() { connection_manager_.ClearTimeout(); }
 
 
-int ServerBase::NetThreadBase::_OnReadEvent(tcp::ConnectionProfile *_conn) {
+bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
     assert(_conn);
     
     SOCKET fd = _conn->FD();
     uint32_t uid = _conn->Uid();
-    LogI("fd(%d), uid: %u", fd, uid)
     
     if (_conn->Receive() < 0) {
+        if (!_conn->HasReceivedFIN()) {
+            LogE("fd(%d), uid: %d Receive() err, _conn: %p", _conn->FD(), _conn->Uid(), _conn)
+        }
         DelConnection(uid);
-        return -1;
+        return true;
     }
     
     if (_conn->IsParseDone()) {
         LogI("fd(%d) %s parse succeed", fd, _conn->ApplicationProtocolName())
         return HandleApplicationPacket(_conn);
     }
-    return 0;
+    return false;
 }
 
-bool ServerBase::NetThreadBase::_OnWriteEvent(tcp::SendContext *_send_ctx) {
+bool ServerBase::NetThreadBase::__OnWriteEvent(tcp::SendContext *_send_ctx) {
+    return TryWrite(_send_ctx);
+}
+
+bool ServerBase::NetThreadBase::TryWrite(tcp::SendContext *_send_ctx) {
     if (!_send_ctx) {
         LogE("!_send_ctx")
         return false;
@@ -470,11 +479,13 @@ bool ServerBase::NetThreadBase::_OnWriteEvent(tcp::SendContext *_send_ctx) {
     return false;
 }
 
-int ServerBase::NetThreadBase::_OnErrEvent(tcp::ConnectionProfile *_conn) {
+int ServerBase::NetThreadBase::__OnErrEvent(tcp::ConnectionProfile *_conn) {
     if (!_conn) {
         return -1;
     }
-    LogE("fd(%d), uid: %u", _conn->FD(), _conn->Uid())
+    uint32_t uid = _conn->Uid();
+    LogE("fd(%d), uid: %u, _conn: %p", _conn->FD(), uid, _conn)
+    DelConnection(uid);
     return 0;
 }
 

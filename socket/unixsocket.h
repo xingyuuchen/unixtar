@@ -28,7 +28,7 @@ class Socket {
     
     int Listen(int _backlog) const;
     
-    ssize_t Recv(AutoBuffer *_buff, bool *_is_buffer_full);
+    ssize_t Receive(AutoBuffer *_buff, bool *_is_buffer_full);
     
     bool IsEAgain() const;
     

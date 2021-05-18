@@ -100,7 +100,7 @@ int Socket::Listen(int _backlog) const {
     return ret;
 }
 
-ssize_t Socket::Recv(AutoBuffer *_buff, bool *_is_buffer_full) {
+ssize_t Socket::Receive(AutoBuffer *_buff, bool *_is_buffer_full) {
     assert(_buff && _is_buffer_full);
     
     size_t available = _buff->AvailableSize();

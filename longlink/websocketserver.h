@@ -24,7 +24,7 @@ class WebSocketServer : public ServerBase {
         
         ~NetThread() override;
     
-        int HandleApplicationPacket(tcp::ConnectionProfile *profile) override;
+        bool HandleApplicationPacket(tcp::ConnectionProfile *profile) override;
     
         void OnStart() override;
     

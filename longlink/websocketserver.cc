@@ -36,15 +36,15 @@ WebSocketServer::NetThread::NetThread()
         : NetThreadBase() {
 }
 
-int WebSocketServer::NetThread::HandleApplicationPacket(
+bool WebSocketServer::NetThread::HandleApplicationPacket(
                 tcp::ConnectionProfile *_conn) {
     if (_conn->ApplicationProtocol() != kWebSocket) {
         LogE("%s Not a WebSocket packet", _conn->ApplicationProtocolName())
         DelConnection(_conn->Uid());
-        return -1;
+        return true;
     }
     // TODO
-    return 0;
+    return false;
 }
 
 void WebSocketServer::NetThread::OnStart() {

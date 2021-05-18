@@ -11,6 +11,26 @@
 
 namespace yaml {
 
+NoSuchFieldException::NoSuchFieldException(const char *_field)
+        : Exception("No such yaml field: " + std::string(_field)) {
+}
+NotAnYamlObjectException::NotAnYamlObjectException(const char *_field)
+        : Exception(std::string(_field) + "is not a yaml object.") {
+}
+
+NotAnYamlArrayException::NotAnYamlArrayException(const char *_field)
+        : Exception(std::string(_field) + "is not a yaml array.") {
+}
+NotAnYamlLeafException::NotAnYamlLeafException(const char *_field)
+        : Exception(std::string(_field) + "is not a yaml leaf.") {
+}
+NoSuchFieldException::~NoSuchFieldException() = default;
+NotAnYamlObjectException::~NotAnYamlObjectException() = default;
+NotAnYamlArrayException::~NotAnYamlArrayException() = default;
+NotAnYamlLeafException::~NotAnYamlLeafException() = default;
+
+
+
 static std::set<YamlDescriptor *> sg_yaml_cache;
 
 static int ParseYaml(const char *_path, YamlDescriptor *_desc);
@@ -199,12 +219,9 @@ YamlDescriptor::YamlDescriptor() : Node(), fp(nullptr) { }
 ValueLeaf *YamlDescriptor::GetLeaf(char const *_key) {
     assert(value->Type() == AbsValue::kObject);
     AbsValue *val = ((ValueObj *) value)->__Get(_key);
-    if (!val) {
-        return nullptr;
-    }
     if (val->Type() != AbsValue::kLeaf) {
         LogE("key(%s) is not a leaf", _key)
-        assert(false);
+        throw NotAnYamlLeafException(_key);
     }
     return (ValueLeaf *) val;
 }
@@ -212,11 +229,8 @@ ValueLeaf *YamlDescriptor::GetLeaf(char const *_key) {
 ValueArray *YamlDescriptor::GetArray(char const *_key) {
     assert(value->Type() == AbsValue::kObject);
     AbsValue *val = ((ValueObj *) value)->__Get(_key);
-    if (!val) {
-        return nullptr;
-    }
     if (val->Type() != AbsValue::kArray) {
-        LogE("key(%s) is not an Array", _key)
+        throw NotAnYamlArrayException(_key);
         assert(false);
     }
     return (ValueArray *) val;
@@ -225,12 +239,9 @@ ValueArray *YamlDescriptor::GetArray(char const *_key) {
 ValueObj *YamlDescriptor::GetYmlObj(char const *_key) {
     assert(value->Type() == AbsValue::kObject);
     AbsValue *val = ((ValueObj *) value)->__Get(_key);
-    if (!val) {
-        return nullptr;
-    }
     if (val->Type() != AbsValue::kObject) {
         LogE("key(%s) is not an Object", _key)
-        assert(false);
+        throw NotAnYamlObjectException(_key);
     }
     return (ValueObj *) val;
 }
@@ -307,7 +318,7 @@ ValueLeaf *ValueObj::GetLeaf(char const *_key) {
     }
     if (val->Type() != AbsValue::kLeaf) {
         LogE("key(%s) is not a leaf", _key)
-        assert(false);
+        throw NotAnYamlLeafException(_key);
     }
     return (ValueLeaf *) val;
 }
@@ -319,7 +330,7 @@ ValueObj *ValueObj::GetYmlObj(char const *_key) {
     }
     if (val->Type() != AbsValue::kObject) {
         LogE("key(%s) is not an Object", _key)
-        assert(false);
+        throw NotAnYamlObjectException(_key);
     }
     return (ValueObj *) val;
 }
@@ -331,7 +342,7 @@ ValueArray *ValueObj::GetArr(char const *_key) {
     }
     if (val->Type() != AbsValue::kArray) {
         LogE("key(%s) is not an Object", _key)
-        assert(false);
+        throw NotAnYamlArrayException(_key);
     }
     return (ValueArray *) val;
 }
@@ -343,7 +354,7 @@ AbsValue *ValueObj::__Get(char const *_key) {
         }
     }
     LogE("no such key: %s", _key)
-    return nullptr;
+    throw NoSuchFieldException(_key);
 }
 
 

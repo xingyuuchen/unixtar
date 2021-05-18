@@ -95,7 +95,17 @@ class ServerBase {
          */
         virtual bool HandleNotification(EpollNotifier::Notification &);
     
-        virtual int HandleApplicationPacket(tcp::ConnectionProfile *) = 0;
+        /**
+         *
+         * @return: whether @param(_conn} is deleted.
+         */
+        virtual bool HandleApplicationPacket(tcp::ConnectionProfile *_conn) = 0;
+    
+        /**
+         *
+         * @return: whether write event is done.
+         */
+        static bool TryWrite(tcp::SendContext *);
         
         void NotifyStop();
       
@@ -111,18 +121,21 @@ class ServerBase {
     
         void ClearTimeout();
 
-      protected:
+      private:
         
-        int _OnReadEvent(tcp::ConnectionProfile *);
+        /**
+         *
+         * @return: whether @param{_conn} is deleted.
+         */
+        bool __OnReadEvent(tcp::ConnectionProfile *_conn);
     
         /**
          * @return: whether write event is done.
          */
-        static bool _OnWriteEvent(tcp::SendContext *);
+        static bool __OnWriteEvent(tcp::SendContext *);
     
-        virtual int _OnErrEvent(tcp::ConnectionProfile *);
+        virtual int __OnErrEvent(tcp::ConnectionProfile *);
         
-      private:
         bool __IsNotifyStop(EpollNotifier::Notification &) const;
 
       private:

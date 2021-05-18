@@ -84,6 +84,8 @@ class ConnectionProfile {
 
     bool IsTimeout(uint64_t _now = 0) const;
     
+    bool HasReceivedFIN() const;
+    
     virtual TType GetType() const = 0;
     
     bool IsTypeValid() const;
@@ -106,6 +108,7 @@ class ConnectionProfile {
     std::string                 remote_ip_;
     uint16_t                    remote_port_;
     Socket                      socket_;
+    bool                        has_received_FIN_;
     uint64_t                    record_;
     uint64_t                    timeout_millis_;
     uint64_t                    timeout_ts_;

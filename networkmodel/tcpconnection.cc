@@ -17,6 +17,7 @@ ConnectionProfile::ConnectionProfile(std::string _remote_ip,
         , record_(::gettickcount())
         , timeout_millis_(kDefaultTimeout)
         , socket_(INVALID_SOCKET)
+        , has_received_FIN_(false)
         , timeout_ts_(record_ + timeout_millis_)
         , application_packet_(nullptr)
         , application_protocol_parser_(nullptr) {
@@ -29,7 +30,7 @@ int ConnectionProfile::Receive() {
     while (true) {
     
         bool has_more_data;
-        ssize_t n = socket_.Recv(&tcp_byte_arr_, &has_more_data);
+        ssize_t n = socket_.Receive(&tcp_byte_arr_, &has_more_data);
     
         if (socket_.IsEAgain()) {
             LogI("EAGAIN")
@@ -38,9 +39,9 @@ int ConnectionProfile::Receive() {
         if (n < 0) {
             return -1;
         }
-        if (n == 0) {
-            // A read event is raised when conn closed by peer
-            LogI("conn(%d) closed by peer", fd)
+        if (n == 0) {   // FIN.
+            has_received_FIN_ = true;
+            LogI("fd(%d), uid: %d, peer sent FIN", fd, uid_)
             return -1;
         }
     
@@ -54,6 +55,12 @@ int ConnectionProfile::Receive() {
         }
     
         if (IsParseDone()) {
+            // TODO Coupling to http.
+            if (application_packet_->ApplicationProtocol() == kHttp1_1) {
+                if (GetType() == kFrom) {
+                
+                }
+            }
             MakeRecvContext();
             MakeSendContext();
             return 0;
@@ -132,6 +139,8 @@ bool ConnectionProfile::IsTimeout(uint64_t _now) const {
     }
     return _now > timeout_ts_;
 }
+
+bool ConnectionProfile::HasReceivedFIN() const { return has_received_FIN_; }
 
 bool ConnectionProfile::IsTypeValid() const {
     TType type = GetType();
