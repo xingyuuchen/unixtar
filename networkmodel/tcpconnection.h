@@ -7,13 +7,16 @@
 
 namespace tcp {
 struct SendContext {
+    SendContext();
     uint32_t        connection_uid;
     SOCKET          fd;
+    bool            is_longlink;
     AutoBuffer      buffer;
 };
 
 
 struct RecvContext {
+    RecvContext();
     SOCKET                  fd;
     tcp::SendContext      * send_context;
     ApplicationPacket     * application_packet;
@@ -51,28 +54,42 @@ class ConnectionProfile {
     
     
     template<class ApplicationPacketImpl /* : public ApplicationPacket */,
-             class ApplicationParserImpl /* : public ApplicationProtocolParser */>
+             class ApplicationParserImpl /* : public ApplicationProtocolParser */,
+             class ...Args>
     void
-    ConfigApplicationLayer() {
-        if (application_packet_ && !application_packet_->IsLongLink()) {
-            LogE("application protocol already configured.")
+    ConfigApplicationLayer(Args &&..._init_args) {
+        if (application_packet_ && !IsUpgradeApplicationProtocol()) {
+            LogE("application protocol already set, and no need to upgrade")
             assert(false);
         }
-        delete application_packet_, application_packet_ = nullptr;
-        delete application_protocol_parser_, application_protocol_parser_ = nullptr;
+        bool upgrade = IsUpgradeApplicationProtocol();
+        
+        ApplicationPacket *old_packet = application_packet_;
+        ApplicationProtocolParser *old_parser = application_protocol_parser_;
         
         application_packet_ = new ApplicationPacketImpl();
-        application_protocol_parser_ = new ApplicationParserImpl(
-                &tcp_byte_arr_, (ApplicationPacketImpl *) application_packet_);
-        
+        application_protocol_parser_ = new ApplicationParserImpl(&tcp_byte_arr_,
+                                (ApplicationPacketImpl *) application_packet_,
+                                _init_args...);
+        delete old_packet;
+        delete old_parser;
         LogI("application protocol config to: %s", ApplicationProtocolName())
+    
+        if (upgrade) {  // update context.
+            MakeRecvContext();
+            MakeSendContext();
+        }
     }
+    
+    bool IsUpgradeApplicationProtocol() const;
+    
+    TApplicationProtocol ProtocolUpgradeTo();
     
     TApplicationProtocol ApplicationProtocol();
     
     const char *ApplicationProtocolName();
     
-    bool IsLongLinkApplicationProtocol();
+    bool IsLongLinkApplicationProtocol() const;
     
     AutoBuffer *TcpByteArray();
     
@@ -115,8 +132,8 @@ class ConnectionProfile {
     AutoBuffer                  tcp_byte_arr_;
     ApplicationPacket         * application_packet_;
     ApplicationProtocolParser * application_protocol_parser_;
-    tcp::SendContext            send_ctx_{0, INVALID_SOCKET};
-    tcp::RecvContext            recv_ctx_{INVALID_SOCKET, nullptr};
+    tcp::SendContext            send_ctx_;
+    tcp::RecvContext            recv_ctx_;
     
 };
 

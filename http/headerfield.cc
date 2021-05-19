@@ -20,6 +20,12 @@ const char *const HeaderField::kCacheControl = "Cache-Control";
 const char *const HeaderField::kAccessControlAllowOrigin = "Access-Control-Allow-Origin";
 const char *const HeaderField::kCookie = "Cookie";
 const char *const HeaderField::kSetCookie = "Set-Cookie";
+const char *const HeaderField::kUpgrade = "Upgrade";
+const char *const HeaderField::kSecWebSocketVersion = "Sec-WebSocket-Version";
+const char *const HeaderField::kSecWebSocketKey = "Sec-WebSocket-Key";
+const char *const HeaderField::kSecWebSocketAccept = "Sec-WebSocket-Accept";
+const char *const HeaderField::kSecWebSocketExtensions = "Sec-WebSocket-Extensions";
+const char *const HeaderField::kWebSocketLocation = "WebSocket-Location";
 
 
 const char *const HeaderField::kOctetStream = "application/octet-stream";
@@ -32,9 +38,11 @@ const char *const HeaderField::kImageJpg = "image/jpeg";
 const char *const HeaderField::kImagePng = "image/png";
 const char *const HeaderField::kConnectionClose = "close";
 const char *const HeaderField::kKeepAlive = "keep-alive";
-const char *const HeaderField::kConnectionUpgrade = "upgrade";
+const char *const HeaderField::kConnectionUpgrade = "Upgrade";
 const char *const HeaderField::kAccessControlOriginAll = "*";
+const char *const HeaderField::kWebSocket = "websocket";
 const char *const HeaderField::kTransferChunked = "chunked";
+const char *const HeaderField::kSecWebSocketVersion13 = "13";
 
 
 void HeaderField::InsertOrUpdate(const std::string &_key,
@@ -86,6 +94,8 @@ void HeaderField::ToString(std::string &_target) {
     _target += "\r\n";
 }
 
+std::map<std::string, std::string> &HeaderField::AsMap() { return header_fields_; }
+
 bool HeaderField::ParseFromString(std::string &_from) {
     std::vector<std::string> headers;
     str::split(_from, "\r\n", headers);
@@ -119,6 +129,15 @@ bool HeaderField::__IsConnection(const char *_value) const {
     }
     LogI("No such field: %s", kConnection)
     return false;
+}
+
+const char *HeaderField::Get(const char *_field) {
+    for (const auto & header_field : header_fields_) {
+        if (0 == strcmp(header_field.first.c_str(), _field)) {
+            return header_field.second.c_str();
+        }
+    }
+    return nullptr;
 }
 
 }

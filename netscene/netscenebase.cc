@@ -1,7 +1,6 @@
 #include "netscenebase.h"
 #include "log.h"
 #include "headerfield.h"
-#include "socketepoll.h"
 
 
 NetSceneBase::NetSceneBase() = default;

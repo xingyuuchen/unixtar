@@ -19,13 +19,20 @@ class Parser : public http::HttpParser {
     
     ~Parser() override;
     
+    bool IsUpgradeProtocol() const override;
+    
+    TApplicationProtocol ProtocolUpgradeTo() override;
+
   protected:
     bool _ResolveFirstLine() override;
+    
+    bool _ResolveHeaders() override;
     
     bool _ResolveBody() override;
 
   private:
     http::RequestLine                     * request_line_;
+    bool                                    is_upgrade_to_ws_;
 };
 
 

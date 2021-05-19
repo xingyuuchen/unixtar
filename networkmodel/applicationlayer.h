@@ -3,7 +3,7 @@
 
 
 enum TApplicationProtocol {
-    kUnknown = 0,
+    kNone = 0,
     kHttp1_1,
     kHttp2_0,
     kHttp3_0,
@@ -57,6 +57,10 @@ class ApplicationProtocolParser {
     virtual bool IsErr() const = 0;
     
     virtual bool IsEnd() const = 0;
+    
+    virtual bool IsUpgradeProtocol() const;
+    
+    virtual TApplicationProtocol ProtocolUpgradeTo();
     
   protected:
     ApplicationPacket         * application_packet_;

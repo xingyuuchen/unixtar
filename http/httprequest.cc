@@ -42,13 +42,24 @@ void Pack(const std::string &_host, const std::string &_url,
 
 Parser::Parser(AutoBuffer *_buff, http::request::HttpRequest *_http_request)
         : http::HttpParser(_http_request, _buff)
-        , request_line_(_http_request->GetRequestLine()) {
+        , request_line_(_http_request->GetRequestLine())
+        , is_upgrade_to_ws_(false) {
     
     assert(request_line_);
 }
 
 Parser::~Parser() = default;
 
+bool Parser::IsUpgradeProtocol() const {
+    return is_upgrade_to_ws_;
+}
+
+TApplicationProtocol Parser::ProtocolUpgradeTo() {
+    if (is_upgrade_to_ws_) {
+        return TApplicationProtocol::kWebSocket;
+    }
+    return ApplicationProtocolParser::ProtocolUpgradeTo();
+}
 
 bool Parser::_ResolveFirstLine() {
     LogI("Resolve Request Line")
@@ -69,6 +80,16 @@ bool Parser::_ResolveFirstLine() {
     }
     position_ = kFirstLine;
     resolved_len_ = 0;
+    return false;
+}
+
+bool Parser::_ResolveHeaders() {
+    if (HttpParser::_ResolveHeaders()) {
+        if (headers_->IsConnectionUpgrade()) {
+            is_upgrade_to_ws_ = true;
+        }
+        return true;
+    }
     return false;
 }
 

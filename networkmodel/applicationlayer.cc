@@ -7,6 +7,14 @@ ApplicationProtocolParser::ApplicationProtocolParser(ApplicationPacket *_packet,
         , buffer_(_buff) {
 }
 
+bool ApplicationProtocolParser::IsUpgradeProtocol() const {
+    return false;
+}
+
+TApplicationProtocol ApplicationProtocolParser::ProtocolUpgradeTo() {
+    return TApplicationProtocol::kNone;
+}
+
 ApplicationProtocolParser::~ApplicationProtocolParser() = default;
 
 

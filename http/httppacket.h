@@ -65,7 +65,7 @@ class HttpParser : public ApplicationProtocolParser {
   protected:
     virtual bool _ResolveFirstLine() = 0;
     
-    bool _ResolveHeaders();
+    virtual bool _ResolveHeaders();
     
     virtual bool _ResolveBody();
     
@@ -76,7 +76,7 @@ class HttpParser : public ApplicationProtocolParser {
     size_t                                  first_line_len_;
     size_t                                  header_len_;
     size_t                                  resolved_len_;
-    AutoBuffer                            * buffer_;
+    
 };
 
 }

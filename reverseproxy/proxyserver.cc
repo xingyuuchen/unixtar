@@ -144,10 +144,9 @@ bool ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfi
 bool ReverseProxyServer::NetThread::HandleForwardFailed(
                 tcp::ConnectionProfile * _client_conn) {
     static std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
-    std::string status_desc("OK");
     http::response::Pack(http::THttpVersion::kHTTP_1_1, 500,
-                         status_desc, nullptr,
-                         _client_conn->GetSendContext()->buffer, forward_failed_msg);
+                         http::StatusLine::kStatusDescOk, nullptr,
+                         _client_conn->GetSendContext()->buffer, &forward_failed_msg);
     if (TryWrite(_client_conn->GetSendContext())) {
         DelConnection(_client_conn->Uid());
         return true;

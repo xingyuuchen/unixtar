@@ -2,6 +2,7 @@
 #include "utils/log.h"
 #include "timeutil.h"
 #include "http/httprequest.h"
+#include "websocketpacket.h"
 #include "netscenesvrheartbeat.pb.h"
 #include <cstring>
 
@@ -178,7 +179,7 @@ void WebServer::NetThread::HandleSend() {
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogD("fd(%d) doing send task", send_ctx->fd)
         bool is_send_done = TryWrite(send_ctx);
-        if (is_send_done) {
+        if (!send_ctx->is_longlink && is_send_done) {
             DelConnection(send_ctx->connection_uid);
         }
     }
@@ -236,28 +237,49 @@ void WebServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn)
                                   http::request::Parser>();
 }
 
+void WebServer::NetThread::UpgradeApplicationProtocol(tcp::ConnectionProfile *_conn) {
+    SOCKET fd = _conn->FD();
+    uint32_t uid = _conn->Uid();
+    TApplicationProtocol upgrade_to = _conn->ProtocolUpgradeTo();
+    
+    if (upgrade_to == TApplicationProtocol::kWebSocket
+                && _conn->ApplicationProtocol() == kHttp1_1
+                && _conn->GetType() == tcp::ConnectionProfile::kFrom) {
+        LogI("fd(%d), uid: %u", fd, uid)
+        
+        auto *http_request = (http::request::HttpRequest *)
+                    _conn->GetRecvContext()->application_packet;
+        http::HeaderField *headers = http_request->Headers();
+        
+        _conn->ConfigApplicationLayer<ws::WebSocketPacket,
+                                      ws::WebSocketParser>(headers);
+        return;
+    }
+    LogI("fd(%d), uid: %u, no need to upgrade application protocol", fd, uid)
+}
+
 bool WebServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn) {
     assert(_conn);
     uint32_t uid;
     SOCKET fd = _conn->FD();
+    
     do {
         uid = _conn->Uid();
-        if (_conn->ApplicationProtocol() != kHttp1_1) {
-            LogE("%s is NOT a http1.1 packet, fd(%d), uid: %u",
-                 _conn->ApplicationProtocolName(), fd, uid)
-            break;
-        }
         if (_conn->GetType() != tcp::ConnectionProfile::kFrom) {
-            LogE("NOT a http request, type: %d, fd(%d), uid: %u", fd, uid, _conn->GetType())
+            LogE("NOT a request, type: %d, fd(%d), uid: %u", fd, uid, _conn->GetType())
             break;
         }
         if (IsWorkerFullyLoad()) {
-            LogE("worker fully loaded, drop connection directly: fd(%d), uid: %u, ", fd, uid)
+            LogE("worker fully loaded, drop connection directly: fd(%d), uid: %u", fd, uid)
             break;
         }
-        recv_queue_.push_back(_conn->GetRecvContext());
-        return false;
         
+        TApplicationProtocol app_proto = _conn->ApplicationProtocol();
+        
+        if (app_proto == kHttp1_1 || app_proto == kWebSocket) {
+            recv_queue_.push_back(_conn->GetRecvContext());
+            return false;
+        }
     } while (false);
     
     DelConnection(uid);

@@ -1,4 +1,5 @@
 #pragma once
+#include "http/headerfield.h"
 #include "networkmodel/applicationlayer.h"
 
 
@@ -13,8 +14,21 @@ class WebSocketPacket : public ApplicationPacket {
     
     ~WebSocketPacket() override;
     
+    bool DoHandShake();
+    
+    bool IsHandShaken() const;
+    
+    http::HeaderField &RequestHeaders();
+    
+    http::HeaderField &ResponseHeaders();
+    
     TApplicationProtocol ApplicationProtocol() const override;
     
+  private:
+    static const char *const    kHandShakeMagicKey;
+    bool                        is_hand_shaken;
+    http::HeaderField           request_headers_;
+    http::HeaderField           response_headers_;
 };
 
 
@@ -53,8 +67,17 @@ class WebSocketPacket : public ApplicationPacket {
 
 class WebSocketParser : public ApplicationProtocolParser {
   public:
+    enum TPosition {
+        kNone = 0,
+        kEnd,
+        kError,
+    };
     
-    WebSocketParser(AutoBuffer *_buff, WebSocketPacket *_packet);
+    WebSocketParser(AutoBuffer *_buff,
+                    WebSocketPacket *_packet,
+                    http::HeaderField *_http_headers);
+    
+    ~WebSocketParser() override;
     
     int DoParse() override;
     
@@ -62,13 +85,12 @@ class WebSocketParser : public ApplicationProtocolParser {
     
     bool IsEnd() const override;
     
-    ~WebSocketParser() override;
-
   protected:
-    bool _ResolveHandShake();
 
   private:
-  
+    WebSocketPacket           * ws_packet;
+    TPosition                   position_;
+    size_t                      resolved_len_;
 };
 
 }

@@ -7,9 +7,9 @@ namespace http { namespace response {
 
 class HttpResponse;
 
-void Pack(http::THttpVersion _http_ver, int _resp_code, std::string &_status_desc,
+void Pack(http::THttpVersion _http_ver, int _resp_code, const char *_status_desc,
           std::map<std::string, std::string> *_headers,
-          AutoBuffer &_out_buff, std::string &_send_body);
+          AutoBuffer &_out_buff, std::string *_send_body = nullptr);
 
 
 class Parser : public http::HttpParser {

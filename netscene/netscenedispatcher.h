@@ -50,6 +50,8 @@ class NetSceneDispatcher final {
         void HandleOverload(tcp::RecvContext *_recv_ctx) override;
     
         void HandleException(std::exception &ex) override;
+    
+        static void HandleWebSocket(tcp::RecvContext *);
 
       private:
         static void __PackHttpRespPacket(NetSceneBase *_net_scene,

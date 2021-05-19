@@ -42,7 +42,6 @@ http::HttpParser::HttpParser(http::HttpPacket *_http_packet,
         , http_packet_(_http_packet)
         , position_(TPosition::kNone)
         , headers_(http_packet_->Headers())
-        , buffer_(_buff)
         , resolved_len_(0)
         , first_line_len_(0)
         , header_len_(0) {
@@ -76,10 +75,6 @@ bool http::HttpParser::_ResolveHeaders() {
         resolved_len_ += ret - buffer_->Ptr(resolved_len_) + 4;  // 4 for \r\n\r\n
         header_len_ = resolved_len_ - first_line_len_;
         position_ = kBody;
-        if (headers_->IsConnectionUpgrade()) {
-            position_ = kEnd;
-            bool upgrade = true;
-        }
         return true;
         
     } else {
@@ -121,7 +116,7 @@ int http::HttpParser::DoParse() {
     size_t unresolved_len = buffer_->Length() - resolved_len_;
     if (unresolved_len <= 0) {
         LogI("no bytes need to be resolved: %zd", unresolved_len)
-        return -1;
+        return 0;
     }
     
     while (true) {

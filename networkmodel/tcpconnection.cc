@@ -7,6 +7,19 @@
 
 namespace tcp {
 
+SendContext::SendContext()
+        : connection_uid(0)
+        , fd(INVALID_SOCKET)
+        , is_longlink(false) {
+}
+
+RecvContext::RecvContext()
+        : fd(INVALID_SOCKET)
+        , send_context(nullptr)
+        , application_packet(nullptr) {
+}
+
+
 const uint64_t ConnectionProfile::kDefaultTimeout = 60 * 1000;
 
 ConnectionProfile::ConnectionProfile(std::string _remote_ip,
@@ -55,12 +68,6 @@ int ConnectionProfile::Receive() {
         }
     
         if (IsParseDone()) {
-            // TODO Coupling to http.
-            if (application_packet_->ApplicationProtocol() == kHttp1_1) {
-                if (GetType() == kFrom) {
-                
-                }
-            }
             MakeRecvContext();
             MakeSendContext();
             return 0;
@@ -97,9 +104,23 @@ bool ConnectionProfile::IsParseDone() {
     return application_protocol_parser_->IsEnd();
 }
 
+bool ConnectionProfile::IsUpgradeApplicationProtocol() const {
+    if (!application_protocol_parser_) {
+        return false;
+    }
+    return application_protocol_parser_->IsUpgradeProtocol();
+}
+
+TApplicationProtocol ConnectionProfile::ProtocolUpgradeTo() {
+    if (!IsUpgradeApplicationProtocol()) {
+        return TApplicationProtocol::kNone;
+    }
+    return application_protocol_parser_->ProtocolUpgradeTo();
+}
+
 TApplicationProtocol ConnectionProfile::ApplicationProtocol() {
     if (!application_packet_) {
-        return kUnknown;
+        return TApplicationProtocol::kNone;
     }
     return application_packet_->ApplicationProtocol();
 }
@@ -111,7 +132,7 @@ const char *ConnectionProfile::ApplicationProtocolName() {
     return ApplicationProtoToString[ApplicationProtocol()];
 }
 
-bool ConnectionProfile::IsLongLinkApplicationProtocol() {
+bool ConnectionProfile::IsLongLinkApplicationProtocol() const {
     if (!application_packet_) {
         return false;
     }
@@ -131,7 +152,7 @@ SendContext *ConnectionProfile::GetSendContext() { return &send_ctx_; }
 uint64_t ConnectionProfile::GetTimeoutTs() const { return timeout_ts_; }
 
 bool ConnectionProfile::IsTimeout(uint64_t _now) const {
-    if (application_packet_ && application_packet_->IsLongLink()) {
+    if (IsLongLinkApplicationProtocol()) {
         return false;
     }
     if (_now == 0) {
@@ -153,6 +174,7 @@ void ConnectionProfile::MakeRecvContext() {
 void ConnectionProfile::MakeSendContext() {
     send_ctx_.connection_uid = Uid();
     send_ctx_.fd = socket_.FD();
+    send_ctx_.is_longlink = IsLongLinkApplicationProtocol();
 }
 
 std::string &ConnectionProfile::RemoteIp() { return remote_ip_; }

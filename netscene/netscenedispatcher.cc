@@ -7,6 +7,7 @@
 #include "timeutil.h"
 #include "http/httprequest.h"
 #include "http/httpresponse.h"
+#include "websocketpacket.h"
 #include "constantsprotocol.h"
 
 
@@ -81,10 +82,15 @@ int NetSceneDispatcher::__GetNetSceneTypeByRoute(std::string &_full_url) {
 NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() = default;
 
 void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext *_recv_ctx) {
-    if (!_recv_ctx) {
+    if (_recv_ctx->application_packet->ApplicationProtocol() == kWebSocket) {
+        HandleWebSocket(_recv_ctx);
         return;
     }
-    assert(_recv_ctx->application_packet->ApplicationProtocol() == kHttp1_1);
+    
+    // Handle Http
+    if (_recv_ctx->application_packet->ApplicationProtocol() != kHttp1_1) {
+        return;
+    }
     auto *http_request = (http::request::HttpRequest *) _recv_ctx->application_packet;
     
     SOCKET fd = _recv_ctx->fd;
@@ -156,7 +162,6 @@ void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext *_recv_
     auto *http_request = (http::request::HttpRequest *) _recv_ctx->application_packet;
     
     std::string resp_str = "server is busy now";
-    std::string status_desc = "OK";
     int resp_code = 200;
     
     std::string resp;
@@ -172,8 +177,23 @@ void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext *_recv_
         base_resp.set_errmsg(resp);
         base_resp.SerializeToString(&resp);
     }
-    http::response::Pack(http::kHTTP_1_1, resp_code,status_desc,
-                         &headers, _recv_ctx->send_context->buffer, resp);
+    http::response::Pack(http::kHTTP_1_1, resp_code, http::StatusLine::kStatusDescOk,
+                         &headers, _recv_ctx->send_context->buffer, &resp);
+}
+
+void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(tcp::RecvContext *_recv_ctx) {
+    assert(_recv_ctx->application_packet->ApplicationProtocol() == kWebSocket);
+    auto *ws_packet = (ws::WebSocketPacket *) _recv_ctx->application_packet;
+    http::HeaderField &headers = ws_packet->RequestHeaders();
+    bool success = ws_packet->DoHandShake();
+    auto &buffer = _recv_ctx->send_context->buffer;
+    
+    http::HeaderField &resp_headers = ws_packet->ResponseHeaders();
+    int resp_code = success ? 101 : 404;
+    
+    http::response::Pack(http::kHTTP_1_1, resp_code,
+                         http::StatusLine::kStatusDescSwitchProtocol, &resp_headers.AsMap(),
+                         _recv_ctx->send_context->buffer);
 }
 
 void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
@@ -196,11 +216,10 @@ void NetSceneDispatcher::NetSceneWorker::__PackHttpRespPacket(
     }
     headers[http::HeaderField::kConnection] = http::HeaderField::kConnectionClose;
     
-    std::string status_desc = "OK";
     int resp_code = 200;
     
-    http::response::Pack(http::kHTTP_1_1, resp_code,status_desc,
-                         &headers, _http_msg, _net_scene->GetRespBuffer());
+    http::response::Pack(http::kHTTP_1_1, resp_code, http::StatusLine::kStatusDescOk,
+                         &headers, _http_msg, &_net_scene->GetRespBuffer());
     
 }
 

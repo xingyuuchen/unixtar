@@ -10,10 +10,12 @@ const size_t ServerBase::kDefaultListenBacklog = 4096;
 
 const char *const ServerBase::ServerConfigBase::key_port("port");
 const char *const ServerBase::ServerConfigBase::key_net_thread_cnt("net_thread_cnt");
+const char *const ServerBase::ServerConfigBase::key_max_connections("max_connections");
 
 ServerBase::ServerConfigBase::ServerConfigBase()
         : port(0)
         , net_thread_cnt(0)
+        , max_connections(0)
         , is_config_done(false) {
 }
 
@@ -60,6 +62,10 @@ void ServerBase::Config() {
             yaml::ValueLeaf *net_thread_cnt = config_yaml->GetLeaf(
                     ServerConfigBase::key_net_thread_cnt);
             net_thread_cnt->To((int &) config_->net_thread_cnt);
+    
+            yaml::ValueLeaf *max_connections = config_yaml->GetLeaf(
+                    ServerConfigBase::key_max_connections);
+            max_connections->To((int &) config_->max_connections);
             
         } catch (std::exception &exception) {
             LogE("catch yaml exception: %s", exception.what())
@@ -341,7 +347,7 @@ void ServerBase::NetThreadBase::Run() {
             if ((tcp_conn = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
                 auto send_ctx = tcp_conn->GetSendContext();
                 bool write_done = __OnWriteEvent(send_ctx);
-                if (write_done) {
+                if (!send_ctx->is_longlink && write_done) {
                     DelConnection(send_ctx->connection_uid);
                 }
             }
@@ -358,6 +364,9 @@ void ServerBase::NetThreadBase::Run() {
 
 bool ServerBase::NetThreadBase::HandleNotification(EpollNotifier::Notification &) {
     return false;
+}
+
+void ServerBase::NetThreadBase::UpgradeApplicationProtocol(tcp::ConnectionProfile *) {
 }
 
 void ServerBase::NetThreadBase::NotifyStop() {
@@ -431,6 +440,11 @@ bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
     
     if (_conn->IsParseDone()) {
         LogI("fd(%d) %s parse succeed", fd, _conn->ApplicationProtocolName())
+        
+        if (_conn->IsUpgradeApplicationProtocol()) {
+            LogI("upgrade application protocol")
+            UpgradeApplicationProtocol(_conn);
+        }
         return HandleApplicationPacket(_conn);
     }
     return false;

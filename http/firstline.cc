@@ -76,6 +76,10 @@ THttpVersion RequestLine::GetVersion() const { return version_; }
 std::string &RequestLine::GetUrl() { return url_; }
 
 
+
+const char *const StatusLine::kStatusDescOk = "OK";
+const char *const StatusLine::kStatusDescSwitchProtocol = "Switching Protocols";
+
 StatusLine::StatusLine()
     : status_code_(200)
     , version_(kHTTP_1_1)
@@ -86,6 +90,8 @@ void StatusLine::SetVersion(THttpVersion _version) { version_ = _version; }
 void StatusLine::SetStatusCode(int _status_code) { status_code_ = _status_code; }
 
 void StatusLine::SetStatusDesc(std::string &_desc) { status_desc_ = _desc; }
+
+void StatusLine::SetStatusDesc(const char *_desc) { status_desc_ = std::string(_desc); }
 
 void StatusLine::ToString(std::string &_target) {
     _target.clear();

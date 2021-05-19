@@ -40,9 +40,11 @@ class ServerBase {
       public:
         ServerConfigBase();
         static const char *const    key_port;
-        uint16_t                    port;
         static const char *const    key_net_thread_cnt;
+        static const char *const    key_max_connections;
+        uint16_t                    port;
         size_t                      net_thread_cnt;
+        size_t                      max_connections;
         bool                        is_config_done;
     };
     
@@ -112,6 +114,8 @@ class ServerBase {
         void RegisterConnection(SOCKET _fd, std::string &_ip, uint16_t _port);
     
         virtual void ConfigApplicationLayer(tcp::ConnectionProfile *) = 0;
+    
+        virtual void UpgradeApplicationProtocol(tcp::ConnectionProfile *);
     
         tcp::ConnectionProfile *MakeConnection(std::string &_ip, uint16_t _port);
     

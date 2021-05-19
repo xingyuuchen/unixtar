@@ -26,6 +26,12 @@ class HeaderField {
     static const char *const kAccessControlAllowOrigin;
     static const char *const kCookie;
     static const char *const kSetCookie;
+    static const char *const kUpgrade;
+    static const char *const kSecWebSocketVersion;
+    static const char *const kSecWebSocketKey;
+    static const char *const kSecWebSocketAccept;
+    static const char *const kSecWebSocketExtensions;
+    static const char *const kWebSocketLocation;
     
     // values
     static const char *const kOctetStream;
@@ -41,9 +47,13 @@ class HeaderField {
     static const char *const kConnectionUpgrade;
     static const char *const kAccessControlOriginAll;
     static const char *const kTransferChunked;
+    static const char *const kWebSocket;
+    static const char *const kSecWebSocketVersion13;
     
     
     void InsertOrUpdate(const std::string &_key, const std::string &_value);
+    
+    const char *Get(const char *_field);
     
     uint64_t ContentLength() const;
     
@@ -58,6 +68,8 @@ class HeaderField {
     size_t HeaderSize();
     
     void ToString(std::string &_target);
+    
+    std::map<std::string, std::string> &AsMap();
     
     bool ParseFromString(std::string &_from);
     

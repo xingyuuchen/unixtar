@@ -84,6 +84,10 @@ class RequestLine {
 
 class StatusLine {
   public:
+    
+    static const char *const kStatusDescOk;
+    static const char *const kStatusDescSwitchProtocol;
+    
     StatusLine();
 
     int StatusCode() const;
@@ -97,6 +101,8 @@ class StatusLine {
     void SetStatusCode(int _status_code);
 
     void SetStatusDesc(std::string &_desc);
+    
+    void SetStatusDesc(const char *_desc);
 
     void ToString(std::string &_target);
 

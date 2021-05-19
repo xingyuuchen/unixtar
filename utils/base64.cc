@@ -1,5 +1,6 @@
 #include "base64.h"
 #include "log.h"
+#include <cassert>
 
 
 namespace base64 {
@@ -140,7 +141,7 @@ IllegalBase64LengthException::IllegalBase64LengthException(size_t _len)
         : Exception("Length of base64: " + std::to_string(_len) + ", Not divisible by 3.") {
 }
 Base64DecodeException::Base64DecodeException()
-    : Exception("Illegal base63 string given.") {
+        : Exception("Illegal base64 string given.") {
 }
 
 
@@ -164,3 +165,4 @@ void UnitTest() {
 }
 
 }
+
