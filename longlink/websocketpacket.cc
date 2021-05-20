@@ -8,7 +8,7 @@
 namespace ws {
 
 void Pack(std::string &_content, AutoBuffer &_out) {
-    uint8_t token = 0x81;
+    uint8_t token = 0x80 + WebSocketPacket::kOpcodeText;
     _out.Write((char *) &token, 1);
     
     size_t length = _content.size();
@@ -182,9 +182,9 @@ void WebSocketPacket::Masked(bool _mask) { mask_ = _mask; }
 
 bool WebSocketPacket::IsMasked() const { return mask_; }
 
-void WebSocketPacket::SetPayloadLen(size_t _len) { payload_len_ = _len; }
+void WebSocketPacket::SetPayloadLen(uint8_t _len) { payload_len_ = _len; }
 
-size_t WebSocketPacket::PayloadLen() const { return payload_len_; }
+uint8_t WebSocketPacket::PayloadLen() const { return payload_len_; }
 
 void WebSocketPacket::SetExtendedPayloadLen(size_t _extended_payload_len) {
     extended_payload_len_ = _extended_payload_len;
@@ -288,18 +288,18 @@ bool WebSocketParser::_ResolvePayloadLen() {
     bool is_mask = (*buffer_->Ptr(1)) & 0x80;
     ws_packet->Masked(is_mask);
     
-    size_t payload_len = (*buffer_->Ptr(1)) & 0x7f;
-    LogI("mask: %d, payload len: %ld", is_mask, payload_len)
+    uint8_t payload_len = (*buffer_->Ptr(1)) & 0x7f;
+    LogI("mask: %d, payload len: %hhu", is_mask, payload_len)
     
     if (payload_len == 126 || payload_len == 127) {
         position_ = kExtendedPayloadLen;
     } else if (payload_len < 126) {
         position_ = is_mask ? kMaskingKey : kPayload;
-        ws_packet->SetPayloadLen(payload_len);
     } else {
         position_ = kError;
         return false;
     }
+    ws_packet->SetPayloadLen(payload_len);
     resolved_len_ += 1;
     return true;
 }
@@ -307,20 +307,32 @@ bool WebSocketParser::_ResolvePayloadLen() {
 bool WebSocketParser::_ResolveExtendedPayloadLen() {
     size_t unresolved_len = buffer_->Length() - resolved_len_;
     
-    if (ws_packet->PayloadLen() == 126) {
+    uint8_t payload_len = ws_packet->PayloadLen();
+    
+    if (payload_len == 126) {
         if (unresolved_len < 2) {
             return false;
         }
-        // TODO
-        size_t extended_payload_len = 0;
+        uint16_t extended_payload_len = ((*buffer_->Ptr(resolved_len_) << 8) & 0xff00) +
+                (*buffer_->Ptr(resolved_len_ + 1) & 0xff);
         resolved_len_ += 2;
-    } else {
-        if (unresolved_len < 6) {
+        ws_packet->SetExtendedPayloadLen(extended_payload_len);
+        
+    } else if (payload_len == 127) {
+        if (unresolved_len < 8) {
             return false;
         }
-        // TODO
         size_t extended_payload_len = 0;
-        resolved_len_ += 6;
+        for (int i = 0; i < 8; ++i) {
+            int shift = (7 - i) * 8;
+            uint8_t c = *buffer_->Ptr(resolved_len_++);
+            extended_payload_len += (c << shift) & (0xff << shift);
+        }
+        ws_packet->SetExtendedPayloadLen(extended_payload_len);
+        
+    } else {
+        position_ = kError;
+        return false;
     }
     position_ = ws_packet->IsMasked() ? kMaskingKey : kPayload;
     return true;

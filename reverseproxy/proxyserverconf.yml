@@ -4,6 +4,9 @@ port: 80
 # Number of threads who handles network events
 net_thread_cnt: 4
 
+# Max connections at the same time.
+max_connections: 10000
+
 # All the webservers that reverse proxy can forward to.
 webservers:
   -

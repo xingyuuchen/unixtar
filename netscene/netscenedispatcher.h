@@ -1,5 +1,4 @@
-#ifndef OI_SVR_NETSCENEDISPATCHER_H
-#define OI_SVR_NETSCENEDISPATCHER_H
+#pragma once
 #include "netscenebase.h"
 #include "singleton.h"
 #include "webserver.h"
@@ -64,7 +63,7 @@ class NetSceneDispatcher final {
     
     int __GetNetSceneTypeByRoute(std::string &_full_url);
     
-    bool __DynamicRouteMatch(std::string &_dynamic, std::string &_route);
+    static bool __DynamicRouteMatch(std::string &_dynamic, std::string &_route);
     
   private:
     std::vector<NetSceneBase *>     selectors_;
@@ -74,5 +73,3 @@ class NetSceneDispatcher final {
     
 };
 
-
-#endif //OI_SVR_NETSCENEDISPATCHER_H

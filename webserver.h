@@ -114,8 +114,9 @@ class WebServer final : public ServerBase {
         size_t Backlog();
     
         /**
-         * @param _backlog: The maximum backlog for waiting queue (which holds parsed HTTP packets
-                            but have not yet been processed by the WorkerThread).
+         * @param _backlog: The maximum backlog for waiting queue (which holds
+         *                  parsed HTTP packets but have not yet been
+         *                  processed by the WorkerThread).
          */
         void SetMaxBacklog(size_t _backlog);
     

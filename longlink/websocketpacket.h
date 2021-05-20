@@ -73,9 +73,9 @@ class WebSocketPacket : public ApplicationPacket {
     
     bool IsMasked() const;
     
-    void SetPayloadLen(size_t _len);
+    void SetPayloadLen(uint8_t _len);
     
-    size_t PayloadLen() const;
+    uint8_t PayloadLen() const;
     
     void SetExtendedPayloadLen(size_t _extended_payload_len);
     
@@ -100,7 +100,7 @@ class WebSocketPacket : public ApplicationPacket {
     bool                        rsv_[3]{false};
     uint8_t                     op_code_;
     bool                        mask_;
-    size_t                      payload_len_;
+    uint8_t                     payload_len_;
     size_t                      extended_payload_len_;
     uint8_t                     masking_key_[4]{};
     std::string                 payload_;
@@ -117,11 +117,11 @@ class WebSocketPacket : public ApplicationPacket {
  |N|V|V|V|       |S|             |   (if payload len==126/127)   |
  | |1|2|3|       |K|             |                               |
  +-+-+-+-+-------+-+-------------+ - - - - - - - - - - - - - - - +
- |     Extended payload length continued, if payload len == 127  |
+ |    Extended payload length continued, if payload len == 127   |
  + - - - - - - - - - - - - - - - +-------------------------------+
  |8                              | Masking-key, if MASK set to 1 |
  +-------------------------------+-------------------------------+
- | Masking-key (continued)       |14       Payload Data          |
+ |    Masking-key (continued)    |14       Payload Data          |
  +-------------------------------- - - - - - - - - - - - - - - - +
  :                     Payload Data continued ...                :
  + - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - +
