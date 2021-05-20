@@ -78,6 +78,7 @@ class ConnectionProfile {
         if (upgrade) {  // update context.
             MakeRecvContext();
             MakeSendContext();
+            tcp_byte_arr_.Reset();  // clear old tcp data.
         }
     }
     

@@ -40,6 +40,13 @@ ConnectionProfile::ConnectionProfile(std::string _remote_ip,
 int ConnectionProfile::Receive() {
     
     SOCKET fd = socket_.FD();
+    
+    if (IsLongLinkApplicationProtocol() && IsParseDone()) {
+        // Reset parser to clear data from last application packet,
+        // because longlink protocol reuses the parser.
+        application_protocol_parser_->Reset();
+    }
+    
     while (true) {
     
         bool has_more_data;
@@ -225,10 +232,6 @@ ConnectionProfile::TType ConnectionFrom::GetType() const { return kFrom; }
 
 
 void ConnectionFrom::MakeRecvContext() {
-    if (!IsParseDone()) {
-        LogE("recv ctx cannot be made when the parsing NOT done")
-        return;
-    }
     recv_ctx_.fd = socket_.FD();
     recv_ctx_.application_packet = application_packet_;
     recv_ctx_.send_context = &send_ctx_;

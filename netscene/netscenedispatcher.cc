@@ -83,11 +83,12 @@ NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() = default;
 
 void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext *_recv_ctx) {
     if (_recv_ctx->application_packet->ApplicationProtocol() == kWebSocket) {
+        LogI("dispatch to WebSocket")
         HandleWebSocket(_recv_ctx);
         return;
     }
     
-    // Handle Http
+    /* Handle Http */
     if (_recv_ctx->application_packet->ApplicationProtocol() != kHttp1_1) {
         return;
     }
@@ -155,10 +156,14 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext *_recv_ctx)
 }
 
 void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext *_recv_ctx) {
-    if (!_recv_ctx) {
+    if (_recv_ctx->application_packet->ApplicationProtocol() == kWebSocket) {
+        // TODO
         return;
     }
-    assert(_recv_ctx->application_packet->ApplicationProtocol() == kHttp1_1);
+    
+    if (_recv_ctx->application_packet->ApplicationProtocol() != kHttp1_1) {
+        return;
+    }
     auto *http_request = (http::request::HttpRequest *) _recv_ctx->application_packet;
     
     std::string resp_str = "server is busy now";
@@ -184,16 +189,31 @@ void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext *_recv_
 void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(tcp::RecvContext *_recv_ctx) {
     assert(_recv_ctx->application_packet->ApplicationProtocol() == kWebSocket);
     auto *ws_packet = (ws::WebSocketPacket *) _recv_ctx->application_packet;
-    http::HeaderField &headers = ws_packet->RequestHeaders();
-    bool success = ws_packet->DoHandShake();
-    auto &buffer = _recv_ctx->send_context->buffer;
     
-    http::HeaderField &resp_headers = ws_packet->ResponseHeaders();
-    int resp_code = success ? 101 : 404;
+    if (!ws_packet->IsHandShaken()) {
+        bool success = ws_packet->DoHandShake();
+        auto &buffer = _recv_ctx->send_context->buffer;
     
-    http::response::Pack(http::kHTTP_1_1, resp_code,
-                         http::StatusLine::kStatusDescSwitchProtocol, &resp_headers.AsMap(),
-                         _recv_ctx->send_context->buffer);
+        http::HeaderField &resp_headers = ws_packet->ResponseHeaders();
+        int resp_code = 101;
+    
+        if (!success) {
+            resp_code = 404;
+            LogE("WebSocket Hand Shake failed")
+        }
+        http::response::Pack(http::kHTTP_1_1, resp_code,
+                             http::StatusLine::kStatusDescSwitchProtocol,
+                             &resp_headers.AsMap(), _recv_ctx->send_context->buffer);
+        return;
+    }
+    LogI("payload: %s", ws_packet->Payload().c_str())
+    
+    static int visit = 0;
+    char format[] = R"({"message":"I am unixtar %d"})";
+    char resp[256];
+    snprintf(resp, sizeof(resp), format, ++visit);
+    std::string resp_str(resp);
+    ws::Pack(resp_str, _recv_ctx->send_context->buffer);
 }
 
 void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {

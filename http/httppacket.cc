@@ -149,12 +149,3 @@ int http::HttpParser::DoParse() {
     }
 }
 
-void http::HttpParser::Reset() {
-    position_ = TPosition::kNone;
-    headers_->Reset();
-    first_line_len_ = 0;
-    header_len_ = 0;
-    resolved_len_ = 0;
-    buffer_->Reset();      // careful
-}
-

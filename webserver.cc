@@ -276,10 +276,25 @@ bool WebServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn
         
         TApplicationProtocol app_proto = _conn->ApplicationProtocol();
         
-        if (app_proto == kHttp1_1 || app_proto == kWebSocket) {
-            recv_queue_.push_back(_conn->GetRecvContext());
-            return false;
+        if (app_proto == kWebSocket) {
+            auto *ws_packet = (ws::WebSocketPacket *)
+                    _conn->GetRecvContext()->application_packet;
+            uint8_t opcode = ws_packet->OpCode();
+            
+            if (opcode == ws::WebSocketPacket::kOpcodeConnectionClose) {
+                LogI("ws opcode: %02x, status-code(%d): %s", opcode,
+                     ws_packet->StatusCode(), ws_packet->StatusCodeInfo())
+                break;
+            }
+            
+        } else if (app_proto != kHttp1_1) {
+            LogI("not WebSocket nor Http1_1, delete")
+            break;
         }
+        
+        recv_queue_.push_back(_conn->GetRecvContext());
+        return false;
+        
     } while (false);
     
     DelConnection(uid);

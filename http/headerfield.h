@@ -53,7 +53,7 @@ class HeaderField {
     
     void InsertOrUpdate(const std::string &_key, const std::string &_value);
     
-    const char *Get(const char *_field);
+    const char *Get(const char *_field) const;
     
     uint64_t ContentLength() const;
     

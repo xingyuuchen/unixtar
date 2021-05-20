@@ -62,6 +62,8 @@ class ApplicationProtocolParser {
     
     virtual TApplicationProtocol ProtocolUpgradeTo();
     
+    virtual void Reset();
+    
   protected:
     ApplicationPacket         * application_packet_;
     AutoBuffer                * buffer_;

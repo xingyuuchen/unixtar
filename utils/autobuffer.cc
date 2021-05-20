@@ -46,7 +46,7 @@ size_t AutoBuffer::Length() const {
     return length_;
 }
 
-char *AutoBuffer::Ptr(const size_t _offset/* = 0*/) const {
+char *AutoBuffer::Ptr(const size_t _offset /* = 0*/) const {
     return byte_array_ + _offset;
 }
 

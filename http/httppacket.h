@@ -54,8 +54,6 @@ class HttpParser : public ApplicationProtocolParser {
     
     int DoParse() override;
     
-    void Reset();
-    
     bool IsEnd() const override;
     
     bool IsErr() const override;

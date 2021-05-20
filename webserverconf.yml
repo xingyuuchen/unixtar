@@ -8,6 +8,9 @@ net_thread_cnt: 4
 # Number of threads who handles upper level business logic.
 worker_thread_cnt: 4
 
+# Max connections at the same time.
+max_connections: 10000
+
 # The maximum backlog of waiting queue (who holds parsed HTTP packets
 # but have not yet been processed by the worker thread).
 max_backlog: 4096

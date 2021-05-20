@@ -15,6 +15,10 @@ TApplicationProtocol ApplicationProtocolParser::ProtocolUpgradeTo() {
     return TApplicationProtocol::kNone;
 }
 
+void ApplicationProtocolParser::Reset() {
+    // implemented by long link application protocol.
+}
+
 ApplicationProtocolParser::~ApplicationProtocolParser() = default;
 
 
@@ -30,3 +34,4 @@ bool ApplicationPacket::IsLongLink() const {
     // we use http as short link protocol.
     return false;
 }
+

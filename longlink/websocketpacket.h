@@ -5,11 +5,48 @@
 
 namespace ws {
 
-void Pack(AutoBuffer &_content, AutoBuffer &_out);
+void Pack(std::string &_content, AutoBuffer &_out);
 
 
 class WebSocketPacket : public ApplicationPacket {
   public:
+    
+    static const char *const    kHandShakeMagicKey;
+    static const uint8_t        kOpcodeText;
+    static const uint8_t        kOpcodeConnectionClose;
+    
+    static const uint16_t       kStatusCodeInvalid;
+    static const uint16_t       kStatusCodeCloseNormal;
+    static const uint16_t       kStatusCodeCloseGoingAway;
+    static const uint16_t       kStatusCodeCloseProtocolError;
+    static const uint16_t       kStatusCodeCloseUnsupported;
+    static const uint16_t       kStatusCodeCloseNoStatus;
+    static const uint16_t       kStatusCodeCloseAbnormal;
+    static const uint16_t       kStatusCodeUnsupportedData;
+    static const uint16_t       kStatusCodePolicyViolation;
+    static const uint16_t       kStatusCodeCloseTooLarge;
+    static const uint16_t       kStatusCodeMissingExtension;
+    static const uint16_t       kStatusCodeInternalError;
+    static const uint16_t       kStatusCodeServiceRestart;
+    static const uint16_t       kStatusCodeTryAgainLater;
+    static const uint16_t       kStatusCodeTlsHandShake;
+    
+    static const char *const    kStatusCodeInvalidInfo;
+    static const char *const    kStatusCodeCloseNormalInfo;
+    static const char *const    kStatusCodeCloseGoingAwayInfo;
+    static const char *const    kStatusCodeCloseProtocolErrorInfo;
+    static const char *const    kStatusCodeCloseUnsupportedInfo;
+    static const char *const    kStatusCodeCloseNoStatusInfo;
+    static const char *const    kStatusCodeCloseAbnormalInfo;
+    static const char *const    kStatusCodeUnsupportedDataInfo;
+    static const char *const    kStatusCodePolicyViolationInfo;
+    static const char *const    kStatusCodeCloseTooLargeInfo;
+    static const char *const    kStatusCodeMissingExtensionInfo;
+    static const char *const    kStatusCodeInternalErrorInfo;
+    static const char *const    kStatusCodeServiceRestartInfo;
+    static const char *const    kStatusCodeTryAgainLaterInfo;
+    static const char *const    kStatusCodeTlsHandShakeInfo;
+    
     WebSocketPacket();
     
     ~WebSocketPacket() override;
@@ -18,17 +55,55 @@ class WebSocketPacket : public ApplicationPacket {
     
     bool IsHandShaken() const;
     
+    void SetHandShakeReqHeader(http::HeaderField *);
+    
     http::HeaderField &RequestHeaders();
     
     http::HeaderField &ResponseHeaders();
     
+    void SetFirstByte(uint8_t _first);
+    
+    uint8_t OpCode() const;
+    
+    uint16_t StatusCode();
+    
+    const char *StatusCodeInfo();
+    
+    void Masked(bool _mask);
+    
+    bool IsMasked() const;
+    
+    void SetPayloadLen(size_t _len);
+    
+    size_t PayloadLen() const;
+    
+    void SetExtendedPayloadLen(size_t _extended_payload_len);
+    
+    size_t ExtendedPayloadLen() const;
+    
+    void SetMaskingKey(uint8_t[4]);
+    
+    uint8_t *MaskingKey();
+    
+    std::string &Payload();
+    
+    void Reset();
+    
     TApplicationProtocol ApplicationProtocol() const override;
     
   private:
-    static const char *const    kHandShakeMagicKey;
     bool                        is_hand_shaken;
-    http::HeaderField           request_headers_;
-    http::HeaderField           response_headers_;
+    http::HeaderField           handshake_req;
+    http::HeaderField           handshake_resp;
+    uint8_t                     first_byte;
+    bool                        fin_;
+    bool                        rsv_[3]{false};
+    uint8_t                     op_code_;
+    bool                        mask_;
+    size_t                      payload_len_;
+    size_t                      extended_payload_len_;
+    uint8_t                     masking_key_[4]{};
+    std::string                 payload_;
 };
 
 
@@ -69,13 +144,18 @@ class WebSocketParser : public ApplicationProtocolParser {
   public:
     enum TPosition {
         kNone = 0,
+        kFirstByte,
+        kPayloadLen,
+        kExtendedPayloadLen,
+        kMaskingKey,
+        kPayload,
         kEnd,
         kError,
     };
     
     WebSocketParser(AutoBuffer *_buff,
                     WebSocketPacket *_packet,
-                    http::HeaderField *_http_headers);
+                    http::HeaderField *_handshake_req);
     
     ~WebSocketParser() override;
     
@@ -85,7 +165,18 @@ class WebSocketParser : public ApplicationProtocolParser {
     
     bool IsEnd() const override;
     
+    void Reset() override;
+    
   protected:
+    bool _ResolveFirstByte();
+    
+    bool _ResolvePayloadLen();
+    
+    bool _ResolveExtendedPayloadLen();
+    
+    bool _ResolveMaskingKey();
+    
+    bool _ResolvePayload();
 
   private:
     WebSocketPacket           * ws_packet;

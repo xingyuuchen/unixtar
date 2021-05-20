@@ -122,21 +122,20 @@ void HeaderField::AppendToBuffer(AutoBuffer &_out_buff) {
 }
 
 bool HeaderField::__IsConnection(const char *_value) const {
-    for (const auto & header_field : header_fields_) {
-        if (0 == strcmp(header_field.first.c_str(), kConnection)) {
-            return 0 == strcmp(header_field.second.c_str(), _value);
-        }
+    const char *connection = Get(kConnection);
+    if (connection) {
+        return 0 == strcmp(connection, _value);
     }
-    LogI("No such field: %s", kConnection)
     return false;
 }
 
-const char *HeaderField::Get(const char *_field) {
+const char *HeaderField::Get(const char *_field) const {
     for (const auto & header_field : header_fields_) {
         if (0 == strcmp(header_field.first.c_str(), _field)) {
             return header_field.second.c_str();
         }
     }
+    LogI("No such field: %s", _field)
     return nullptr;
 }
 
