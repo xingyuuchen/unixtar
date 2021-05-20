@@ -2,11 +2,24 @@
 
 ### `✨Unique Star✨`
 
-The framework is a high-performance Http Server on unix based system.
+[中文版传送门](README_zh.md)
+
+The framework is a Web-Server on unix based system.
 
 Without using any third-party libraries, the framework writes from unix system calls and standard C library functions.
 
 The framework adopts the model of `Epoll + NetThreads + WorkerThreads`.
+
+
+The framework focuses on the following tasks:
+* Http server. Responsible for short connection requests. Framework completes Http protocol Serialization and Parsing. The Http body can be serialized by `Protobuf`. Framework Provides overload protection capability.
+* WebSocket server. Responsible for long connection requests, providing the ability to actively push messages. Framework completes WebSocket protocol handshake, Packing, Parsing, wave.
+* Reverse proxy. Provides the ability to forward requests to service nodes and load balancing. You can choose among several load balancing strategies.
+
+Features:
+* The transport and IP layers use UNIX domain sockets directly, with each network thread working with an Epoll object and multiple worker threads to provide concurrency.
+* You can easily add your own application layer protocols by inheriting the `ApplicationPacket` class.
+* You can easily add network interfaces by inheriting the `NetSceneBase` class.
 
 
 ## ✨ Build (unix)
@@ -18,6 +31,7 @@ bash cmake.sh -d   # -d: build will run as a daemon process, logs redirected to 
 ```
 
 ## ✨ Example Usage
+### Http short-link
 You are only responsible to write `NetScene` to get your business logic done.
 
 Each network interface is represented by a class(`NetScene_xxx`). They all inherit indirectly from `NetSceneBase`. You can treat it as a `Servlet` in Java.
@@ -28,7 +42,15 @@ Else, to customize your network communication protocol, inherit from `NetSceneCu
 
 After defining your network interface classes and implement your business logic, please register your class to the framework: `NetSceneDispatcher::Instance()::RegisterNetScene<NetScene_YourBusiness>();`.
 
-You can custom some configuration by editing `webserverconf.yml`. After configuration, call `WebServer::Instance().Serve();`, and the service just gets started!
+You can custom some configuration by editing `webserverconf.yml`. You can custom:
+* Port on which the process is listening.
+* Number of threads handling network events.
+* Number of threads handling business logic.
+* Maximum number of connections.
+* Maximum business backlog (exceeding this threshold is considered overloaded).
+* Reverse proxy server information, the period during which heartbeat packets are sent.
+
+After configuration, call `WebServer::Instance().Serve();`, and the service just gets started!
 
 Hope you enjoy :)
 
@@ -149,6 +171,11 @@ bash autogen.sh
 ```
 to generate protobuf c++ files, see `NetSceneHelloSvr.cc` for instance.
 
+### WebSocket long-link
+Although Http protocol can maintain long links, it does not provide the server with the ability to actively push messages to the client. Use `WebSocket` to fill this gap.
+
+
+
 ## ✨ Example Project
 [Plant-Recognition-Server](https://github.com/xingyuuchen/object-identify-SVR.git) is a web-server project, under the hood it is `unixtar` provides basic http network capability.
 
@@ -168,4 +195,5 @@ Reverse proxy do such things:
 Configure your reverse proxy by editing `reverseproxy/proxyserverconf.yml`. You can custom:
 * Port that reverse proxy server listens on.
 * All web server nodes available to forward Http request.
+* Maximum connections at the same time.
 * Number of threads who handles network events.
