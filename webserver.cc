@@ -111,7 +111,7 @@ void WebServer::WorkerThread::Run() {
         
                 if (app_proto == kWebSocket) {
                     // ws may actively push messages to other connections.
-                    for (auto &send_ctx : recv_ctx->packet_push_others) {
+                    for (auto &send_ctx : recv_ctx->packets_push_others) {
                         net_thread_->GetSendQueue()->push_back(send_ctx);
                     }
                 }

@@ -52,7 +52,8 @@ class NetSceneDispatcher final {
     
         static void HandleWebSocket(const tcp::RecvContext::Ptr&);
         
-        static void WriteFakeWsResp(tcp::RecvContext::Ptr);
+        // debug only
+        static void WriteFakeWsResp(const tcp::RecvContext::Ptr&);
 
       private:
         static void PackHttpRespPacket(NetSceneBase *_net_scene,

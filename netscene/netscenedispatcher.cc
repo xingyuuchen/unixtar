@@ -228,7 +228,8 @@ void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
     running_ = false;
 }
 
-void NetSceneDispatcher::NetSceneWorker::WriteFakeWsResp(tcp::RecvContext::Ptr _recv_ctx) {
+void NetSceneDispatcher::NetSceneWorker::WriteFakeWsResp(
+                const tcp::RecvContext::Ptr& _recv_ctx) {
     static uint64_t visit = 0;
     char resp[256];
     snprintf(resp, sizeof(resp), R"({"msg":"This is %llu visits to unixtar"})", ++visit);

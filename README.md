@@ -8,7 +8,8 @@ The framework is a Web-Server on unix based system.
 
 Without using any third-party libraries, the framework writes from unix system calls and standard C library functions.
 
-The framework adopts the model of `Epoll + NetThreads + WorkerThreads`.
+The framework adopts the model of `Epoll + NetThreads + WorkerThreads`:
+![model-overview](docs/images/model-overview.png)
 
 
 The framework focuses on the following tasks:
@@ -19,6 +20,8 @@ The framework focuses on the following tasks:
 * The code of the transport layer module is completely independent of the specific application layer protocol, you can easily add your own application layer protocols by inheriting the `ApplicationPacket` class.
 * You can easily add network interfaces by inheriting the `NetSceneBase` class.
 
+Workflow when processing HTTP short link requests:
+![model-overview](docs/images/how-model-run.png)
 
 ## ✨ Build (unix)
 ```shell

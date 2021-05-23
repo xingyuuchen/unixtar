@@ -68,11 +68,16 @@ void ReverseProxyServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfil
 
 bool ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::RecvContext::Ptr _recv_ctx) {
     assert(_recv_ctx);
-    if (_recv_ctx->application_packet->Protocol() != kHttp1_1) {
-        LogE("%d NOT a Http1.1 packet", _recv_ctx->application_packet->Protocol())
-        return HandleForwardFailed(_recv_ctx);
+    if (_recv_ctx->application_packet->Protocol() == kHttp1_1) {
+        return HandleHttpPacket(_recv_ctx);
+    } else if (_recv_ctx->application_packet->Protocol() == kWebSocket) {
+        return HandleWebSocketPacket(_recv_ctx);
     }
-    
+    DelConnection(_recv_ctx->tcp_connection_uid);
+    return true;
+}
+
+bool ReverseProxyServer::NetThread::HandleHttpPacket(const tcp::RecvContext::Ptr& _recv_ctx) {
     tcp::TConnectionType type = _recv_ctx->type;
     uint32_t uid = _recv_ctx->tcp_connection_uid;
     
@@ -137,6 +142,11 @@ bool ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::RecvContext::Pt
         }
         return true;
     }
+    return false;
+}
+
+bool ReverseProxyServer::NetThread::HandleWebSocketPacket(const tcp::RecvContext::Ptr &) {
+    // TODO: WebSocket proxy.
     return false;
 }
 

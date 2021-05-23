@@ -43,8 +43,8 @@ struct RecvContext {
     /* <------ input fields end ------> */
     
     /* <------ output fields begin ------> */
-    std::vector<SendContext::Ptr>         packet_push_others;
-    SendContext::Ptr                      packet_back;
+    std::vector<SendContext::Ptr>       packets_push_others;
+    SendContext::Ptr                    packet_back;
     /* <------ output fields end ------> */
 };
 }

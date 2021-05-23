@@ -8,7 +8,8 @@
 
 不包含任何第三方库，框架从低层级的系统调用和C标准库写起。
 
-框架采用 `Epoll + NetThreads + WorkerThreads` 的模型。
+框架采用 `Epoll + NetThreads + WorkerThreads` 的模型：
+![model-overview](docs/images/model-overview.png)
 
 特点：
 * 传输层和IP层直接使用unix域套接字，每个网络线程配合一个epoll对象和多个工作线程以提供并发能力。并提供过载保护。
@@ -18,6 +19,8 @@
 * 传输层模块的代码完全独立于具体的应用层协议，你可以通过继承 `ApplicationPacket` 类，轻易地添加自己的应用层协议。
 * 框架完全独立于业务，你可以通过继承 `NetSceneBase` 类，轻易地添加自己的网络接口。
 
+处理Http短链接请求时模型工作流：
+![model-overview](docs/images/how-model-run.png)
 
 ## ✨ 编译 (unix)
 ```shell
@@ -172,7 +175,7 @@ bash autogen.sh
 
 
 ### WebSocket 长链接
-Http协议虽可以保持长链接，但它不提供服务端向客户端主动推送消息的能力，使用 `WebSocket` 以填补此空缺。
+Http协议虽可以保持长链接，但它不提供向客户端主动推送消息的能力，使用 `WebSocket` 以填补此空缺。
 
 
 

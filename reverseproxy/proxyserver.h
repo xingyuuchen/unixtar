@@ -44,6 +44,10 @@ class ReverseProxyServer final : public ServerBase {
         void ConfigApplicationLayer(tcp::ConnectionProfile *) override;
     
         bool HandleApplicationPacket(tcp::RecvContext::Ptr) override;
+        
+        bool HandleHttpPacket(const tcp::RecvContext::Ptr&);
+        
+        bool HandleWebSocketPacket(const tcp::RecvContext::Ptr&);
     
         bool HandleForwardFailed(const tcp::RecvContext::Ptr&);
     

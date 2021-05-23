@@ -378,7 +378,7 @@ bool WebSocketParser::_ResolvePayload() {
     
     for (int i = 0; i < unresolved_len; ++i) {
         uint8_t raw = *buffer_->Ptr(resolved_len_ + i);
-        uint8_t decoded = mask ? raw ^ masking_key[i % 4] :raw;
+        uint8_t decoded = mask ? raw ^ masking_key[i % 4] : raw;
         payload += (char) decoded;
     }
     

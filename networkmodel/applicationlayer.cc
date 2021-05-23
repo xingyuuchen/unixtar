@@ -23,10 +23,13 @@ TApplicationProtocol ApplicationProtocolParser::ProtocolUpgradeTo() {
 
 void ApplicationProtocolParser::OnApplicationPacketChanged(
         const ApplicationPacket::Ptr& _new) {
+    // Implemented by longlink application protocol,
+    // because short link protocol only has one application packet.
 }
 
 void ApplicationProtocolParser::Reset() {
-    // implemented by long link application protocol.
+    // Implemented by longlink application protocol,
+    // because longlink protocol reuse parser to parse all packets.
 }
 
 ApplicationProtocolParser::~ApplicationProtocolParser() = default;
@@ -54,7 +57,7 @@ ApplicationPacket::Ptr ApplicationPacket::AllocNewPacket() {
      *      last parsed packet has not been processed in
      *      the same tcp connection.
      *
-     * Otherwise, A collision between to packets occurs.
+     * Otherwise, A collision between two packets occurs.
      */
     return nullptr;
 }
