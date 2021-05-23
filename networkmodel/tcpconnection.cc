@@ -1,6 +1,8 @@
 #include "tcpconnection.h"
 #include <cstring>
+#include <cerrno>
 #include <utility>
+#include <unistd.h>
 #include "timeutil.h"
 #include "socket/unixsocket.h"
 
@@ -8,15 +10,18 @@
 namespace tcp {
 
 SendContext::SendContext()
-        : connection_uid(0)
+        : tcp_connection_uid(0)
         , fd(INVALID_SOCKET)
         , is_longlink(false) {
 }
 
 RecvContext::RecvContext()
         : fd(INVALID_SOCKET)
-        , send_context(nullptr)
-        , application_packet(nullptr) {
+        , tcp_connection_uid(0)
+        , from_port(0)
+        , type(kUnknown)
+        , application_packet(nullptr)
+        , packet_back(nullptr) {
 }
 
 
@@ -25,6 +30,8 @@ const uint64_t ConnectionProfile::kDefaultTimeout = 60 * 1000;
 ConnectionProfile::ConnectionProfile(std::string _remote_ip,
                                      uint16_t _remote_port, uint32_t _uid/* = 0*/)
         : uid_(_uid)
+        , application_protocol_(kNone)
+        , is_longlink_app_proto_(false)
         , remote_ip_(std::move(_remote_ip))
         , remote_port_(_remote_port)
         , record_(::gettickcount())
@@ -32,7 +39,7 @@ ConnectionProfile::ConnectionProfile(std::string _remote_ip,
         , socket_(INVALID_SOCKET)
         , has_received_FIN_(false)
         , timeout_ts_(record_ + timeout_millis_)
-        , application_packet_(nullptr)
+        , curr_application_packet_(nullptr)
         , application_protocol_parser_(nullptr) {
 }
 
@@ -40,12 +47,6 @@ ConnectionProfile::ConnectionProfile(std::string _remote_ip,
 int ConnectionProfile::Receive() {
     
     SOCKET fd = socket_.FD();
-    
-    if (IsLongLinkApplicationProtocol() && IsParseDone()) {
-        // Reset parser to clear data from last application packet,
-        // because longlink protocol reuses the parser.
-        application_protocol_parser_->Reset();
-    }
     
     while (true) {
     
@@ -74,16 +75,71 @@ int ConnectionProfile::Receive() {
             return -1;
         }
     
-        if (IsParseDone()) {
-            MakeRecvContext();
-            MakeSendContext();
-            return 0;
-        }
-    
-        if (!has_more_data) {
+        if (IsParseDone() || !has_more_data) {
             return 0;
         }
     }
+}
+
+void ConnectionProfile::AddPendingPacketToSend(SendContext::Ptr _send_ctx) {
+    pending_send_ctx_.push(std::move(_send_ctx));
+}
+
+bool ConnectionProfile::TrySend(const SendContext::Ptr& _send_ctx) {
+    if (!_send_ctx) {
+        LogE("!_send_ctx")
+        LogPrintStacktrace()
+        return false;
+    }
+    AutoBuffer &resp = _send_ctx->buffer;
+    size_t pos = resp.Pos();
+    size_t ntotal = resp.Length() - pos;
+    SOCKET fd = _send_ctx->fd;
+
+    if (fd <= 0 || ntotal == 0) {
+        return false;
+    }
+
+    ssize_t nsend = ::write(fd, resp.Ptr(pos), ntotal);
+
+    if (nsend == ntotal) {
+        LogI("fd(%d), send %zd/%zu B, done", fd, nsend, ntotal)
+        resp.Seek(AutoBuffer::kEnd);
+        return true;
+    }
+    if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
+        nsend = nsend > 0 ? nsend : 0;
+        LogI("fd(%d): send %zd/%zu B", fd, nsend, ntotal)
+        resp.Seek(AutoBuffer::kCurrent, nsend);
+    }
+    if (nsend < 0) {
+        if (errno == EPIPE) {
+            // fd probably closed by peer, or cleared because of timeout.
+            LogI("fd(%d) already closed, send nothing", fd)
+            return false;
+        }
+        LogE("fd(%d) nsend(%zd), errno(%d): %s",
+             fd, nsend, errno, strerror(errno))
+        LogPrintStacktrace(5)
+    }
+    return false;
+}
+
+bool ConnectionProfile::HasPendingPacketToSend() const {
+    return !pending_send_ctx_.empty();
+}
+
+bool ConnectionProfile::TrySendPendingPackets() {
+    while (!pending_send_ctx_.empty()) {
+        auto send_ctx = pending_send_ctx_.front();
+        bool is_send_done = TrySend(send_ctx);
+        if (is_send_done) {
+            pending_send_ctx_.pop();
+            continue;
+        }
+        return false;
+    }
+    return true;
 }
 
 uint32_t ConnectionProfile::Uid() const { return uid_; }
@@ -126,24 +182,15 @@ TApplicationProtocol ConnectionProfile::ProtocolUpgradeTo() {
 }
 
 TApplicationProtocol ConnectionProfile::ApplicationProtocol() {
-    if (!application_packet_) {
-        return TApplicationProtocol::kNone;
-    }
-    return application_packet_->ApplicationProtocol();
+    return application_protocol_;
 }
 
 const char *ConnectionProfile::ApplicationProtocolName() {
-    if (!application_packet_) {
-        return nullptr;
-    }
     return ApplicationProtoToString[ApplicationProtocol()];
 }
 
 bool ConnectionProfile::IsLongLinkApplicationProtocol() const {
-    if (!application_packet_) {
-        return false;
-    }
-    return application_packet_->IsLongLink();
+    return is_longlink_app_proto_;
 }
 
 AutoBuffer *ConnectionProfile::TcpByteArray() { return &tcp_byte_arr_; }
@@ -151,10 +198,6 @@ AutoBuffer *ConnectionProfile::TcpByteArray() { return &tcp_byte_arr_; }
 void ConnectionProfile::CloseTcpConnection() { socket_.Close(); }
 
 SOCKET ConnectionProfile::FD() const { return socket_.FD(); }
-
-tcp::RecvContext *ConnectionProfile::GetRecvContext() { return &recv_ctx_; }
-
-SendContext *ConnectionProfile::GetSendContext() { return &send_ctx_; }
 
 uint64_t ConnectionProfile::GetTimeoutTs() const { return timeout_ts_; }
 
@@ -171,17 +214,42 @@ bool ConnectionProfile::IsTimeout(uint64_t _now) const {
 bool ConnectionProfile::HasReceivedFIN() const { return has_received_FIN_; }
 
 bool ConnectionProfile::IsTypeValid() const {
-    TType type = GetType();
-    return type == kTo || type == kFrom;
+    TConnectionType type = GetType();
+    return type == kAcceptFrom || type == kConnectTo;
 }
 
-void ConnectionProfile::MakeRecvContext() {
+RecvContext::Ptr ConnectionProfile::MakeRecvContext(
+                        bool _with_send_ctx /* = false */) {
+    auto neo = std::make_shared<tcp::RecvContext>();
+    neo->fd = socket_.FD();
+    neo->tcp_connection_uid = Uid();
+    neo->from_ip = std::string(RemoteIp());
+    neo->from_port = RemotePort();
+    neo->type = GetType();
+    neo->application_packet = curr_application_packet_;
+    if (IsLongLinkApplicationProtocol()) {
+        // Resets parser to clear data of last application packet,
+        // because longlink protocol reuses the parser.
+        application_protocol_parser_->Reset();
+        
+        // Allocates a new packet because the old one probably has not
+        // been processed by the worker thread when new data comes and
+        // a new application packet is needed to be parsed in.
+        curr_application_packet_ = curr_application_packet_->AllocNewPacket();
+        application_protocol_parser_->SetPacketToParse(curr_application_packet_);
+    }
+    neo->packet_back = _with_send_ctx ? MakeSendContext() : nullptr;
+    return neo;
 }
 
-void ConnectionProfile::MakeSendContext() {
-    send_ctx_.connection_uid = Uid();
-    send_ctx_.fd = socket_.FD();
-    send_ctx_.is_longlink = IsLongLinkApplicationProtocol();
+SendContext::Ptr ConnectionProfile::MakeSendContext() {
+    auto neo = std::make_shared<tcp::SendContext>();
+    neo->tcp_connection_uid = Uid();
+    neo->fd = socket_.FD();
+    neo->is_longlink = IsLongLinkApplicationProtocol();
+    neo->MarkAsPendingPacket = std::bind(
+            &ConnectionProfile::AddPendingPacketToSend, this, neo);
+    return neo;
 }
 
 std::string &ConnectionProfile::RemoteIp() { return remote_ip_; }
@@ -191,8 +259,6 @@ uint16_t ConnectionProfile::RemotePort() const { return remote_port_; }
 ConnectionProfile::~ConnectionProfile() {
     delete application_protocol_parser_;
     application_protocol_parser_ = nullptr;
-    delete application_packet_;
-    application_packet_ = nullptr;
 }
 
 
@@ -215,7 +281,7 @@ int ConnectionTo::Connect() {
     return ret;
 }
 
-ConnectionProfile::TType ConnectionTo::GetType() const { return kTo; }
+TConnectionType ConnectionTo::GetType() const { return kConnectTo; }
 
 
 
@@ -228,14 +294,8 @@ ConnectionFrom::ConnectionFrom(SOCKET _fd, std::string _remote_ip,
     socket_.SetNonblocking();
 }
 
-ConnectionProfile::TType ConnectionFrom::GetType() const { return kFrom; }
+TConnectionType ConnectionFrom::GetType() const { return kAcceptFrom; }
 
-
-void ConnectionFrom::MakeRecvContext() {
-    recv_ctx_.fd = socket_.FD();
-    recv_ctx_.application_packet = application_packet_;
-    recv_ctx_.send_context = &send_ctx_;
-}
 
 ConnectionFrom::~ConnectionFrom() = default;
 

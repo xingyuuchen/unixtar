@@ -1,5 +1,6 @@
 #pragma once
 #include "autobuffer.h"
+#include <memory>
 
 
 enum TApplicationProtocol {
@@ -25,6 +26,7 @@ const char *const ApplicationProtoToString[kProtocolsMax] = {
  */
 class ApplicationPacket {
   public:
+    using Ptr = std::shared_ptr<ApplicationPacket>;
     
     ApplicationPacket();
     
@@ -32,7 +34,9 @@ class ApplicationPacket {
     
     bool IsLongLink() const;
     
-    virtual TApplicationProtocol ApplicationProtocol() const = 0;
+    virtual TApplicationProtocol Protocol() const = 0;
+    
+    virtual Ptr AllocNewPacket();
     
 };
 
@@ -43,10 +47,12 @@ class ApplicationPacket {
 class ApplicationProtocolParser {
   public:
     
-    ApplicationProtocolParser(ApplicationPacket *_packet,
+    ApplicationProtocolParser(ApplicationPacket::Ptr _packet,
                               AutoBuffer *_buff);
     
     virtual ~ApplicationProtocolParser();
+    
+    void SetPacketToParse(ApplicationPacket::Ptr _packet);
     
     /**
      *
@@ -62,10 +68,13 @@ class ApplicationProtocolParser {
     
     virtual TApplicationProtocol ProtocolUpgradeTo();
     
+    virtual void OnApplicationPacketChanged(
+            const ApplicationPacket::Ptr& _new);
+    
     virtual void Reset();
     
   protected:
-    ApplicationPacket         * application_packet_;
+    ApplicationPacket::Ptr      application_packet_;
     AutoBuffer                * buffer_;
     
 };

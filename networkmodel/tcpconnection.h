@@ -1,25 +1,51 @@
 #pragma once
 #include <cassert>
+#include <queue>
+#include <memory>
+#include <functional>
 #include "socket/unixsocket.h"
 #include "applicationlayer.h"
 #include "log.h"
 
 
 namespace tcp {
+
+/* whether this connection is established actively or passively */
+enum TConnectionType {
+    kUnknown = 0,
+    kAcceptFrom,
+    kConnectTo,
+};
+
+
 struct SendContext {
+    using Ptr = std::shared_ptr<tcp::SendContext>;
     SendContext();
-    uint32_t        connection_uid;
-    SOCKET          fd;
-    bool            is_longlink;
-    AutoBuffer      buffer;
+    
+    uint32_t                tcp_connection_uid;
+    SOCKET                  fd;
+    bool                    is_longlink;
+    AutoBuffer              buffer;
+    std::function<void()>   MarkAsPendingPacket;
 };
 
 
 struct RecvContext {
+    using Ptr = std::shared_ptr<tcp::RecvContext>;
     RecvContext();
-    SOCKET                  fd;
-    tcp::SendContext      * send_context;
-    ApplicationPacket     * application_packet;
+    /* <------ input fields begin ------> */
+    uint32_t                            tcp_connection_uid;
+    SOCKET                              fd;
+    std::string                         from_ip;
+    uint16_t                            from_port;
+    TConnectionType                     type;
+    ApplicationPacket::Ptr              application_packet;
+    /* <------ input fields end ------> */
+    
+    /* <------ output fields begin ------> */
+    std::vector<SendContext::Ptr>         packet_push_others;
+    SendContext::Ptr                      packet_back;
+    /* <------ output fields end ------> */
 };
 }
 
@@ -27,11 +53,6 @@ struct RecvContext {
 namespace tcp {
 class ConnectionProfile {
   public:
-    /* whether this connection is established actively or passively */
-    enum TType {
-        kFrom = 0,
-        kTo,
-    };
     
     ConnectionProfile(std::string _remote_ip,
                       uint16_t _remote_port, uint32_t _uid = 0);
@@ -39,6 +60,14 @@ class ConnectionProfile {
     virtual ~ConnectionProfile();
     
     int Receive();
+    
+    static bool TrySend(const SendContext::Ptr&);
+    
+    void AddPendingPacketToSend(SendContext::Ptr);
+    
+    bool HasPendingPacketToSend() const;
+    
+    bool TrySendPendingPackets();
     
     uint32_t Uid() const;
     
@@ -58,26 +87,25 @@ class ConnectionProfile {
              class ...Args>
     void
     ConfigApplicationLayer(Args &&..._init_args) {
-        if (application_packet_ && !IsUpgradeApplicationProtocol()) {
-            LogE("application protocol already set, and no need to upgrade")
+        if (curr_application_packet_ && !IsUpgradeApplicationProtocol()) {
+            LogE("application protocol already set && no need to upgrade")
             assert(false);
         }
         bool upgrade = IsUpgradeApplicationProtocol();
         
-        ApplicationPacket *old_packet = application_packet_;
         ApplicationProtocolParser *old_parser = application_protocol_parser_;
         
-        application_packet_ = new ApplicationPacketImpl();
+        curr_application_packet_ = std::make_shared<ApplicationPacketImpl>();
         application_protocol_parser_ = new ApplicationParserImpl(&tcp_byte_arr_,
-                                (ApplicationPacketImpl *) application_packet_,
-                                _init_args...);
-        delete old_packet;
+                std::dynamic_pointer_cast<ApplicationPacketImpl>(curr_application_packet_),
+                _init_args...);
+        application_protocol_ = curr_application_packet_->Protocol();
+        is_longlink_app_proto_ = curr_application_packet_->IsLongLink();
+        
         delete old_parser;
-        LogI("application protocol config to: %s", ApplicationProtocolName())
+        LogI("app proto config to: %s", ApplicationProtocolName())
     
-        if (upgrade) {  // update context.
-            MakeRecvContext();
-            MakeSendContext();
+        if (upgrade) {
             tcp_byte_arr_.Reset();  // clear old tcp data.
         }
     }
@@ -104,37 +132,34 @@ class ConnectionProfile {
     
     bool HasReceivedFIN() const;
     
-    virtual TType GetType() const = 0;
+    virtual TConnectionType GetType() const = 0;
     
     bool IsTypeValid() const;
     
-    tcp::RecvContext *GetRecvContext();
-    
-    tcp::SendContext *GetSendContext();
+    RecvContext::Ptr MakeRecvContext(bool _with_send_ctx = false);
 
-    virtual void MakeRecvContext();
-    
-    void MakeSendContext();
+    SendContext::Ptr MakeSendContext();
     
     std::string &RemoteIp();
     
     uint16_t RemotePort() const;
 
   protected:
-    static const uint64_t       kDefaultTimeout;
-    uint32_t                    uid_;
-    std::string                 remote_ip_;
-    uint16_t                    remote_port_;
-    Socket                      socket_;
-    bool                        has_received_FIN_;
-    uint64_t                    record_;
-    uint64_t                    timeout_millis_;
-    uint64_t                    timeout_ts_;
-    AutoBuffer                  tcp_byte_arr_;
-    ApplicationPacket         * application_packet_;
-    ApplicationProtocolParser * application_protocol_parser_;
-    tcp::SendContext            send_ctx_;
-    tcp::RecvContext            recv_ctx_;
+    static const uint64_t               kDefaultTimeout;
+    uint32_t                            uid_;
+    TApplicationProtocol                application_protocol_;
+    bool                                is_longlink_app_proto_;
+    std::string                         remote_ip_;
+    uint16_t                            remote_port_;
+    Socket                              socket_;
+    bool                                has_received_FIN_;
+    uint64_t                            record_;
+    uint64_t                            timeout_millis_;
+    uint64_t                            timeout_ts_;
+    AutoBuffer                          tcp_byte_arr_;
+    ApplicationPacket::Ptr              curr_application_packet_;
+    ApplicationProtocolParser         * application_protocol_parser_;
+    std::queue<SendContext::Ptr>        pending_send_ctx_;
     
 };
 
@@ -147,9 +172,7 @@ class ConnectionFrom : public ConnectionProfile {
     
     ~ConnectionFrom() override;
     
-    TType GetType() const override;
-    
-    void MakeRecvContext() override;
+    TConnectionType GetType() const override;
     
   private:
   
@@ -167,7 +190,7 @@ class ConnectionTo : public ConnectionProfile {
     
     int Connect();
     
-    TType GetType() const override;
+    TConnectionType GetType() const override;
 
   private:
   

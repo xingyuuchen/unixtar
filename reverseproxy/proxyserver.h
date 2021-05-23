@@ -14,7 +14,7 @@ class ReverseProxyServer final : public ServerBase {
   public:
     void AfterConfig() override;
     
-    bool CheckHeartbeat(tcp::ConnectionProfile *);
+    bool CheckHeartbeat(const tcp::RecvContext::Ptr&);
     
     const char *ConfigFile() override;
     
@@ -43,14 +43,15 @@ class ReverseProxyServer final : public ServerBase {
         
         void ConfigApplicationLayer(tcp::ConnectionProfile *) override;
     
-        bool HandleApplicationPacket(tcp::ConnectionProfile *) override;
+        bool HandleApplicationPacket(tcp::RecvContext::Ptr) override;
     
-        bool HandleForwardFailed(tcp::ConnectionProfile *_client_conn);
+        bool HandleForwardFailed(const tcp::RecvContext::Ptr&);
     
       protected:
       
       private:
-        std::map<uint32_t, uint32_t> conn_map_;
+        std::map<uint32_t, std::pair<uint32_t,
+                        tcp::SendContext::Ptr>> conn_map_;
     };
     
   protected:

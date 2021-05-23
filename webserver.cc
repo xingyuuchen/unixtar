@@ -61,10 +61,11 @@ void WebServer::SendHeartbeat() {
         return;
     }
     conn->MakeSendContext();
+    tcp::SendContext::Ptr send_ctx = conn->MakeSendContext();
     http::request::Pack(config->reverse_proxy_ip, "/",
                         nullptr, ba,
-                        conn->GetSendContext()->buffer);
-    if (NetThread::TryWrite(conn->GetSendContext())) {
+                        send_ctx->buffer);
+    if (NetThread::TrySendAndMarkPendingIfUndone(send_ctx)) {
         net_thread->DelConnection(conn->Uid());
     }
     LogD("pit pat")
@@ -91,18 +92,34 @@ void WebServer::WorkerThread::Run() {
     
     while (true) {
         
-        tcp::RecvContext *recv_ctx;
+        tcp::RecvContext::Ptr recv_ctx;
         if (recv_queue->pop_front_to(recv_ctx)) {
         
-            if (net_thread_->IsWorkerOverload()) {
-                HandleOverload(recv_ctx);
-            } else {
-                HandleImpl(recv_ctx);
+            TApplicationProtocol app_proto =
+                    recv_ctx->application_packet->Protocol();
+            
+            if (app_proto == kHttp1_1 || app_proto == kWebSocket) {
+                
+                if (net_thread_->IsWorkerOverload()) {
+                    HandleOverload(recv_ctx);
+                } else {
+                    HandleImpl(recv_ctx);
+                }
+                tcp::SendContext::Ptr packet_back = recv_ctx->packet_back;
+    
+                net_thread_->GetSendQueue()->push_back(packet_back);
+        
+                if (app_proto == kWebSocket) {
+                    // ws may actively push messages to other connections.
+                    for (auto &send_ctx : recv_ctx->packet_push_others) {
+                        net_thread_->GetSendQueue()->push_back(send_ctx);
+                    }
+                }
+                
+                net_thread_->NotifySend();
+                continue;
             }
-            tcp::SendContext *send_ctx = recv_ctx->send_context;
-            net_thread_->GetSendQueue()->push_back(send_ctx);
-            net_thread_->NotifySend();
-            continue;
+            LogE("unknown application protocol: %d", app_proto)
         }
         
         if (recv_queue->IsTerminated()) {
@@ -175,12 +192,13 @@ bool WebServer::NetThread::HandleNotification(EpollNotifier::Notification &_noti
 }
 
 void WebServer::NetThread::HandleSend() {
-    tcp::SendContext *send_ctx;
+    tcp::SendContext::Ptr send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogD("fd(%d) doing send task", send_ctx->fd)
-        bool is_send_done = TryWrite(send_ctx);
-        if (!send_ctx->is_longlink && is_send_done) {
-            DelConnection(send_ctx->connection_uid);
+        bool is_send_done = TrySendAndMarkPendingIfUndone(send_ctx);
+        
+        if (is_send_done && !send_ctx->is_longlink) {
+            DelConnection(send_ctx->tcp_connection_uid);
         }
     }
 }
@@ -230,25 +248,26 @@ bool WebServer::NetThread::__IsNotifySend(EpollNotifier::Notification &_notifica
 }
 
 void WebServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn) {
-    if (_conn->GetType() != tcp::ConnectionProfile::kFrom) {
+    if (_conn->GetType() != tcp::TConnectionType::kAcceptFrom) {
         return;     // heartbeat packet, pass.
     }
     _conn->ConfigApplicationLayer<http::request::HttpRequest,
                                   http::request::Parser>();
 }
 
-void WebServer::NetThread::UpgradeApplicationProtocol(tcp::ConnectionProfile *_conn) {
+void WebServer::NetThread::UpgradeApplicationProtocol(tcp::ConnectionProfile *_conn,
+                                                      const tcp::RecvContext::Ptr &_recv_ctx) {
     SOCKET fd = _conn->FD();
     uint32_t uid = _conn->Uid();
     TApplicationProtocol upgrade_to = _conn->ProtocolUpgradeTo();
     
     if (upgrade_to == TApplicationProtocol::kWebSocket
                 && _conn->ApplicationProtocol() == kHttp1_1
-                && _conn->GetType() == tcp::ConnectionProfile::kFrom) {
+                && _conn->GetType() == tcp::TConnectionType::kAcceptFrom) {
         LogI("fd(%d), uid: %u", fd, uid)
         
-        auto *http_request = (http::request::HttpRequest *)
-                    _conn->GetRecvContext()->application_packet;
+        auto http_request = std::dynamic_pointer_cast<http::request::HttpRequest>(
+                _recv_ctx->application_packet);
         http::HeaderField *headers = http_request->Headers();
         
         _conn->ConfigApplicationLayer<ws::WebSocketPacket,
@@ -258,28 +277,23 @@ void WebServer::NetThread::UpgradeApplicationProtocol(tcp::ConnectionProfile *_c
     LogI("fd(%d), uid: %u, no need to upgrade application protocol", fd, uid)
 }
 
-bool WebServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn) {
-    assert(_conn);
-    uint32_t uid;
-    SOCKET fd = _conn->FD();
+bool WebServer::NetThread::HandleApplicationPacket(tcp::RecvContext::Ptr _recv_ctx) {
+    assert(_recv_ctx);
+    uint32_t uid = _recv_ctx->tcp_connection_uid;
+    SOCKET fd = _recv_ctx->fd;
     
     do {
-        uid = _conn->Uid();
-        if (_conn->GetType() != tcp::ConnectionProfile::kFrom) {
-            LogE("NOT a request, type: %d, fd(%d), uid: %u", fd, uid, _conn->GetType())
-            break;
-        }
         if (IsWorkerFullyLoad()) {
             LogE("worker fully loaded, drop connection directly: fd(%d), uid: %u", fd, uid)
             break;
         }
         
-        TApplicationProtocol app_proto = _conn->ApplicationProtocol();
+        TApplicationProtocol app_proto = _recv_ctx->application_packet->Protocol();
         
         if (app_proto == kWebSocket) {
-            auto *ws_packet = (ws::WebSocketPacket *)
-                    _conn->GetRecvContext()->application_packet;
+            auto ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(_recv_ctx->application_packet);
             uint8_t opcode = ws_packet->OpCode();
+            
             
             if (opcode == ws::WebSocketPacket::kOpcodeConnectionClose) {
                 LogI("ws opcode: %02x, status-code(%d): %s", opcode,
@@ -288,11 +302,11 @@ bool WebServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn
             }
             
         } else if (app_proto != kHttp1_1) {
-            LogI("not WebSocket nor Http1_1, delete")
+            LogI("not WebSocket nor Http1_1, delete connection")
             break;
         }
         
-        recv_queue_.push_back(_conn->GetRecvContext());
+        recv_queue_.push_back(_recv_ctx);
         return false;
         
     } while (false);

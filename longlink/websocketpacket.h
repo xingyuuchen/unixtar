@@ -10,6 +10,7 @@ void Pack(std::string &_content, AutoBuffer &_out);
 
 class WebSocketPacket : public ApplicationPacket {
   public:
+    using Ptr = std::shared_ptr<WebSocketPacket>;
     
     static const char *const    kHandShakeMagicKey;
     static const uint8_t        kOpcodeText;
@@ -89,7 +90,9 @@ class WebSocketPacket : public ApplicationPacket {
     
     void Reset();
     
-    TApplicationProtocol ApplicationProtocol() const override;
+    TApplicationProtocol Protocol() const override;
+    
+    ApplicationPacket::Ptr AllocNewPacket() override;
     
   private:
     bool                        is_hand_shaken;
@@ -154,7 +157,7 @@ class WebSocketParser : public ApplicationProtocolParser {
     };
     
     WebSocketParser(AutoBuffer *_buff,
-                    WebSocketPacket *_packet,
+                    const WebSocketPacket::Ptr& _packet,
                     http::HeaderField *_handshake_req);
     
     ~WebSocketParser() override;
@@ -167,6 +170,9 @@ class WebSocketParser : public ApplicationProtocolParser {
     
     void Reset() override;
     
+    void OnApplicationPacketChanged(
+            const ApplicationPacket::Ptr&) override;
+
   protected:
     bool _ResolveFirstByte();
     
@@ -179,7 +185,7 @@ class WebSocketParser : public ApplicationProtocolParser {
     bool _ResolvePayload();
 
   private:
-    WebSocketPacket           * ws_packet;
+    WebSocketPacket::Ptr        ws_packet;
     TPosition                   position_;
     size_t                      resolved_len_;
 };

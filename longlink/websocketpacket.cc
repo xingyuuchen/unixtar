@@ -83,7 +83,7 @@ WebSocketPacket::WebSocketPacket()
 
 WebSocketPacket::~WebSocketPacket() = default;
 
-TApplicationProtocol WebSocketPacket::ApplicationProtocol() const { return kWebSocket; }
+TApplicationProtocol WebSocketPacket::Protocol() const { return kWebSocket; }
 
 bool WebSocketPacket::IsHandShaken() const { return is_hand_shaken; }
 
@@ -209,16 +209,22 @@ void WebSocketPacket::Reset() {
     payload_.clear();
 }
 
+ApplicationPacket::Ptr WebSocketPacket::AllocNewPacket() {
+    auto neo = std::make_shared<WebSocketPacket>();
+    neo->is_hand_shaken = true;
+    return neo;
+}
 
 
 WebSocketParser::WebSocketParser(AutoBuffer *_buff,
-                                 WebSocketPacket *_packet,
+                                 const WebSocketPacket::Ptr& _packet,
                                  http::HeaderField *_handshake_req)
         : ApplicationProtocolParser(_packet, _buff)
-        , ws_packet(_packet)
+        , ws_packet(nullptr)
         , position_(kNone)
         , resolved_len_(0) {
     
+    ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(application_packet_);
     ws_packet->SetHandShakeReqHeader(_handshake_req);
 }
 
@@ -273,6 +279,11 @@ int WebSocketParser::DoParse() {
 bool WebSocketParser::IsErr() const { return position_ == kError; }
 
 bool WebSocketParser::IsEnd() const { return position_ == kEnd; }
+
+void WebSocketParser::OnApplicationPacketChanged(
+        const ApplicationPacket::Ptr& _neo) {
+    ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(_neo);
+}
 
 bool WebSocketParser::_ResolveFirstByte() {
     ws_packet->SetFirstByte(*buffer_->Ptr(0));
@@ -382,11 +393,10 @@ bool WebSocketParser::_ResolvePayload() {
 }
 
 void WebSocketParser::Reset() {
-    LogI("reset ws")
+    LogI("reset ws parser")
     position_ = kNone;
     resolved_len_ = 0;
     buffer_->Reset();
-    ws_packet->Reset();
 }
 
 WebSocketParser::~WebSocketParser() = default;

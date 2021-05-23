@@ -40,7 +40,7 @@ class LoadBalancer {
     
     void ReportWebServerDown(WebServerProfile *);
     
-    void ReceiveHeartbeat(WebServerProfile *, uint64_t _backlog);
+    void OnRecvHeartbeat(WebServerProfile *, uint64_t _backlog);
     
     TBalanceRule BalanceRule() const;
 

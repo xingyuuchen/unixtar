@@ -22,5 +22,5 @@ reverse_proxy:
   ip: 127.0.0.1
   port: 80
   send_heartbeat: true    # whether to send heartbeat to reverse proxy.
-  heartbeat_period: 60    # in seconds.
+  heartbeat_period: 600    # in seconds.
 

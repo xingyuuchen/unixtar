@@ -44,16 +44,18 @@ class NetSceneDispatcher final {
       public:
         ~NetSceneWorker() override;
         
-        void HandleImpl(tcp::RecvContext *_recv_ctx) override;
+        void HandleImpl(tcp::RecvContext::Ptr) override;
         
-        void HandleOverload(tcp::RecvContext *_recv_ctx) override;
+        void HandleOverload(tcp::RecvContext::Ptr) override;
     
         void HandleException(std::exception &ex) override;
     
-        static void HandleWebSocket(tcp::RecvContext *);
+        static void HandleWebSocket(const tcp::RecvContext::Ptr&);
+        
+        static void WriteFakeWsResp(tcp::RecvContext::Ptr);
 
       private:
-        static void __PackHttpRespPacket(NetSceneBase *_net_scene,
+        static void PackHttpRespPacket(NetSceneBase *_net_scene,
                                          AutoBuffer &_http_msg);
     };
     

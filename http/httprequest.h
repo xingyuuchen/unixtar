@@ -12,33 +12,10 @@ void Pack(const std::string &_host, const std::string &_url,
           std::string &_send_body, AutoBuffer &_out_buff);
 
 
-class Parser : public http::HttpParser {
-  public:
-    
-    Parser(AutoBuffer *_buff, HttpRequest *_http_request);
-    
-    ~Parser() override;
-    
-    bool IsUpgradeProtocol() const override;
-    
-    TApplicationProtocol ProtocolUpgradeTo() override;
-
-  protected:
-    bool _ResolveFirstLine() override;
-    
-    bool _ResolveHeaders() override;
-    
-    bool _ResolveBody() override;
-
-  private:
-    http::RequestLine                     * request_line_;
-    bool                                    is_upgrade_to_ws_;
-};
-
-
-
 class HttpRequest : public http::HttpPacket {
   public:
+    using Ptr = std::shared_ptr<HttpRequest>;
+    
     HttpRequest();
     
     ~HttpRequest() override;
@@ -59,6 +36,30 @@ class HttpRequest : public http::HttpPacket {
     
   private:
     http::RequestLine   request_line_;
+};
+
+
+class Parser : public http::HttpParser {
+  public:
+    
+    Parser(AutoBuffer *_buff, const HttpRequest::Ptr& _http_request);
+    
+    ~Parser() override;
+    
+    bool IsUpgradeProtocol() const override;
+    
+    TApplicationProtocol ProtocolUpgradeTo() override;
+
+  protected:
+    bool _ResolveFirstLine() override;
+    
+    bool _ResolveHeaders() override;
+    
+    bool _ResolveBody() override;
+
+  private:
+    http::RequestLine                     * request_line_;
+    bool                                    is_upgrade_to_ws_;
 };
 
 }}

@@ -42,7 +42,7 @@ void LoadBalancer::ReportWebServerDown(WebServerProfile *_down_svr) {
     _down_svr->last_down_ts = ::gettickcount();
 }
 
-void LoadBalancer::ReceiveHeartbeat(WebServerProfile *_svr,
+void LoadBalancer::OnRecvHeartbeat(WebServerProfile *_svr,
                                     uint64_t _backlog) {
     std::lock_guard<std::mutex> lock(mutex_);
     _svr->is_down = false;

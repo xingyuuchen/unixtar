@@ -12,24 +12,10 @@ void Pack(http::THttpVersion _http_ver, int _resp_code, const char *_status_desc
           AutoBuffer &_out_buff, std::string *_send_body = nullptr);
 
 
-class Parser : public http::HttpParser {
-  public:
-    
-    Parser(AutoBuffer *_buff, HttpResponse *_http_resp);
-    
-    ~Parser() override;
-
-  protected:
-    bool _ResolveFirstLine() override;
-
-  private:
-    http::StatusLine    * status_line_;
-    
-};
-
-
 class HttpResponse : public http::HttpPacket {
   public:
+    using Ptr = std::shared_ptr<HttpResponse>;
+    
     HttpResponse();
     
     ~HttpResponse() override;
@@ -44,6 +30,22 @@ class HttpResponse : public http::HttpPacket {
     
   private:
     http::StatusLine    status_line_;
+};
+
+
+class Parser : public http::HttpParser {
+  public:
+    
+    Parser(AutoBuffer *_buff, const HttpResponse::Ptr& _http_resp);
+    
+    ~Parser() override;
+
+  protected:
+    bool _ResolveFirstLine() override;
+
+  private:
+    http::StatusLine    * status_line_;
+    
 };
 
 }}

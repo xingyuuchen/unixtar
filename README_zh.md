@@ -4,7 +4,7 @@
 
 [English version portal](README.md)
 
-一个不知道性能高不高的服务端框架
+一个不知道自己性能高不高的服务端框架。
 
 不包含任何第三方库，框架从低层级的系统调用和C标准库写起。
 
@@ -12,11 +12,11 @@
 
 特点：
 * 传输层和IP层直接使用unix域套接字，每个网络线程配合一个epoll对象和多个工作线程以提供并发能力。并提供过载保护。
-* Http服务器。负责短连接请求。框架已完成Http协议Serialize与Parse。框架完全独立于业务，包体可用`Protobuf`序列化数据（业务代码请继承自`NetSceneProtoBuf`）。
-* WebSocket服务器。负责长连接请求，提供主动推送消息的能力。框架已完成WebSocket协议握手、Pack、Parse、挥手。
+* Http服务器。负责短连接请求。框架已完成Http协议Serialize与Parse。请求包体可用`Protobuf`序列化数据（业务代码请继承自`NetSceneProtoBuf`）。
+* WebSocket服务器。负责长连接请求，提供向自身或（和）其他连接主动推送消息的能力。框架已完成WebSocket协议握手、Serialize、Parse、挥手。
 * 反向代理。提供转发请求到服务节点、负载均衡的能力。你可以从多个负载均衡策略中选择。
 * 传输层模块的代码完全独立于具体的应用层协议，你可以通过继承 `ApplicationPacket` 类，轻易地添加自己的应用层协议。
-* 你可以通过继承 `NetSceneBase` 类，轻易地添加自己的网络接口。
+* 框架完全独立于业务，你可以通过继承 `NetSceneBase` 类，轻易地添加自己的网络接口。
 
 
 ## ✨ 编译 (unix)

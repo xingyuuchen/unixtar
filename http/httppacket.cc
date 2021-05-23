@@ -16,7 +16,7 @@ AutoBuffer *http::HttpPacket::Body() {
     return &body_;
 }
 
-TApplicationProtocol http::HttpPacket::ApplicationProtocol() const {
+TApplicationProtocol http::HttpPacket::Protocol() const {
     return kHttp1_1;
 }
 
@@ -36,7 +36,7 @@ void http::HttpPacket::SetBody(char *_ptr, size_t _length) {
 }
 
 
-http::HttpParser::HttpParser(http::HttpPacket *_http_packet,
+http::HttpParser::HttpParser(const http::HttpPacket::Ptr& _http_packet,
                              AutoBuffer *_buff)
         : ApplicationProtocolParser(_http_packet, _buff)
         , http_packet_(_http_packet)

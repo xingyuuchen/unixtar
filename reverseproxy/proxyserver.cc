@@ -57,7 +57,7 @@ void ReverseProxyServer::AfterConfig() {
 }
 
 void ReverseProxyServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfile *_conn) {
-    if (_conn->GetType() == tcp::ConnectionProfile::kFrom) {
+    if (_conn->GetType() == tcp::TConnectionType::kAcceptFrom) {
         _conn->ConfigApplicationLayer<http::request::HttpRequest,
                                       http::request::Parser>();
     } else {
@@ -66,36 +66,36 @@ void ReverseProxyServer::NetThread::ConfigApplicationLayer(tcp::ConnectionProfil
     }
 }
 
-bool ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfile *_conn) {
-    assert(_conn);
-    if (_conn->ApplicationProtocol() != kHttp1_1) {
-        LogE("%s NOT a Http1.1 packet", _conn->ApplicationProtocolName())
-        return HandleForwardFailed(_conn);
+bool ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::RecvContext::Ptr _recv_ctx) {
+    assert(_recv_ctx);
+    if (_recv_ctx->application_packet->Protocol() != kHttp1_1) {
+        LogE("%d NOT a Http1.1 packet", _recv_ctx->application_packet->Protocol())
+        return HandleForwardFailed(_recv_ctx);
     }
     
-    tcp::ConnectionProfile::TType type = _conn->GetType();
-    uint32_t uid = _conn->Uid();
+    tcp::TConnectionType type = _recv_ctx->type;
+    uint32_t uid = _recv_ctx->tcp_connection_uid;
     
-    tcp::ConnectionProfile *to;
+    tcp::SendContext::Ptr send_ctx;
     
-    if (type == tcp::ConnectionProfile::kFrom) {   // Forward to web server or heartbeat
+    if (type == tcp::TConnectionType::kAcceptFrom) {  // Forward to web server / Handle heartbeat
     
-        if (ReverseProxyServer::Instance().CheckHeartbeat(_conn)) {
-            DelConnection(_conn->Uid());
+        if (ReverseProxyServer::Instance().CheckHeartbeat(_recv_ctx)) {
+            DelConnection(_recv_ctx->tcp_connection_uid);
             return true;
         }
     
-        std::string src_ip = _conn->RemoteIp();
+        std::string src_ip = _recv_ctx->from_ip;
         tcp::ConnectionProfile *conn_to_webserver;
         
         while (true) {
             auto forward_host = ReverseProxyServer::Instance().LoadBalance(src_ip);
             if (!forward_host) {
                 LogE("no web server to forward")
-                return HandleForwardFailed(_conn);
+                return HandleForwardFailed(_recv_ctx);
             }
             LogI("try forward request from [%s:%d] to [%s:%d]", src_ip.c_str(),
-                 _conn->RemotePort(), forward_host->ip.c_str(), forward_host->port)
+                 _recv_ctx->from_port, forward_host->ip.c_str(), forward_host->port)
     
             conn_to_webserver = MakeConnection(forward_host->ip, forward_host->port);
             if (!conn_to_webserver) {
@@ -107,48 +107,48 @@ bool ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::ConnectionProfi
             break;
         }
     
-        conn_to_webserver->MakeSendContext();
+        send_ctx = conn_to_webserver->MakeSendContext();
         
-        conn_map_[conn_to_webserver->Uid()] = uid;
-    
-        to = conn_to_webserver;
+        conn_map_[conn_to_webserver->Uid()] = std::make_pair(uid, _recv_ctx->packet_back);
         
     } else {    // Send back to client
         
-        assert(type == tcp::ConnectionProfile::kTo);
+        assert(type == tcp::TConnectionType::kConnectTo);
         
-        uint32_t client_uid = conn_map_[uid];
-        to = GetConnection(client_uid);
+        uint32_t client_uid = conn_map_[uid].first;
+        tcp::ConnectionProfile *client_conn = GetConnection(client_uid);
+        send_ctx = conn_map_[uid].second;
         
-        LogI("send back to client: [%s:%d]",
-             to->RemoteIp().c_str(), to->RemotePort())
+        LogI("send back to client: [%s:%d]", client_conn->RemoteIp().c_str(),
+                            client_conn->RemotePort())
     }
     
-    AutoBuffer *http_packet = _conn->TcpByteArray();
-    AutoBuffer &buff = to->GetSendContext()->buffer;
-    buff.ShallowCopyFrom(http_packet->Ptr(), http_packet->Length());
+    AutoBuffer *http_packet = GetConnection(uid)->TcpByteArray();
+    send_ctx->buffer.ShallowCopyFrom(http_packet->Ptr(), http_packet->Length());
     
-    bool send_done = TryWrite(to->GetSendContext());
+    bool send_done = TrySendAndMarkPendingIfUndone(send_ctx);
     
-    if (type == tcp::ConnectionProfile::kTo) {
-        conn_map_.erase(to->Uid());
+    if (type == tcp::TConnectionType::kConnectTo) {
+        uint32_t client_uid = send_ctx->tcp_connection_uid;
+        conn_map_.erase(client_uid);
         DelConnection(uid);     // del connection to webserver.
         if (send_done) {
-            DelConnection(to->GetSendContext()->connection_uid);
-        }  // else { the epoll continue sending back. }
+            DelConnection(client_uid);
+        }
         return true;
     }
     return false;
 }
 
 bool ReverseProxyServer::NetThread::HandleForwardFailed(
-                tcp::ConnectionProfile * _client_conn) {
+                const tcp::RecvContext::Ptr& _recv_ctx) {
     static std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
+    tcp::SendContext::Ptr send_ctx = _recv_ctx->packet_back;
     http::response::Pack(http::THttpVersion::kHTTP_1_1, 500,
                          http::StatusLine::kStatusDescOk, nullptr,
-                         _client_conn->GetSendContext()->buffer, &forward_failed_msg);
-    if (TryWrite(_client_conn->GetSendContext())) {
-        DelConnection(_client_conn->Uid());
+                         send_ctx->buffer, &forward_failed_msg);
+    if (TrySendAndMarkPendingIfUndone(send_ctx)) {
+        DelConnection(_recv_ctx->tcp_connection_uid);
         return true;
     }
     return false;
@@ -183,8 +183,8 @@ const char *ReverseProxyServer::ConfigFile() {
     return kConfigFile;
 }
 
-bool ReverseProxyServer::CheckHeartbeat(tcp::ConnectionProfile *_conn) {
-    std::string &ip = _conn->RemoteIp();
+bool ReverseProxyServer::CheckHeartbeat(const tcp::RecvContext::Ptr& _recv_ctx) {
+    std::string &ip = _recv_ctx->from_ip;
     auto &webservers = ((ProxyConfig *) config_)->webservers;
     
     bool has_parsed = false;
@@ -196,8 +196,8 @@ bool ReverseProxyServer::CheckHeartbeat(tcp::ConnectionProfile *_conn) {
             continue;
         }
         if (!has_parsed) {
-            auto http_req = (http::request::HttpRequest *) _conn->
-                    GetRecvContext()->application_packet;
+            auto http_req = std::dynamic_pointer_cast<http::request::HttpRequest>
+                    (_recv_ctx->application_packet);
             AutoBuffer *body = http_req->Body();
             
             NetSceneSvrHeartbeatProto::NetSceneSvrHeartbeatReq req;
@@ -210,7 +210,7 @@ bool ReverseProxyServer::CheckHeartbeat(tcp::ConnectionProfile *_conn) {
             has_parsed = true;
         }
         if (webserver->port == port) {
-            load_balancer_.ReceiveHeartbeat(webserver, request_backlog);
+            load_balancer_.OnRecvHeartbeat(webserver, request_backlog);
             LogI("heartbeat from [%s:%d], backlog: %u", ip.c_str(), port, request_backlog)
             return true;
         }

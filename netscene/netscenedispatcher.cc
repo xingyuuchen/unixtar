@@ -81,18 +81,21 @@ int NetSceneDispatcher::__GetNetSceneTypeByRoute(std::string &_full_url) {
 
 NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() = default;
 
-void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext *_recv_ctx) {
-    if (_recv_ctx->application_packet->ApplicationProtocol() == kWebSocket) {
+void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext::Ptr _recv_ctx) {
+    TApplicationProtocol app_proto = _recv_ctx->application_packet->Protocol();
+    if (app_proto != kWebSocket && app_proto != kHttp1_1) {
+        LogE("unknown application protocol: %d", app_proto)
+        return;
+    }
+    if (app_proto == kWebSocket) {
         LogI("dispatch to WebSocket")
         HandleWebSocket(_recv_ctx);
         return;
     }
     
     /* Handle Http */
-    if (_recv_ctx->application_packet->ApplicationProtocol() != kHttp1_1) {
-        return;
-    }
-    auto *http_request = (http::request::HttpRequest *) _recv_ctx->application_packet;
+    auto http_request = std::dynamic_pointer_cast<http::request::HttpRequest>(
+            _recv_ctx->application_packet);
     
     SOCKET fd = _recv_ctx->fd;
     AutoBuffer *http_body = http_request->Body();
@@ -148,51 +151,60 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext *_recv_ctx)
     uint64_t cost = ::gettickcount() - start;
     LogI("fd(%d) type(%d), cost %llu ms", fd, type, cost)
     
-    AutoBuffer &http_resp_msg = _recv_ctx->send_context->buffer;
-    __PackHttpRespPacket(net_scene, http_resp_msg);
+    AutoBuffer &http_resp_msg = _recv_ctx->packet_back->buffer;
+    PackHttpRespPacket(net_scene, http_resp_msg);
     
     delete net_scene, net_scene = nullptr;
 
 }
 
-void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext *_recv_ctx) {
-    if (_recv_ctx->application_packet->ApplicationProtocol() == kWebSocket) {
-        // TODO
+void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext::Ptr _recv_ctx) {
+    TApplicationProtocol app_proto = _recv_ctx->application_packet->Protocol();
+    if (app_proto != kWebSocket && app_proto != kHttp1_1) {
+        LogE("unknown application protocol: %d", app_proto)
         return;
     }
-    
-    if (_recv_ctx->application_packet->ApplicationProtocol() != kHttp1_1) {
-        return;
-    }
-    auto *http_request = (http::request::HttpRequest *) _recv_ctx->application_packet;
     
     std::string resp_str = "server is busy now";
-    int resp_code = 200;
-    
     std::string resp;
-    std::map<std::string, std::string> headers;
-    if (!http_request->IsMethodPost()) {
-        resp = resp_str;
-        headers[http::HeaderField::kContentType] = http::HeaderField::kTextPlain;
+    
+    BaseNetSceneResp::BaseNetSceneResp base_resp;
+    base_resp.set_errcode(kSvrOverload);
+    base_resp.set_errmsg(resp_str);
+    base_resp.SerializeToString(&resp);
+    
+    if (app_proto == kHttp1_1) {
+        auto http_request = std::dynamic_pointer_cast<http::request::HttpRequest>(
+                _recv_ctx->application_packet);
+        int resp_code = 200;
+        
+        std::map<std::string, std::string> headers;
+    
+        if (http_request->IsMethodPost()) {
+            headers[http::HeaderField::kContentType] = http::HeaderField::kOctetStream;
+        } else {
+            headers[http::HeaderField::kContentType] = http::HeaderField::kTextPlain;
+            resp = resp_str;
+        }
+        http::response::Pack(http::kHTTP_1_1, resp_code,
+                             http::StatusLine::kStatusDescOk, &headers,
+                             _recv_ctx->packet_back->buffer, &resp);
         
     } else {
-        headers[http::HeaderField::kContentType] = http::HeaderField::kOctetStream;
-        BaseNetSceneResp::BaseNetSceneResp base_resp;
-        base_resp.set_errcode(kSvrOverload);
-        base_resp.set_errmsg(resp);
-        base_resp.SerializeToString(&resp);
+        ws::Pack(resp, _recv_ctx->packet_back->buffer);
     }
-    http::response::Pack(http::kHTTP_1_1, resp_code, http::StatusLine::kStatusDescOk,
-                         &headers, _recv_ctx->send_context->buffer, &resp);
 }
 
-void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(tcp::RecvContext *_recv_ctx) {
-    assert(_recv_ctx->application_packet->ApplicationProtocol() == kWebSocket);
-    auto *ws_packet = (ws::WebSocketPacket *) _recv_ctx->application_packet;
+void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(const tcp::RecvContext::Ptr& _recv_ctx) {
+    assert(_recv_ctx->application_packet->Protocol() == kWebSocket);
+    auto ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(
+                _recv_ctx->application_packet);
     
     if (!ws_packet->IsHandShaken()) {
         bool success = ws_packet->DoHandShake();
-        auto &buffer = _recv_ctx->send_context->buffer;
+    
+        tcp::SendContext::Ptr packet_back = _recv_ctx->packet_back;
+        auto &buffer = packet_back->buffer;
     
         http::HeaderField &resp_headers = ws_packet->ResponseHeaders();
         int resp_code = 101;
@@ -203,17 +215,12 @@ void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(tcp::RecvContext *_recv
         }
         http::response::Pack(http::kHTTP_1_1, resp_code,
                              http::StatusLine::kStatusDescSwitchProtocol,
-                             &resp_headers.AsMap(), _recv_ctx->send_context->buffer);
+                             &resp_headers.AsMap(), packet_back->buffer);
         return;
     }
     LogI("payload: %s", ws_packet->Payload().c_str())
     
-    static int visit = 0;
-    char format[] = R"({"message":"I am unixtar %d"})";
-    char resp[256];
-    snprintf(resp, sizeof(resp), format, ++visit);
-    std::string resp_str(resp);
-    ws::Pack(resp_str, _recv_ctx->send_context->buffer);
+    WriteFakeWsResp(_recv_ctx);
 }
 
 void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
@@ -221,8 +228,17 @@ void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
     running_ = false;
 }
 
+void NetSceneDispatcher::NetSceneWorker::WriteFakeWsResp(tcp::RecvContext::Ptr _recv_ctx) {
+    static uint64_t visit = 0;
+    char resp[256];
+    snprintf(resp, sizeof(resp), R"({"msg":"This is %llu visits to unixtar"})", ++visit);
+    std::string resp_str(resp);
+    // websocket can make send_context here
+    // _recv_ctx->packet_push_others.push_back(new tcp::SendContext);
+    ws::Pack(resp_str, _recv_ctx->packet_back->buffer);
+}
 
-void NetSceneDispatcher::NetSceneWorker::__PackHttpRespPacket(
+void NetSceneDispatcher::NetSceneWorker::PackHttpRespPacket(
         NetSceneBase *_net_scene, AutoBuffer &_http_msg) {
     
     std::map<std::string, std::string> headers;

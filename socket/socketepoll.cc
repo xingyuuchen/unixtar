@@ -100,7 +100,7 @@ int SocketEpoll::EpollWait(int _timeout_mills/* = -1*/,
     if (_timeout_mills < -1) { _timeout_mills = -1; }
     assert(epoll_fd_ > 0);
     
-    int retry = 3;
+    int retry = 10;
     while (--retry) {
         int nfds = ::epoll_wait(epoll_fd_, epoll_events_, _max_events, _timeout_mills);
         if (nfds < 0) {

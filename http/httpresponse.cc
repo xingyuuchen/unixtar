@@ -41,7 +41,7 @@ void Pack(http::THttpVersion _http_ver, int _resp_code, const char *_status_desc
 
 
 
-Parser::Parser(AutoBuffer *_buff, HttpResponse *_http_resp)
+Parser::Parser(AutoBuffer *_buff, const HttpResponse::Ptr& _http_resp)
         : http::HttpParser(_http_resp, _buff)
         , status_line_(_http_resp->getStatusLine()) {
     

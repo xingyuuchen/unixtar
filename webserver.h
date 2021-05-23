@@ -1,6 +1,6 @@
 #pragma once
 
-#include "serverbase.h"
+#include "networkmodel/serverbase.h"
 #include "netscenebase.h"
 #include "messagequeue.h"
 #include "singleton.h"
@@ -49,9 +49,9 @@ class WebServer final : public ServerBase {
         
         void Run() final;
     
-        virtual void HandleImpl(tcp::RecvContext *) = 0;
+        virtual void HandleImpl(tcp::RecvContext::Ptr) = 0;
         
-        virtual void HandleOverload(tcp::RecvContext *) = 0;
+        virtual void HandleOverload(tcp::RecvContext::Ptr) = 0;
     
         void BindNetThread(NetThread *_net_thread);
     
@@ -93,8 +93,8 @@ class WebServer final : public ServerBase {
         }
     }
     
-    using RecvQueue = MessageQueue::ThreadSafeDeque<tcp::RecvContext *>;
-    using SendQueue = MessageQueue::ThreadSafeDeque<tcp::SendContext *>;
+    using RecvQueue = MessageQueue::ThreadSafeDeque<tcp::RecvContext::Ptr>;
+    using SendQueue = MessageQueue::ThreadSafeDeque<tcp::SendContext::Ptr>;
     
   private:
     
@@ -138,9 +138,10 @@ class WebServer final : public ServerBase {
     
         void ConfigApplicationLayer(tcp::ConnectionProfile *) override;
     
-        void UpgradeApplicationProtocol(tcp::ConnectionProfile *_conn) override;
+        void UpgradeApplicationProtocol(tcp::ConnectionProfile *,
+                                        const tcp::RecvContext::Ptr &) override;
     
-        bool HandleApplicationPacket(tcp::ConnectionProfile *) override;
+        bool HandleApplicationPacket(tcp::RecvContext::Ptr) override;
 
         void HandleException(std::exception &ex) override;
 

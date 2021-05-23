@@ -12,13 +12,11 @@ The framework adopts the model of `Epoll + NetThreads + WorkerThreads`.
 
 
 The framework focuses on the following tasks:
+* The transport and IP layers use UNIX domain socket directly, with each network thread working with an Epoll object and multiple worker threads to provide concurrency.
 * Http server. Responsible for short connection requests. Framework completes Http protocol Serialization and Parsing. The Http body can be serialized by `Protobuf`. Framework Provides overload protection capability.
-* WebSocket server. Responsible for long connection requests, providing the ability to actively push messages. Framework completes WebSocket protocol handshake, Packing, Parsing, wave.
+* WebSocket server. Responsible for long connection requests, providing the ability to actively push messages to self or/and other connections. Framework completes WebSocket protocol handshake, Packing, Parsing, wave.
 * Reverse proxy. Provides the ability to forward requests to service nodes and load balancing. You can choose among several load balancing strategies.
-
-Features:
-* The transport and IP layers use UNIX domain sockets directly, with each network thread working with an Epoll object and multiple worker threads to provide concurrency.
-* You can easily add your own application layer protocols by inheriting the `ApplicationPacket` class.
+* The code of the transport layer module is completely independent of the specific application layer protocol, you can easily add your own application layer protocols by inheriting the `ApplicationPacket` class.
 * You can easily add network interfaces by inheriting the `NetSceneBase` class.
 
 

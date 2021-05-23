@@ -99,15 +99,15 @@ class ServerBase {
     
         /**
          *
-         * @return: whether @param(_conn} is deleted.
+         * @return: whether such connection is deleted.
          */
-        virtual bool HandleApplicationPacket(tcp::ConnectionProfile *_conn) = 0;
+        virtual bool HandleApplicationPacket(tcp::RecvContext::Ptr) = 0;
     
         /**
          *
          * @return: whether write event is done.
          */
-        static bool TryWrite(tcp::SendContext *);
+        static bool TrySendAndMarkPendingIfUndone(const tcp::SendContext::Ptr&);
         
         void NotifyStop();
       
@@ -115,7 +115,8 @@ class ServerBase {
     
         virtual void ConfigApplicationLayer(tcp::ConnectionProfile *) = 0;
     
-        virtual void UpgradeApplicationProtocol(tcp::ConnectionProfile *);
+        virtual void UpgradeApplicationProtocol(tcp::ConnectionProfile *,
+                                                const tcp::RecvContext::Ptr&);
     
         tcp::ConnectionProfile *MakeConnection(std::string &_ip, uint16_t _port);
     
@@ -133,10 +134,7 @@ class ServerBase {
          */
         bool __OnReadEvent(tcp::ConnectionProfile *_conn);
     
-        /**
-         * @return: whether write event is done.
-         */
-        static bool __OnWriteEvent(tcp::SendContext *);
+        void __OnWriteEvent(tcp::ConnectionProfile *);
     
         virtual int __OnErrEvent(tcp::ConnectionProfile *);
         

@@ -221,7 +221,7 @@ void ServerBase::ConnectionManager::AddConnection(tcp::ConnectionProfile *_conn)
     
     _conn->SetUid(uid);
     
-    if (_conn->GetType() == tcp::ConnectionProfile::kFrom) {
+    if (_conn->GetType() == tcp::TConnectionType::kAcceptFrom) {
         LogI("fd(%d), from: [%s:%d], uid: %u", fd,
              _conn->RemoteIp().c_str(), _conn->RemotePort(), uid)
     } else {
@@ -330,7 +330,7 @@ void ServerBase::NetThreadBase::Run() {
                 continue;
             }
             
-            tcp::ConnectionProfile *tcp_conn = nullptr;
+            tcp::ConnectionProfile *tcp_conn;
             
             if ((tcp_conn = (tcp::ConnectionProfile *) socket_epoll_.IsErrSet(i))) {
                 __OnErrEvent(tcp_conn);
@@ -345,11 +345,7 @@ void ServerBase::NetThreadBase::Run() {
             }
             
             if ((tcp_conn = (tcp::ConnectionProfile *) socket_epoll_.IsWriteSet(i))) {
-                auto send_ctx = tcp_conn->GetSendContext();
-                bool write_done = __OnWriteEvent(send_ctx);
-                if (!send_ctx->is_longlink && write_done) {
-                    DelConnection(send_ctx->connection_uid);
-                }
+                __OnWriteEvent(tcp_conn);
             }
         }
         
@@ -366,7 +362,8 @@ bool ServerBase::NetThreadBase::HandleNotification(EpollNotifier::Notification &
     return false;
 }
 
-void ServerBase::NetThreadBase::UpgradeApplicationProtocol(tcp::ConnectionProfile *) {
+void ServerBase::NetThreadBase::UpgradeApplicationProtocol(tcp::ConnectionProfile *,
+                                                           const tcp::RecvContext::Ptr&) {
 }
 
 void ServerBase::NetThreadBase::NotifyStop() {
@@ -441,56 +438,46 @@ bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
     if (_conn->IsParseDone()) {
         LogI("fd(%d) %s parse succeed", fd, _conn->ApplicationProtocolName())
         
-        if (_conn->IsUpgradeApplicationProtocol()) {
+        bool is_upgrade_app_proto = _conn->IsUpgradeApplicationProtocol();
+        tcp::RecvContext::Ptr recv_ctx = _conn->MakeRecvContext();
+    
+        if (_conn->GetType() == tcp::TConnectionType::kAcceptFrom
+                        && !is_upgrade_app_proto) {
+            // only requests need a packet to send back.
+            recv_ctx->packet_back = _conn->MakeSendContext();
+        }
+        
+        if (is_upgrade_app_proto) {
             LogI("upgrade application protocol")
-            UpgradeApplicationProtocol(_conn);
+            UpgradeApplicationProtocol(_conn, recv_ctx);
+            // after upgrading protocol, the request need a packet
+            // to send back handshake, etc.
+            recv_ctx = _conn->MakeRecvContext(true);
         }
-        return HandleApplicationPacket(_conn);
+        
+        return HandleApplicationPacket(recv_ctx);
     }
     return false;
 }
 
-bool ServerBase::NetThreadBase::__OnWriteEvent(tcp::SendContext *_send_ctx) {
-    return TryWrite(_send_ctx);
+void ServerBase::NetThreadBase::__OnWriteEvent(tcp::ConnectionProfile *_conn) {
+    if (_conn->HasPendingPacketToSend()) {
+        bool write_done = _conn->TrySendPendingPackets();
+        if (!_conn->IsLongLinkApplicationProtocol() && write_done) {
+            DelConnection(_conn->Uid());
+        }
+    }
 }
 
-bool ServerBase::NetThreadBase::TryWrite(tcp::SendContext *_send_ctx) {
-    if (!_send_ctx) {
-        LogE("!_send_ctx")
-        return false;
+bool ServerBase::NetThreadBase::TrySendAndMarkPendingIfUndone(
+                const tcp::SendContext::Ptr& _send_ctx) {
+    bool is_send_done = tcp::ConnectionProfile::TrySend(_send_ctx);
+    if (!is_send_done) {
+        // Mark self as pending so that epoll will
+        // continue to notify sending if it's possible.
+        _send_ctx->MarkAsPendingPacket();
     }
-    AutoBuffer &resp = _send_ctx->buffer;
-    size_t pos = resp.Pos();
-    size_t ntotal = resp.Length() - pos;
-    SOCKET fd = _send_ctx->fd;
-    
-    if (fd <= 0 || ntotal == 0) {
-        return false;
-    }
-    
-    ssize_t nsend = ::write(fd, resp.Ptr(pos), ntotal);
-    
-    if (nsend == ntotal) {
-        LogI("fd(%d), send %zd/%zu B, done", fd, nsend, ntotal)
-        resp.Seek(AutoBuffer::kEnd);
-        return true;
-    }
-    if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
-        nsend = nsend > 0 ? nsend : 0;
-        LogI("fd(%d): send %zd/%zu B", fd, nsend, ntotal)
-        resp.Seek(AutoBuffer::kCurrent, nsend);
-    }
-    if (nsend < 0) {
-        if (errno == EPIPE) {
-            // fd probably closed by peer, or cleared because of timeout.
-            LogI("fd(%d) already closed, send nothing", fd)
-            return false;
-        }
-        LogE("fd(%d) nsend(%zd), errno(%d): %s",
-             fd, nsend, errno, strerror(errno))
-        LogPrintStacktrace(5)
-    }
-    return false;
+    return is_send_done;
 }
 
 int ServerBase::NetThreadBase::__OnErrEvent(tcp::ConnectionProfile *_conn) {

@@ -13,11 +13,13 @@ class HttpParser;
 
 class HttpPacket : public ApplicationPacket {
   public:
+    using Ptr = std::shared_ptr<HttpPacket>;
+    
     HttpPacket();
     
     ~HttpPacket() override;
     
-    TApplicationProtocol ApplicationProtocol() const override;
+    TApplicationProtocol Protocol() const override;
     
     virtual size_t ContentLength() const;
     
@@ -47,7 +49,7 @@ class HttpParser : public ApplicationProtocolParser {
         kError,
     };
     
-    HttpParser(http::HttpPacket *_http_packet,
+    HttpParser(const http::HttpPacket::Ptr& _http_packet,
                AutoBuffer *_buff);
     
     ~HttpParser() override;
@@ -69,7 +71,7 @@ class HttpParser : public ApplicationProtocolParser {
     
   protected:
     TPosition                               position_;
-    http::HttpPacket                      * http_packet_;
+    http::HttpPacket::Ptr                   http_packet_;
     http::HeaderField                     * headers_;
     size_t                                  first_line_len_;
     size_t                                  header_len_;
