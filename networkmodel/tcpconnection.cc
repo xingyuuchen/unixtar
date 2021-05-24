@@ -130,6 +130,8 @@ bool ConnectionProfile::HasPendingPacketToSend() const {
 }
 
 bool ConnectionProfile::TrySendPendingPackets() {
+    LogD("fd(%d), %lu pending packets waiting to be sent",
+                FD(), pending_send_ctx_.size())
     while (!pending_send_ctx_.empty()) {
         auto send_ctx = pending_send_ctx_.front();
         bool is_send_done = TrySend(send_ctx);

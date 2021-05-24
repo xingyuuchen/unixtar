@@ -97,8 +97,9 @@ void AutoBuffer::Reset() {
     length_ = 0;
     pos_ = 0;
     if (!is_shallow_copy_ && byte_array_) {
-        free(byte_array_), byte_array_ = nullptr;
+        free(byte_array_);
     }
+    byte_array_ = nullptr;
 }
 
 void AutoBuffer::SetLength(size_t _len) {

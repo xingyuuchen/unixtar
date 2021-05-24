@@ -9,7 +9,10 @@
 不包含任何第三方库，框架从低层级的系统调用和C标准库写起。
 
 框架采用 `Epoll + NetThreads + WorkerThreads` 的模型：
-![model-overview](docs/images/model-overview.png)
+![model-overview](http://49.235.29.121/file/docs/images/model-overview.png)
+
+[comment]: <> (![model-overview]&#40;docs/images/model-overview.png&#41;)
+
 
 特点：
 * 传输层和IP层直接使用unix域套接字，每个网络线程配合一个epoll对象和多个工作线程以提供并发能力。并提供过载保护。
@@ -20,7 +23,11 @@
 * 框架完全独立于业务，你可以通过继承 `NetSceneBase` 类，轻易地添加自己的网络接口。
 
 处理Http短链接请求时模型工作流：
-![model-overview](docs/images/how-model-run.png)
+![workflow](http://49.235.29.121:5002/file/docs/images/how-model-run.png)
+
+[comment]: <> (![workflow]&#40;docs/images/how-model-run.png&#41;)
+
+
 
 ## ✨ 编译 (unix)
 ```shell

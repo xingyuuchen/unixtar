@@ -73,6 +73,7 @@ bool ReverseProxyServer::NetThread::HandleApplicationPacket(tcp::RecvContext::Pt
     } else if (_recv_ctx->application_packet->Protocol() == kWebSocket) {
         return HandleWebSocketPacket(_recv_ctx);
     }
+    LogI("not http nor ws, delete connection")
     DelConnection(_recv_ctx->tcp_connection_uid);
     return true;
 }
@@ -99,8 +100,8 @@ bool ReverseProxyServer::NetThread::HandleHttpPacket(const tcp::RecvContext::Ptr
                 LogE("no web server to forward")
                 return HandleForwardFailed(_recv_ctx);
             }
-            LogI("try forward request from [%s:%d] to [%s:%d]", src_ip.c_str(),
-                 _recv_ctx->from_port, forward_host->ip.c_str(), forward_host->port)
+            LogI("try forward request from [%s:%d] to [%s:%d], fd(%d)", src_ip.c_str(),
+                 _recv_ctx->from_port, forward_host->ip.c_str(), forward_host->port, _recv_ctx->fd)
     
             conn_to_webserver = MakeConnection(forward_host->ip, forward_host->port);
             if (!conn_to_webserver) {
@@ -129,6 +130,7 @@ bool ReverseProxyServer::NetThread::HandleHttpPacket(const tcp::RecvContext::Ptr
     }
     
     AutoBuffer *http_packet = GetConnection(uid)->TcpByteArray();
+    // Try shallow copy first.
     send_ctx->buffer.ShallowCopyFrom(http_packet->Ptr(), http_packet->Length());
     
     bool send_done = TrySendAndMarkPendingIfUndone(send_ctx);
@@ -136,10 +138,18 @@ bool ReverseProxyServer::NetThread::HandleHttpPacket(const tcp::RecvContext::Ptr
     if (type == tcp::TConnectionType::kConnectTo) {
         uint32_t client_uid = send_ctx->tcp_connection_uid;
         conn_map_.erase(client_uid);
-        DelConnection(uid);     // del connection to webserver.
         if (send_done) {
             DelConnection(client_uid);
+        } else {
+            size_t nsend = send_ctx->buffer.Pos();
+            send_ctx->buffer.Reset();
+            // Deep copy the remaining part, because the connection
+            // to the webserver will be deleted,
+            // causing its TCP byte array to be deleted as well.
+            send_ctx->buffer.Write(http_packet->Ptr(nsend),
+                   http_packet->Length() - nsend);
         }
+        DelConnection(uid);     // del connection to webserver.
         return true;
     }
     return false;
