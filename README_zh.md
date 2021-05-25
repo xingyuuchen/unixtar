@@ -23,9 +23,9 @@
 * 框架完全独立于业务，你可以通过继承 `NetSceneBase` 类，轻易地添加自己的网络接口。
 
 处理Http短链接请求时模型工作流：
-![workflow](http://49.235.29.121:5002/file/docs/images/how-model-run.png)
+![workflow](http://49.235.29.121/file/docs/images/workflow.png)
 
-[comment]: <> (![workflow]&#40;docs/images/how-model-run.png&#41;)
+[comment]: <> (![workflow]&#40;docs/images/workflow.png&#41;)
 
 
 
@@ -204,7 +204,8 @@ bash launchproxy.sh
 
 通过修改 `reverseproxy/proxyserverconf.yml` ，配置你的反向代理，你可以定制：
 * 反向代理监听的端口。
-* 初始化所有的可用应用节点信息。
+* 负载均衡策略。
+* 所有的初始可用应用服务器节点信息。
 * 支持的最大连接数。
 * 处理网络事件的线程数。
 

@@ -28,11 +28,16 @@ class ReverseProxyServer final : public ServerBase {
       public:
         ProxyConfig();
         ~ProxyConfig();
+        static const char *const        key_load_balance_rule;
         static const char *const        key_webservers;
         static const char *const        key_ip;
         static const char *const        key_port;
         static const char *const        key_weight;
+        static const char *const        kLoadBalanceRulePoll;
+        static const char *const        kLoadBalanceRuleWeight;
+        static const char *const        kLoadBalanceRuleIpHash;
         std::vector<WebServerProfile *> webservers;
+        std::string                     load_balance_rule;
     };
     
     class NetThread : public NetThreadBase {
@@ -46,6 +51,10 @@ class ReverseProxyServer final : public ServerBase {
         bool HandleApplicationPacket(tcp::RecvContext::Ptr) override;
         
         bool HandleHttpPacket(const tcp::RecvContext::Ptr&);
+        
+        bool HandleHttpRequest(const tcp::RecvContext::Ptr&);
+        
+        bool HandleHttpResponse(const tcp::RecvContext::Ptr&);
         
         bool HandleWebSocketPacket(const tcp::RecvContext::Ptr&);
     

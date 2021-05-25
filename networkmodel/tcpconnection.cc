@@ -21,7 +21,7 @@ RecvContext::RecvContext()
         , from_port(0)
         , type(kUnknown)
         , application_packet(nullptr)
-        , packet_back(nullptr) {
+        , return_packet(nullptr) {
 }
 
 
@@ -207,6 +207,11 @@ bool ConnectionProfile::IsTimeout(uint64_t _now) const {
     if (IsLongLinkApplicationProtocol()) {
         return false;
     }
+    if (!pending_send_ctx_.empty()) {
+        // timeout just because of poor networking
+        // is not considered as timeout.
+        return false;
+    }
     if (_now == 0) {
         _now = ::gettickcount();
     }
@@ -240,7 +245,7 @@ RecvContext::Ptr ConnectionProfile::MakeRecvContext(
         curr_application_packet_ = curr_application_packet_->AllocNewPacket();
         application_protocol_parser_->SetPacketToParse(curr_application_packet_);
     }
-    neo->packet_back = _with_send_ctx ? MakeSendContext() : nullptr;
+    neo->return_packet = _with_send_ctx ? MakeSendContext() : nullptr;
     return neo;
 }
 
@@ -259,6 +264,11 @@ std::string &ConnectionProfile::RemoteIp() { return remote_ip_; }
 uint16_t ConnectionProfile::RemotePort() const { return remote_port_; }
 
 ConnectionProfile::~ConnectionProfile() {
+    if (!pending_send_ctx_.empty()) {
+        LogE("pending_send_ctx_ NOT empty")
+        LogPrintStacktrace()
+        assert(false);
+    }
     delete application_protocol_parser_;
     application_protocol_parser_ = nullptr;
 }

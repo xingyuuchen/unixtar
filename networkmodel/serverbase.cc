@@ -428,7 +428,8 @@ bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
     
     if (_conn->Receive() < 0) {
         if (!_conn->HasReceivedFIN()) {
-            LogE("fd(%d), uid: %d Receive() err, _conn: %p", _conn->FD(), _conn->Uid(), _conn)
+            LogE("fd(%d), uid: %d Receive() err, _conn: %p",
+                 _conn->FD(), _conn->Uid(), _conn)
         }
         DelConnection(uid);
         return true;
@@ -443,7 +444,7 @@ bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
         if (_conn->GetType() == tcp::TConnectionType::kAcceptFrom
                         && !is_upgrade_app_proto) {
             // only requests need a packet to send back.
-            recv_ctx->packet_back = _conn->MakeSendContext();
+            recv_ctx->return_packet = _conn->MakeSendContext();
         }
         
         if (is_upgrade_app_proto) {

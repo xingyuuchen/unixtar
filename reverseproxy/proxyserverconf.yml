@@ -1,6 +1,9 @@
 # The port on which the server process listens on.
 port: 80
 
+# The load balance rule, choose among: poll, weight, ip_hash.
+load_balance_rule: poll
+
 # Number of threads who handles network events
 net_thread_cnt: 4
 

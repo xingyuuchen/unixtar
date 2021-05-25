@@ -23,9 +23,9 @@ The framework focuses on the following tasks:
 * You can easily add network interfaces by inheriting the `NetSceneBase` class.
 
 Workflow when processing HTTP short link requests:
-![workflow](http://49.235.29.121:5002/file/docs/images/how-model-run.png)
+![workflow](http://49.235.29.121/file/docs/images/workflow.png)
 
-[comment]: <> (![workflow]&#40;docs/images/how-model-run.png&#41;)
+[comment]: <> (![workflow]&#40;docs/images/workflow.png&#41;)
 
 
 
@@ -201,6 +201,7 @@ Reverse proxy do such things:
 
 Configure your reverse proxy by editing `reverseproxy/proxyserverconf.yml`. You can custom:
 * Port that reverse proxy server listens on.
+* Load balancing strategy.
 * All web server nodes available to forward Http request.
 * Maximum connections at the same time.
 * Number of threads who handles network events.

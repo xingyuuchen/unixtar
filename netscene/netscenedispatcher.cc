@@ -151,7 +151,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext::Ptr _recv_
     uint64_t cost = ::gettickcount() - start;
     LogI("fd(%d) type(%d), cost %llu ms", fd, type, cost)
     
-    AutoBuffer &http_resp_msg = _recv_ctx->packet_back->buffer;
+    AutoBuffer &http_resp_msg = _recv_ctx->return_packet->buffer;
     PackHttpRespPacket(net_scene, http_resp_msg);
     
     delete net_scene, net_scene = nullptr;
@@ -188,10 +188,10 @@ void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext::Ptr _r
         }
         http::response::Pack(http::kHTTP_1_1, resp_code,
                              http::StatusLine::kStatusDescOk, &headers,
-                             _recv_ctx->packet_back->buffer, &resp);
+                             _recv_ctx->return_packet->buffer, &resp);
         
     } else {
-        ws::Pack(resp, _recv_ctx->packet_back->buffer);
+        ws::Pack(resp, _recv_ctx->return_packet->buffer);
     }
 }
 
@@ -203,8 +203,8 @@ void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(const tcp::RecvContext:
     if (!ws_packet->IsHandShaken()) {
         bool success = ws_packet->DoHandShake();
     
-        tcp::SendContext::Ptr packet_back = _recv_ctx->packet_back;
-        auto &buffer = packet_back->buffer;
+        tcp::SendContext::Ptr return_packet = _recv_ctx->return_packet;
+        auto &buffer = return_packet->buffer;
     
         http::HeaderField &resp_headers = ws_packet->ResponseHeaders();
         int resp_code = 101;
@@ -215,7 +215,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(const tcp::RecvContext:
         }
         http::response::Pack(http::kHTTP_1_1, resp_code,
                              http::StatusLine::kStatusDescSwitchProtocol,
-                             &resp_headers.AsMap(), packet_back->buffer);
+                             &resp_headers.AsMap(), return_packet->buffer);
         return;
     }
     LogI("payload: %s", ws_packet->Payload().c_str())
@@ -236,7 +236,7 @@ void NetSceneDispatcher::NetSceneWorker::WriteFakeWsResp(
     std::string resp_str(resp);
     // websocket can make send_context here
     // _recv_ctx->packet_push_others.push_back(new tcp::SendContext);
-    ws::Pack(resp_str, _recv_ctx->packet_back->buffer);
+    ws::Pack(resp_str, _recv_ctx->return_packet->buffer);
 }
 
 void NetSceneDispatcher::NetSceneWorker::PackHttpRespPacket(

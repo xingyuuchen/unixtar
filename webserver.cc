@@ -89,6 +89,7 @@ void WebServer::WorkerThread::Run() {
     LogI("Launching WorkerThread %d", thread_seq_)
     
     auto recv_queue = net_thread_->GetRecvQueue();
+    auto send_queue = net_thread_->GetSendQueue();
     
     while (true) {
         
@@ -105,14 +106,14 @@ void WebServer::WorkerThread::Run() {
                 } else {
                     HandleImpl(recv_ctx);
                 }
-                tcp::SendContext::Ptr packet_back = recv_ctx->packet_back;
+                tcp::SendContext::Ptr return_packet = recv_ctx->return_packet;
     
-                net_thread_->GetSendQueue()->push_back(packet_back);
+                send_queue->push_back(return_packet, false);
         
                 if (app_proto == kWebSocket) {
                     // ws may actively push messages to other connections.
                     for (auto &send_ctx : recv_ctx->packets_push_others) {
-                        net_thread_->GetSendQueue()->push_back(send_ctx);
+                        send_queue->push_back(send_ctx, false);
                     }
                 }
                 
@@ -263,7 +264,7 @@ void WebServer::NetThread::UpgradeApplicationProtocol(tcp::ConnectionProfile *_c
     
     if (upgrade_to == TApplicationProtocol::kWebSocket
                 && _conn->ApplicationProtocol() == kHttp1_1
-                && _conn->GetType() == tcp::TConnectionType::kAcceptFrom) {
+                && _conn->GetType() == tcp::kAcceptFrom) {
         LogI("fd(%d), uid: %u", fd, uid)
         
         auto http_request = std::dynamic_pointer_cast<http::request::HttpRequest>(
@@ -291,7 +292,8 @@ bool WebServer::NetThread::HandleApplicationPacket(tcp::RecvContext::Ptr _recv_c
         TApplicationProtocol app_proto = _recv_ctx->application_packet->Protocol();
         
         if (app_proto == kWebSocket) {
-            auto ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(_recv_ctx->application_packet);
+            auto ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(
+                        _recv_ctx->application_packet);
             uint8_t opcode = ws_packet->OpCode();
             
             

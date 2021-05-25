@@ -75,7 +75,7 @@ class WebServer final : public ServerBase {
      * Sets the Worker-class who handles the business logic of all request,
      * by default one WorkerThread corresponds to one NetThread.
      *
-     * The workers' life cycle is managed by framework,
+     * The workers' lifecycle is managed by framework,
      * just implement WorkerThread's {@func HandleImpl} and register it here.
      *
      */
