@@ -36,6 +36,7 @@ void WebServer::AfterConfig() {
         auto *net_thread = (NetThread *) p;
         net_thread->SetMaxBacklog(((ServerConfig *) config_)->max_backlog);
     }
+    ServerBase::AfterConfig();
 }
 
 void WebServer::SendHeartbeat() {
@@ -65,9 +66,9 @@ void WebServer::SendHeartbeat() {
     http::request::Pack(config->reverse_proxy_ip, "/",
                         nullptr, ba,
                         send_ctx->buffer);
-    if (NetThread::TrySendAndMarkPendingIfUndone(send_ctx)) {
-        net_thread->DelConnection(conn->Uid());
-    }
+    
+    NetThread::TrySendAndMarkPendingIfUndone(send_ctx);
+    
     LogD("pit pat")
 }
 

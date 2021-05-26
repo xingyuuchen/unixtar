@@ -59,6 +59,8 @@ class ServerBase {
         void SetEpoll(SocketEpoll *_epoll);
         
         tcp::ConnectionProfile *GetConnection(uint32_t _uid);
+    
+        size_t CurrConnectionCnt();
         
         void AddConnection(tcp::ConnectionProfile *);
         
@@ -117,6 +119,8 @@ class ServerBase {
         virtual void UpgradeApplicationProtocol(tcp::ConnectionProfile *,
                                                 const tcp::RecvContext::Ptr&);
     
+        void SetMaxConnection(size_t);
+        
         tcp::ConnectionProfile *MakeConnection(std::string &_ip, uint16_t _port);
     
         tcp::ConnectionProfile *GetConnection(uint32_t _uid);
@@ -145,6 +149,7 @@ class ServerBase {
         EpollNotifier::Notification         notification_stop_;
       protected:
         EpollNotifier                       epoll_notifier_;
+        size_t                              max_connections_;
     };
     
     

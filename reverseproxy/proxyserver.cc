@@ -58,6 +58,7 @@ void ReverseProxyServer::AfterConfig() {
         load_balancer_.RegisterWebServer(webserver);
     }
     LogI("register %ld webservers to load balancer", conf->webservers.size())
+    ServerBase::AfterConfig();
 }
 
 void ReverseProxyServer::NetThread::ConfigApplicationLayer(

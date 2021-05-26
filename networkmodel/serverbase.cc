@@ -1,4 +1,5 @@
 #include "serverbase.h"
+#include <unistd.h>
 #include "signalhandler.h"
 #include "log.h"
 #include "timeutil.h"
@@ -103,7 +104,11 @@ void ServerBase::Config() {
 }
 
 void ServerBase::AfterConfig() {
-    // implement if needed
+    size_t max_conn_per_thread =
+            config_->max_connections / net_threads_.size();
+    for (NetThreadBase *p : net_threads_) {
+        p->SetMaxConnection(max_conn_per_thread);
+    }
 }
 void ServerBase::LoopingEpollWait() {
     // implement if needed
@@ -205,6 +210,11 @@ tcp::ConnectionProfile *ServerBase::ConnectionManager::GetConnection(uint32_t _u
     return pool_[_uid];
 }
 
+size_t ServerBase::ConnectionManager::CurrConnectionCnt() {
+    ScopedLock lock(mutex_);
+    return pool_.capacity() - free_places_.size();
+}
+
 void ServerBase::ConnectionManager::AddConnection(tcp::ConnectionProfile *_conn) {
     assert(socket_epoll_);
     assert(_conn);
@@ -292,7 +302,8 @@ ServerBase::ConnectionManager::~ConnectionManager() {
 
 
 ServerBase::NetThreadBase::NetThreadBase()
-        : Thread() {
+        : Thread()
+        , max_connections_(0) {
     connection_manager_.SetEpoll(&socket_epoll_);
     epoll_notifier_.SetSocketEpoll(&socket_epoll_);
 }
@@ -376,12 +387,22 @@ void ServerBase::NetThreadBase::RegisterConnection(int _fd, std::string &_ip,
         LogE("invalid fd: %d", _fd)
         return;
     }
+    if (connection_manager_.CurrConnectionCnt() >= max_connections_) {
+        LogI("drop conn because of max connections, fd(%d)", _fd)
+        ::close(_fd);
+        return;
+    }
     
     auto neo = new tcp::ConnectionFrom(_fd, _ip, _port,
                                        ConnectionManager::kInvalidUid);
     connection_manager_.AddConnection(neo);
     
     ConfigApplicationLayer(neo);
+}
+
+void ServerBase::NetThreadBase::SetMaxConnection(size_t _max_conn) {
+    assert(_max_conn > 0);
+    max_connections_ = _max_conn;
 }
 
 tcp::ConnectionProfile *ServerBase::NetThreadBase::MakeConnection(std::string &_ip,
