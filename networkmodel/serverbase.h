@@ -1,6 +1,5 @@
 #pragma once
 
-#include <cstdint>
 #include <deque>
 #include <list>
 #include <mutex>
@@ -134,7 +133,7 @@ class ServerBase {
          */
         bool __OnReadEvent(tcp::ConnectionProfile *_conn);
     
-        void __OnWriteEvent(tcp::ConnectionProfile *);
+        static void __OnWriteEvent(tcp::ConnectionProfile *);
     
         virtual int __OnErrEvent(tcp::ConnectionProfile *);
         

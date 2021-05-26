@@ -24,9 +24,9 @@ struct SendContext {
     
     uint32_t                tcp_connection_uid;
     SOCKET                  fd;
-    bool                    is_longlink;
     AutoBuffer              buffer;
     std::function<void()>   MarkAsPendingPacket;
+    std::function<void()>   OnSendDone;
 };
 
 
@@ -108,6 +108,9 @@ class ConnectionProfile {
         if (upgrade) {
             tcp_byte_arr_.Reset();  // clear old tcp data.
         }
+        if (curr_application_packet_->IsLongLink()) {
+            socket_.SetTcpKeepAlive();   // enable Tcp heartbeat.
+        }
     }
     
     bool IsUpgradeApplicationProtocol() const;
@@ -126,11 +129,13 @@ class ConnectionProfile {
     
     SOCKET FD() const;
     
-    uint64_t GetTimeoutTs() const;
-
     bool IsTimeout(uint64_t _now = 0) const;
     
-    bool HasReceivedFIN() const;
+    void SendTcpFin() const;
+    
+    bool HasReceivedFin() const;
+    
+    void SendContextSendDoneCallback();
     
     virtual TConnectionType GetType() const = 0;
     
@@ -152,9 +157,8 @@ class ConnectionProfile {
     std::string                         remote_ip_;
     uint16_t                            remote_port_;
     Socket                              socket_;
-    bool                                has_received_FIN_;
+    bool                                has_received_Fin_;
     uint64_t                            record_;
-    uint64_t                            timeout_millis_;
     uint64_t                            timeout_ts_;
     AutoBuffer                          tcp_byte_arr_;
     ApplicationPacket::Ptr              curr_application_packet_;

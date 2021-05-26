@@ -121,7 +121,8 @@ bool ReverseProxyServer::NetThread::HandleHttpRequest(
         auto forward_host = ReverseProxyServer::Instance().LoadBalance(src_ip);
         if (!forward_host) {
             LogE("no web server to forward")
-            return HandleForwardFailed(_recv_ctx);
+            HandleForwardFailed(_recv_ctx);
+            return false;
         }
         LogI("try forward request from [%s:%d] to [%s:%d], fd(%d)", src_ip.c_str(),
              _recv_ctx->from_port, forward_host->ip.c_str(), forward_host->port, _recv_ctx->fd)
@@ -160,25 +161,28 @@ bool ReverseProxyServer::NetThread::HandleHttpResponse(
     LogI("send back to client: [%s:%d]", client_conn->RemoteIp().c_str(),
          client_conn->RemotePort())
 
-    tcp::SendContext::Ptr send_ctx = conn_map_[webserver_uid].second;
+    tcp::SendContext::Ptr return_packet = conn_map_[webserver_uid].second;
     
     AutoBuffer *http_packet = GetConnection(webserver_uid)->TcpByteArray();
     // Try shallow copy first.
-    send_ctx->buffer.ShallowCopyFrom(http_packet->Ptr(), http_packet->Length());
+    return_packet->buffer.ShallowCopyFrom(http_packet->Ptr(),
+                                          http_packet->Length());
     
-    bool send_done = TrySendAndMarkPendingIfUndone(send_ctx);
+    bool send_done = TrySendAndMarkPendingIfUndone(return_packet);
     conn_map_.erase(client_uid);
     
     if (!send_done) {
-        size_t nsend = send_ctx->buffer.Pos();
-        send_ctx->buffer.Reset();
+        size_t nsend = return_packet->buffer.Pos();
+        return_packet->buffer.Reset();
         // Deep copy the remaining part, because the connection
         // to the webserver will be deleted,
         // causing its TCP byte array to be deleted as well.
-        send_ctx->buffer.Write(http_packet->Ptr(nsend),
+        return_packet->buffer.Write(http_packet->Ptr(nsend),
                    http_packet->Length() - nsend);
     } else {
-        DelConnection(client_uid);
+        if (return_packet->OnSendDone) {
+            return_packet->OnSendDone();
+        }
     }
     DelConnection(webserver_uid);     // del connection to webserver.
     return true;
@@ -190,7 +194,7 @@ bool ReverseProxyServer::NetThread::HandleWebSocketPacket(
     return false;
 }
 
-bool ReverseProxyServer::NetThread::HandleForwardFailed(
+void ReverseProxyServer::NetThread::HandleForwardFailed(
                 const tcp::RecvContext::Ptr& _recv_ctx) {
     static std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
     tcp::SendContext::Ptr return_packet = _recv_ctx->return_packet;
@@ -198,10 +202,10 @@ bool ReverseProxyServer::NetThread::HandleForwardFailed(
                          http::StatusLine::kStatusDescOk, nullptr,
                          return_packet->buffer, &forward_failed_msg);
     if (TrySendAndMarkPendingIfUndone(return_packet)) {
-        DelConnection(_recv_ctx->tcp_connection_uid);
-        return true;
+        if (return_packet->OnSendDone) {
+            return_packet->OnSendDone();
+        }
     }
-    return false;
 }
 
 ReverseProxyServer::NetThread::~NetThread() = default;

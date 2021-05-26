@@ -8,11 +8,13 @@
 
 const int Socket::kBufferSize = 4096;
 
-Socket::Socket(SOCKET _fd, int _type/* = SOCK_STREAM*/, bool _nonblocking/* = true*/)
+Socket::Socket(SOCKET _fd, int _type /* = SOCK_STREAM*/,
+               bool _nonblocking /* = true*/, bool _connected /* = false*/)
         : fd_(_fd)
         , type_(_type)
         , errno_(0)
         , is_eagain_(false)
+        , is_connected_(_connected)
         , nonblocking_(_nonblocking) {
     
     assert(_type == SOCK_STREAM || _type == SOCK_DGRAM);
@@ -60,7 +62,7 @@ int Socket::Bind(sa_family_t _sin_family, uint16_t _port,
     return 0;
 }
 
-int Socket::Connect(std::string &_ip, uint16_t _port) const {
+int Socket::Connect(std::string &_ip, uint16_t _port) {
     struct sockaddr_in sockaddr{};
     memset(&sockaddr, 0, sizeof(sockaddr));
     
@@ -71,11 +73,15 @@ int Socket::Connect(std::string &_ip, uint16_t _port) const {
     int ret = connect(fd_, (struct sockaddr *) &sockaddr,
             sizeof(sockaddr));
     if (ret < 0) {
+        is_connected_ = false;
         LogE("connect errno(%d): %s", errno, strerror(errno))
+    } else {
+        is_connected_ = true;
     }
     return ret;
 }
 
+void Socket::SetConnected(bool _connected) { is_connected_ = _connected; }
 
 int Socket::SetNonblocking() {
     if (fd_ < 0) {
@@ -89,6 +95,26 @@ int Socket::SetNonblocking() {
     }
     nonblocking_ = true;
     return 0;
+}
+
+int Socket::SetTcpNoDelay() const {
+    int tcp_no_delay = 1;
+    return SetSocketOpt(IPPROTO_TCP, TCP_NODELAY,
+                &tcp_no_delay, sizeof(tcp_no_delay));;
+}
+
+int Socket::SetTcpKeepAlive() const {
+    int keep_alive = 1;
+    return SetSocketOpt(SOL_SOCKET, SO_KEEPALIVE,
+                        &keep_alive, sizeof(keep_alive));
+}
+
+int Socket::SetCloseLingerTimeout(int _linger) const {
+    assert(_linger >= 0);
+    struct linger ling{};
+    ling.l_onoff = 1;
+    ling.l_linger = _linger;
+    return SetSocketOpt(SOL_SOCKET, SO_LINGER, &ling, sizeof(ling));
 }
 
 int Socket::Listen(int _backlog) const {
@@ -134,17 +160,36 @@ void Socket::Set(SOCKET _fd) {
     }
 }
 
+int Socket::ShutDown(int _how) const {
+    if (_how != SHUT_RD && _how != SHUT_WR && _how != SHUT_RDWR) {
+        LogE("invalid how: %d", _how)
+        assert(false);
+    }
+    if (is_connected_) {
+        int ret = shutdown(fd_, _how);
+        if (ret < 0) {
+            LogE("ret: %d, errno(%d): %s", ret, errno, strerror(errno))
+        }
+        return ret;
+    }
+    return 0;
+}
+
 void Socket::Close() {
     if (fd_ > 0 && IsTcp()) {
-        LogI("fd(%d)", fd_)
+        LogD("fd(%d)", fd_)
         /**
          * A standard TCP connection gets terminated by 4-way finalization:
-         *   Once a participant has no more data to send, it sends a FIN packet to the other
+         *   Once a participant has no more data to send, it sends a FIN packet to the other.
          *   The other party returns an ACK for the FIN.
-         *   When the other party also finished data transfer, it sends another FIN packet
+         *   When the other party also finished data transfer, it sends another FIN packet.
          *   The initial participant returns an ACK and finalizes transfer.
          */
-        ::close(fd_), fd_ = INVALID_SOCKET;
+        int ret = ::close(fd_);
+        if (ret < 0) {
+            LogE("ret: %d, errno(%d): %s", ret, errno, strerror(errno))
+        }
+        fd_ = INVALID_SOCKET;
     }
 }
 
@@ -160,7 +205,12 @@ int Socket::SetSocketOpt(int _level, int _option_name,
                          const void *_option_value,
                          socklen_t _option_len) const {
     assert(fd_ > 0);
-    return ::setsockopt(fd_, _level, _option_name, _option_value, _option_len);
+    int ret = ::setsockopt(fd_, _level, _option_name,
+                           _option_value, _option_len);
+    if (ret < 0) {
+        LogE("ret: %d, errno(%d): %s", ret, errno, strerror(errno))
+    }
+    return ret;
 }
 
 bool Socket::IsTcp() const {

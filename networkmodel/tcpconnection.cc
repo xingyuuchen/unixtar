@@ -12,7 +12,8 @@ namespace tcp {
 SendContext::SendContext()
         : tcp_connection_uid(0)
         , fd(INVALID_SOCKET)
-        , is_longlink(false) {
+        , MarkAsPendingPacket(nullptr)
+        , OnSendDone(nullptr) {
 }
 
 RecvContext::RecvContext()
@@ -25,7 +26,10 @@ RecvContext::RecvContext()
 }
 
 
-const uint64_t ConnectionProfile::kDefaultTimeout = 60 * 1000;
+// For Connection from client, it will be considered timeout
+// if no data is sent within such interval
+// after the connection has been established.
+const uint64_t ConnectionProfile::kDefaultTimeout = 10 * 1000;
 
 ConnectionProfile::ConnectionProfile(std::string _remote_ip,
                                      uint16_t _remote_port, uint32_t _uid/* = 0*/)
@@ -35,10 +39,9 @@ ConnectionProfile::ConnectionProfile(std::string _remote_ip,
         , remote_ip_(std::move(_remote_ip))
         , remote_port_(_remote_port)
         , record_(::gettickcount())
-        , timeout_millis_(kDefaultTimeout)
         , socket_(INVALID_SOCKET)
-        , has_received_FIN_(false)
-        , timeout_ts_(record_ + timeout_millis_)
+        , has_received_Fin_(false)
+        , timeout_ts_(record_ + kDefaultTimeout)
         , curr_application_packet_(nullptr)
         , application_protocol_parser_(nullptr) {
 }
@@ -61,9 +64,9 @@ int ConnectionProfile::Receive() {
             return -1;
         }
         if (n == 0) {   // FIN.
-            has_received_FIN_ = true;
+            has_received_Fin_ = true;
             LogI("fd(%d), uid: %d, peer sent FIN", fd, uid_)
-            return -1;
+            return 0;
         }
     
         int ret = ParseProtocol();
@@ -100,26 +103,26 @@ bool ConnectionProfile::TrySend(const SendContext::Ptr& _send_ctx) {
         return false;
     }
 
-    ssize_t nsend = ::write(fd, resp.Ptr(pos), ntotal);
+    ssize_t nwrite = ::write(fd, resp.Ptr(pos), ntotal);
 
-    if (nsend == ntotal) {
-        LogI("fd(%d), send %zd/%zu B, done", fd, nsend, ntotal)
+    if (nwrite == ntotal) {
+        LogI("fd(%d), write %zd/%zu B, done", fd, nwrite, ntotal)
         resp.Seek(AutoBuffer::kEnd);
         return true;
     }
-    if (nsend >= 0 || (nsend < 0 && IS_EAGAIN(errno))) {
-        nsend = nsend > 0 ? nsend : 0;
-        LogI("fd(%d): send %zd/%zu B", fd, nsend, ntotal)
-        resp.Seek(AutoBuffer::kCurrent, nsend);
+    if (nwrite >= 0 || (nwrite < 0 && IS_EAGAIN(errno))) {
+        nwrite = nwrite > 0 ? nwrite : 0;
+        LogI("fd(%d): write %zd/%zu B", fd, nwrite, ntotal)
+        resp.Seek(AutoBuffer::kCurrent, nwrite);
     }
-    if (nsend < 0) {
+    if (nwrite < 0) {
         if (errno == EPIPE) {
             // fd probably closed by peer, or cleared because of timeout.
-            LogI("fd(%d) already closed, send nothing", fd)
+            LogE("fd(%d) already closed, send nothing", fd)
             return false;
         }
-        LogE("fd(%d) nsend(%zd), errno(%d): %s",
-             fd, nsend, errno, strerror(errno))
+        LogE("fd(%d) nwrite(%zd), errno(%d): %s",
+             fd, nwrite, errno, strerror(errno))
         LogPrintStacktrace(5)
     }
     return false;
@@ -136,6 +139,9 @@ bool ConnectionProfile::TrySendPendingPackets() {
         auto send_ctx = pending_send_ctx_.front();
         bool is_send_done = TrySend(send_ctx);
         if (is_send_done) {
+            if (send_ctx->OnSendDone) {
+                send_ctx->OnSendDone();
+            }
             pending_send_ctx_.pop();
             continue;
         }
@@ -201,8 +207,6 @@ void ConnectionProfile::CloseTcpConnection() { socket_.Close(); }
 
 SOCKET ConnectionProfile::FD() const { return socket_.FD(); }
 
-uint64_t ConnectionProfile::GetTimeoutTs() const { return timeout_ts_; }
-
 bool ConnectionProfile::IsTimeout(uint64_t _now) const {
     if (IsLongLinkApplicationProtocol()) {
         return false;
@@ -218,7 +222,23 @@ bool ConnectionProfile::IsTimeout(uint64_t _now) const {
     return _now > timeout_ts_;
 }
 
-bool ConnectionProfile::HasReceivedFIN() const { return has_received_FIN_; }
+void ConnectionProfile::SendTcpFin() const {
+    socket_.ShutDown(SHUT_WR);
+}
+
+bool ConnectionProfile::HasReceivedFin() const { return has_received_Fin_; }
+
+void ConnectionProfile::SendContextSendDoneCallback() {
+    if (!IsLongLinkApplicationProtocol()) {
+        // After sending the return packet, the client is expected
+        // to send a Tcp Fin within the specific interval,
+        // else such connection will be considered as timeout.
+        timeout_ts_ = ::gettickcount() + kDefaultTimeout;
+        if (GetType() == kConnectTo) {
+            timeout_ts_ += kDefaultTimeout;
+        }
+    }
+}
 
 bool ConnectionProfile::IsTypeValid() const {
     TConnectionType type = GetType();
@@ -253,9 +273,10 @@ SendContext::Ptr ConnectionProfile::MakeSendContext() {
     auto neo = std::make_shared<tcp::SendContext>();
     neo->tcp_connection_uid = Uid();
     neo->fd = socket_.FD();
-    neo->is_longlink = IsLongLinkApplicationProtocol();
     neo->MarkAsPendingPacket = std::bind(
             &ConnectionProfile::AddPendingPacketToSend, this, neo);
+    neo->OnSendDone = std::bind(
+            &ConnectionProfile::SendContextSendDoneCallback, this);
     return neo;
 }
 
@@ -289,6 +310,7 @@ int ConnectionTo::Connect() {
     int ret = socket_.Connect(remote_ip_, remote_port_);
     if (ret == 0) {
         socket_.SetNonblocking();
+        socket_.SetTcpNoDelay();    // disable Nagle's algorithm
     }
     return ret;
 }
@@ -302,8 +324,11 @@ ConnectionFrom::ConnectionFrom(SOCKET _fd, std::string _remote_ip,
                                uint16_t _remote_port, uint32_t _uid)
         : ConnectionProfile(std::move(_remote_ip), _remote_port, _uid) {
     
+    assert(_fd > 0);
     socket_.Set(_fd);
+    socket_.SetConnected(true);
     socket_.SetNonblocking();
+    socket_.SetTcpNoDelay();    // disable Nagle's algorithm
 }
 
 TConnectionType ConnectionFrom::GetType() const { return kAcceptFrom; }

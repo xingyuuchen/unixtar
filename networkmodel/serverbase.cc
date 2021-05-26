@@ -427,10 +427,13 @@ bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
     uint32_t uid = _conn->Uid();
     
     if (_conn->Receive() < 0) {
-        if (!_conn->HasReceivedFIN()) {
-            LogE("fd(%d), uid: %d Receive() err, _conn: %p",
-                 _conn->FD(), _conn->Uid(), _conn)
-        }
+        LogE("fd(%d), uid: %d Receive() err, _conn: %p",
+                _conn->FD(), _conn->Uid(), _conn)
+        DelConnection(uid);
+        return true;
+    }
+    
+    if (_conn->HasReceivedFin()) {
         DelConnection(uid);
         return true;
     }
@@ -450,8 +453,8 @@ bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
         if (is_upgrade_app_proto) {
             LogI("upgrade application protocol")
             UpgradeApplicationProtocol(_conn, recv_ctx);
-            // after upgrading protocol, the request need a packet
-            // to send back handshake, etc.
+            // after upgrading protocol, the request need
+            // a packet to send back handshake, etc.
             recv_ctx = _conn->MakeRecvContext(true);
         }
         
@@ -460,11 +463,13 @@ bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
     return false;
 }
 
-void ServerBase::NetThreadBase::__OnWriteEvent(tcp::ConnectionProfile *_conn) {
+void ServerBase::NetThreadBase::__OnWriteEvent(
+                        tcp::ConnectionProfile *_conn) {
     if (_conn->HasPendingPacketToSend()) {
         bool write_done = _conn->TrySendPendingPackets();
         if (!_conn->IsLongLinkApplicationProtocol() && write_done) {
-            DelConnection(_conn->Uid());
+            // no deleting the connection, waiting for
+            // the client to time out or send Tcp FIN.
         }
     }
 }

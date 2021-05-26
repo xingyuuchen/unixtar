@@ -91,8 +91,7 @@ bool http::HttpParser::_ResolveBody() {
         position_ = kError;
         return false;
     }
-    size_t new_size = buffer_->Length() - resolved_len_;
-    resolved_len_ += new_size;
+    resolved_len_ = buffer_->Length();
     
     size_t curr_body_len = buffer_->Length() - first_line_len_ - header_len_;
     if (content_length < curr_body_len) {
