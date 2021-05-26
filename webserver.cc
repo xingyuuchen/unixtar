@@ -197,10 +197,8 @@ void WebServer::NetThread::HandleSend() {
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogD("fd(%d) doing send task", send_ctx->fd)
         bool is_send_done = TrySendAndMarkPendingIfUndone(send_ctx);
-        if (is_send_done) {
-            if (send_ctx->OnSendDone) {
-                send_ctx->OnSendDone();
-            }
+        if (is_send_done && !send_ctx->is_longlink) {
+            DelConnection(send_ctx->tcp_connection_uid);
         }
     }
 }

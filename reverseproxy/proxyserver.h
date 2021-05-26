@@ -58,7 +58,7 @@ class ReverseProxyServer final : public ServerBase {
         
         bool HandleWebSocketPacket(const tcp::RecvContext::Ptr&);
     
-        static void HandleForwardFailed(const tcp::RecvContext::Ptr&);
+        bool HandleForwardFailed(const tcp::RecvContext::Ptr&);
     
       protected:
       

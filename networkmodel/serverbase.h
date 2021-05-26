@@ -133,7 +133,7 @@ class ServerBase {
          */
         bool __OnReadEvent(tcp::ConnectionProfile *_conn);
     
-        static void __OnWriteEvent(tcp::ConnectionProfile *);
+        void __OnWriteEvent(tcp::ConnectionProfile *);
     
         virtual int __OnErrEvent(tcp::ConnectionProfile *);
         

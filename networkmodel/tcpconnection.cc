@@ -12,6 +12,7 @@ namespace tcp {
 SendContext::SendContext()
         : tcp_connection_uid(0)
         , fd(INVALID_SOCKET)
+        , is_longlink(false)
         , MarkAsPendingPacket(nullptr)
         , OnSendDone(nullptr) {
 }
@@ -229,15 +230,6 @@ void ConnectionProfile::SendTcpFin() const {
 bool ConnectionProfile::HasReceivedFin() const { return has_received_Fin_; }
 
 void ConnectionProfile::SendContextSendDoneCallback() {
-    if (!IsLongLinkApplicationProtocol()) {
-        // After sending the return packet, the client is expected
-        // to send a Tcp Fin within the specific interval,
-        // else such connection will be considered as timeout.
-        timeout_ts_ = ::gettickcount() + kDefaultTimeout;
-        if (GetType() == kConnectTo) {
-            timeout_ts_ += kDefaultTimeout;
-        }
-    }
 }
 
 bool ConnectionProfile::IsTypeValid() const {
@@ -273,6 +265,7 @@ SendContext::Ptr ConnectionProfile::MakeSendContext() {
     auto neo = std::make_shared<tcp::SendContext>();
     neo->tcp_connection_uid = Uid();
     neo->fd = socket_.FD();
+    neo->is_longlink = IsLongLinkApplicationProtocol();
     neo->MarkAsPendingPacket = std::bind(
             &ConnectionProfile::AddPendingPacketToSend, this, neo);
     neo->OnSendDone = std::bind(

@@ -24,6 +24,7 @@ struct SendContext {
     
     uint32_t                tcp_connection_uid;
     SOCKET                  fd;
+    bool                    is_longlink;
     AutoBuffer              buffer;
     std::function<void()>   MarkAsPendingPacket;
     std::function<void()>   OnSendDone;

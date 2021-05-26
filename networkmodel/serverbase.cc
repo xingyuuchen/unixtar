@@ -468,8 +468,7 @@ void ServerBase::NetThreadBase::__OnWriteEvent(
     if (_conn->HasPendingPacketToSend()) {
         bool write_done = _conn->TrySendPendingPackets();
         if (!_conn->IsLongLinkApplicationProtocol() && write_done) {
-            // no deleting the connection, waiting for
-            // the client to time out or send Tcp FIN.
+            DelConnection(_conn->Uid());
         }
     }
 }

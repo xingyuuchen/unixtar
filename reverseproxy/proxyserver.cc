@@ -121,8 +121,7 @@ bool ReverseProxyServer::NetThread::HandleHttpRequest(
         auto forward_host = ReverseProxyServer::Instance().LoadBalance(src_ip);
         if (!forward_host) {
             LogE("no web server to forward")
-            HandleForwardFailed(_recv_ctx);
-            return false;
+            return HandleForwardFailed(_recv_ctx);
         }
         LogI("try forward request from [%s:%d] to [%s:%d], fd(%d)", src_ip.c_str(),
              _recv_ctx->from_port, forward_host->ip.c_str(), forward_host->port, _recv_ctx->fd)
@@ -180,8 +179,8 @@ bool ReverseProxyServer::NetThread::HandleHttpResponse(
         return_packet->buffer.Write(http_packet->Ptr(nsend),
                    http_packet->Length() - nsend);
     } else {
-        if (return_packet->OnSendDone) {
-            return_packet->OnSendDone();
+        if (!return_packet->is_longlink) {
+            DelConnection(return_packet->tcp_connection_uid);
         }
     }
     DelConnection(webserver_uid);     // del connection to webserver.
@@ -194,7 +193,7 @@ bool ReverseProxyServer::NetThread::HandleWebSocketPacket(
     return false;
 }
 
-void ReverseProxyServer::NetThread::HandleForwardFailed(
+bool ReverseProxyServer::NetThread::HandleForwardFailed(
                 const tcp::RecvContext::Ptr& _recv_ctx) {
     static std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
     tcp::SendContext::Ptr return_packet = _recv_ctx->return_packet;
@@ -202,10 +201,12 @@ void ReverseProxyServer::NetThread::HandleForwardFailed(
                          http::StatusLine::kStatusDescOk, nullptr,
                          return_packet->buffer, &forward_failed_msg);
     if (TrySendAndMarkPendingIfUndone(return_packet)) {
-        if (return_packet->OnSendDone) {
-            return_packet->OnSendDone();
+        if (!return_packet->is_longlink) {
+            DelConnection(return_packet->tcp_connection_uid);
+            return true;
         }
     }
+    return false;
 }
 
 ReverseProxyServer::NetThread::~NetThread() = default;
