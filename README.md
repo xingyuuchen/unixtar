@@ -9,9 +9,7 @@ The framework is a Web-Server on unix based system.
 Without using any third-party libraries, the framework writes from unix system calls and standard C library functions.
 
 The framework adopts the model of `Epoll + NetThreads + WorkerThreads`:
-![model-overview](http://49.235.29.121/file/docs/images/model-overview.png)
-
-[comment]: <> (![model-overview]&#40;docs/images/model-overview.png&#41;)
+![model-overview](docs/images/model-overview.png)
 
 
 The framework focuses on the following tasks:
@@ -23,9 +21,7 @@ The framework focuses on the following tasks:
 * You can easily add network interfaces by inheriting the `NetSceneBase` class.
 
 Workflow when processing HTTP short link requests:
-![workflow](http://49.235.29.121/file/docs/images/workflow.png)
-
-[comment]: <> (![workflow]&#40;docs/images/workflow.png&#41;)
+![workflow](docs/images/workflow.png)
 
 
 

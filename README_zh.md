@@ -4,14 +4,12 @@
 
 [English version portal](README.md)
 
-一个不知道自己性能高不高的服务端框架。
+一个不知道自己性能高不高的Web服务端框架。
 
 不包含任何第三方库，框架从低层级的系统调用和C标准库写起。
 
 框架采用 `Epoll + NetThreads + WorkerThreads` 的模型：
-![model-overview](http://49.235.29.121/file/docs/images/model-overview.png)
-
-[comment]: <> (![model-overview]&#40;docs/images/model-overview.png&#41;)
+![model-overview](docs/images/model-overview.png)
 
 
 特点：
@@ -23,9 +21,7 @@
 * 框架完全独立于业务，你可以通过继承 `NetSceneBase` 类，轻易地添加自己的网络接口。
 
 处理Http短链接请求时模型工作流：
-![workflow](http://49.235.29.121/file/docs/images/workflow.png)
-
-[comment]: <> (![workflow]&#40;docs/images/workflow.png&#41;)
+![workflow](docs/images/workflow.png)
 
 
 
