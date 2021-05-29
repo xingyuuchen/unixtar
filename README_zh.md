@@ -19,6 +19,7 @@
 * 反向代理。提供转发请求到服务节点、负载均衡的能力。你可以从多个负载均衡策略中选择。
 * 传输层模块的代码完全独立于具体的应用层协议，你可以通过继承 `ApplicationPacket` 类，轻易地添加自己的应用层协议。
 * 框架完全独立于业务，你可以通过继承 `NetSceneBase` 类，轻易地添加自己的网络接口。
+* 你可以使用内置的线程池单例完成自己的异步任务，它可以是：立即型、带序列化标签的立即型、周期型、延时型任务。
 
 处理Http短链接请求时模型工作流：
 ![workflow](docs/images/workflow.png)
@@ -30,7 +31,7 @@
 git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
 cd framework/script
 bash autogen.sh    # 当你需要使用protobuf时运行此脚本
-bash cmake.sh -d   # -d选项将使得进程成为linux的守护进程。日志通过rsyslog系统重定向到制定的文件
+bash cmake.sh -d   # -d选项将使得进程成为linux的守护进程。日志通过rsyslog系统重定向到指定的文件
 ```
 
 ## ✨ 用法

@@ -19,6 +19,7 @@ The framework focuses on the following tasks:
 * Reverse proxy. Provides the ability to forward requests to service nodes and load balancing. You can choose among several load balancing strategies.
 * The code of the transport layer module is completely independent of the specific application layer protocol, you can easily add your own application layer protocols by inheriting the `ApplicationPacket` class.
 * You can easily add network interfaces by inheriting the `NetSceneBase` class.
+* You can use the built-in thread pool singleton to complete your own asynchronous tasks, which can be: immediate, immediate with serialized tag, periodic, or delayed task.
 
 Workflow when processing HTTP short link requests:
 ![workflow](docs/images/workflow.png)
@@ -29,7 +30,7 @@ Workflow when processing HTTP short link requests:
 ```shell
 git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
 cd framework/script
-bash autogen.sh   # do this if you wanna use ProtoBuf.
+bash autogen.sh   # do this if you want to use ProtoBuf.
 bash cmake.sh -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
 ```
 
