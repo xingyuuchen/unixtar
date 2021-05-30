@@ -54,7 +54,7 @@ class ReverseProxyServer final : public ServerBase {
         
         bool HandleHttpRequest(const tcp::RecvContext::Ptr&);
         
-        bool HandleHttpResponse(const tcp::RecvContext::Ptr&);
+        void HandleHttpResponse(const tcp::RecvContext::Ptr&);
         
         bool HandleWebSocketPacket(const tcp::RecvContext::Ptr&);
     

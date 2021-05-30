@@ -98,7 +98,8 @@ bool ReverseProxyServer::NetThread::HandleHttpPacket(
         
     } else if (type == tcp::kConnectTo) {
         // Send back response to client.
-        return HandleHttpResponse(_recv_ctx);
+        HandleHttpResponse(_recv_ctx);
+        return true;
     }
     LogE("unknown type: %d", type)
     DelConnection(_recv_ctx->tcp_connection_uid);
@@ -150,7 +151,7 @@ bool ReverseProxyServer::NetThread::HandleHttpRequest(
     return false;
 }
 
-bool ReverseProxyServer::NetThread::HandleHttpResponse(
+void ReverseProxyServer::NetThread::HandleHttpResponse(
                     const tcp::RecvContext::Ptr &_recv_ctx) {
     assert(_recv_ctx->type == tcp::kConnectTo);
     
@@ -158,6 +159,13 @@ bool ReverseProxyServer::NetThread::HandleHttpResponse(
     
     uint32_t client_uid = conn_map_[webserver_uid].first;
     tcp::ConnectionProfile *client_conn = GetConnection(client_uid);
+    
+    if (!client_conn) {
+        LogE("client connection has already been delete.")
+        conn_map_.erase(client_uid);
+        DelConnection(webserver_uid);     // del connection to webserver.
+        return;
+    }
     
     LogI("send back to client: [%s:%d]", client_conn->RemoteIp().c_str(),
          client_conn->RemotePort())
@@ -186,7 +194,6 @@ bool ReverseProxyServer::NetThread::HandleHttpResponse(
         }
     }
     DelConnection(webserver_uid);     // del connection to webserver.
-    return true;
 }
 
 bool ReverseProxyServer::NetThread::HandleWebSocketPacket(
