@@ -206,3 +206,17 @@ bash launchproxy.sh
 * 支持的最大连接数。
 * 处理网络事件的线程数。
 
+
+## ✨ 引用
+如果你使用此软件进行研究，请在脚注中增加此引用: `github.com/xingyuuchen/unixtar.git`.
+
+或者使用`BibTeX`进行引用:
+```
+@misc{2021unixtar,
+  title={unixtar: A Http/WebSocket Server Framework on Linux.},
+  author={Xingyu Chen},
+  howpublished={\url{https://github.com/xingyuuchen/unixtar.git}},
+  year={2021}
+}
+```
+

@@ -202,3 +202,18 @@ Configure your reverse proxy by editing `reverseproxy/proxyserverconf.yml`. You 
 * All web server nodes available to forward Http request.
 * Maximum connections at the same time.
 * Number of threads who handles network events.
+
+
+## ✨ License
+If you use this software for your research, a footnote with the link to this repository is appreciated: `github.com/xingyuuchen/unixtar.git`.
+
+Or for citation with `BibTeX`:
+```
+@misc{2021unixtar,
+  title={unixtar: A Http/WebSocket Server Framework on Linux.},
+  author={Xingyu Chen},
+  howpublished={\url{https://github.com/xingyuuchen/unixtar.git}},
+  year={2021}
+}
+```
+
