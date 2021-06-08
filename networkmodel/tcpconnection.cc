@@ -286,9 +286,7 @@ uint16_t ConnectionProfile::RemotePort() const { return remote_port_; }
 
 ConnectionProfile::~ConnectionProfile() {
     if (!pending_send_ctx_.empty()) {
-        LogE("pending_send_ctx_ NOT empty")
-        LogPrintStacktrace()
-        assert(false);
+        LogI("pending_send_ctx_ NOT empty, deleted probably because of FIN")
     }
     delete application_protocol_parser_;
     application_protocol_parser_ = nullptr;
