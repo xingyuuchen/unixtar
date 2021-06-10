@@ -95,10 +95,10 @@ class WebSocketPacket : public ApplicationPacket {
     ApplicationPacket::Ptr AllocNewPacket() override;
     
   private:
-    bool                        is_hand_shaken;
-    http::HeaderField           handshake_req;
-    http::HeaderField           handshake_resp;
-    uint8_t                     first_byte;
+    bool                        is_hand_shaken_;
+    http::HeaderField           handshake_req_;
+    http::HeaderField           handshake_resp_;
+    uint8_t                     first_byte_;
     bool                        fin_;
     bool                        rsv_[3]{false};
     uint8_t                     op_code_;
@@ -185,7 +185,7 @@ class WebSocketParser : public ApplicationProtocolParser {
     bool _ResolvePayload();
 
   private:
-    WebSocketPacket::Ptr        ws_packet;
+    WebSocketPacket::Ptr        ws_packet_;
     TPosition                   position_;
     size_t                      resolved_len_;
 };

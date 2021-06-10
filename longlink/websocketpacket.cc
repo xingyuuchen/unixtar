@@ -72,8 +72,8 @@ const char *const WebSocketPacket::kStatusCodeTlsHandShakeInfo = "TlsHand Shake"
 
 WebSocketPacket::WebSocketPacket()
         : ApplicationPacket()
-        , is_hand_shaken(false)
-        , first_byte(0x81)
+        , is_hand_shaken_(false)
+        , first_byte_(0x81)
         , fin_(false)
         , op_code_(0)
         , mask_(false)
@@ -85,12 +85,12 @@ WebSocketPacket::~WebSocketPacket() = default;
 
 TApplicationProtocol WebSocketPacket::Protocol() const { return kWebSocket; }
 
-bool WebSocketPacket::IsHandShaken() const { return is_hand_shaken; }
+bool WebSocketPacket::IsHandShaken() const { return is_hand_shaken_; }
 
 bool WebSocketPacket::DoHandShake() {
-    assert(!is_hand_shaken);
-    handshake_resp.Reset();
-    const char *sec_ws_key = handshake_req.Get(http::HeaderField::kSecWebSocketKey);
+    assert(!is_hand_shaken_);
+    handshake_resp_.Reset();
+    const char *sec_ws_key = handshake_req_.Get(http::HeaderField::kSecWebSocketKey);
     if (!sec_ws_key) {
         LogE("request do Not have header field: %s", http::HeaderField::kSecWebSocketKey)
         return false;
@@ -105,32 +105,32 @@ bool WebSocketPacket::DoHandShake() {
     char base64[256] = {0, };
     base64::Encode(sha1, 20, base64);
     
-    handshake_resp.InsertOrUpdate(http::HeaderField::kSecWebSocketAccept,
+    handshake_resp_.InsertOrUpdate(http::HeaderField::kSecWebSocketAccept,
                                      std::string(base64));
-    handshake_resp.InsertOrUpdate(http::HeaderField::kConnection,
+    handshake_resp_.InsertOrUpdate(http::HeaderField::kConnection,
                                      http::HeaderField::kUpgrade);
-    handshake_resp.InsertOrUpdate(http::HeaderField::kUpgrade,
+    handshake_resp_.InsertOrUpdate(http::HeaderField::kUpgrade,
                                      http::HeaderField::kWebSocket);
-    is_hand_shaken = true;
+    is_hand_shaken_ = true;
     LogI("sec_key: %s, Sec-WebSocket-Accept: %s", sec_key.c_str(), base64)
-    return is_hand_shaken;
+    return is_hand_shaken_;
 }
 
 void WebSocketPacket::SetHandShakeReqHeader(http::HeaderField *_header) {
-    handshake_req = *_header;
+    handshake_req_ = *_header;
 }
 
-http::HeaderField &WebSocketPacket::RequestHeaders() { return handshake_req; }
+http::HeaderField &WebSocketPacket::RequestHeaders() { return handshake_req_; }
 
-http::HeaderField &WebSocketPacket::ResponseHeaders() { return handshake_resp; }
+http::HeaderField &WebSocketPacket::ResponseHeaders() { return handshake_resp_; }
 
 void WebSocketPacket::SetFirstByte(uint8_t _first) {
-    first_byte = _first;
-    fin_ = first_byte & 0x80;
-    rsv_[0] = first_byte & 0x40;
-    rsv_[1] = first_byte & 0x20;
-    rsv_[2] = first_byte & 0x10;
-    op_code_ = first_byte & 0x0f;
+    first_byte_ = _first;
+    fin_ = first_byte_ & 0x80;
+    rsv_[0] = first_byte_ & 0x40;
+    rsv_[1] = first_byte_ & 0x20;
+    rsv_[2] = first_byte_ & 0x10;
+    op_code_ = first_byte_ & 0x0f;
 }
 
 uint8_t WebSocketPacket::OpCode() const { return op_code_; }
@@ -201,7 +201,7 @@ uint8_t *WebSocketPacket::MaskingKey() { return masking_key_; }
 std::string &WebSocketPacket::Payload() { return payload_; }
 
 void WebSocketPacket::Reset() {
-    first_byte = 0;
+    first_byte_ = 0;
     mask_ = false;
     payload_len_ = 0;
     extended_payload_len_ = 0;
@@ -211,7 +211,7 @@ void WebSocketPacket::Reset() {
 
 ApplicationPacket::Ptr WebSocketPacket::AllocNewPacket() {
     auto neo = std::make_shared<WebSocketPacket>();
-    neo->is_hand_shaken = true;
+    neo->is_hand_shaken_ = true;
     return neo;
 }
 
@@ -220,16 +220,16 @@ WebSocketParser::WebSocketParser(AutoBuffer *_buff,
                                  const WebSocketPacket::Ptr& _packet,
                                  http::HeaderField *_handshake_req)
         : ApplicationProtocolParser(_packet, _buff)
-        , ws_packet(nullptr)
+        , ws_packet_(nullptr)
         , position_(kNone)
         , resolved_len_(0) {
     
-    ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(application_packet_);
-    ws_packet->SetHandShakeReqHeader(_handshake_req);
+    ws_packet_ = std::dynamic_pointer_cast<ws::WebSocketPacket>(application_packet_);
+    ws_packet_->SetHandShakeReqHeader(_handshake_req);
 }
 
 int WebSocketParser::DoParse() {
-    assert(ws_packet->IsHandShaken());
+    assert(ws_packet_->IsHandShaken());
     if (buffer_->Length() < 0) {
         LogE("wtf")
         return -1;
@@ -282,11 +282,11 @@ bool WebSocketParser::IsEnd() const { return position_ == kEnd; }
 
 void WebSocketParser::OnApplicationPacketChanged(
         const ApplicationPacket::Ptr& _neo) {
-    ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(_neo);
+    ws_packet_ = std::dynamic_pointer_cast<ws::WebSocketPacket>(_neo);
 }
 
 bool WebSocketParser::_ResolveFirstByte() {
-    ws_packet->SetFirstByte(*buffer_->Ptr(0));
+    ws_packet_->SetFirstByte(*buffer_->Ptr(0));
     resolved_len_ += 1;
     position_ = kPayloadLen;
     return true;
@@ -297,7 +297,7 @@ bool WebSocketParser::_ResolvePayloadLen() {
         return false;
     }
     bool is_mask = (*buffer_->Ptr(1)) & 0x80;
-    ws_packet->Masked(is_mask);
+    ws_packet_->Masked(is_mask);
     
     uint8_t payload_len = (*buffer_->Ptr(1)) & 0x7f;
     LogI("mask: %d, payload len: %hhu", is_mask, payload_len)
@@ -310,7 +310,7 @@ bool WebSocketParser::_ResolvePayloadLen() {
         position_ = kError;
         return false;
     }
-    ws_packet->SetPayloadLen(payload_len);
+    ws_packet_->SetPayloadLen(payload_len);
     resolved_len_ += 1;
     return true;
 }
@@ -318,7 +318,7 @@ bool WebSocketParser::_ResolvePayloadLen() {
 bool WebSocketParser::_ResolveExtendedPayloadLen() {
     size_t unresolved_len = buffer_->Length() - resolved_len_;
     
-    uint8_t payload_len = ws_packet->PayloadLen();
+    uint8_t payload_len = ws_packet_->PayloadLen();
     
     if (payload_len == 126) {
         if (unresolved_len < 2) {
@@ -327,7 +327,7 @@ bool WebSocketParser::_ResolveExtendedPayloadLen() {
         uint16_t extended_payload_len = ((*buffer_->Ptr(resolved_len_) << 8) & 0xff00) +
                 (*buffer_->Ptr(resolved_len_ + 1) & 0xff);
         resolved_len_ += 2;
-        ws_packet->SetExtendedPayloadLen(extended_payload_len);
+        ws_packet_->SetExtendedPayloadLen(extended_payload_len);
         
     } else if (payload_len == 127) {
         if (unresolved_len < 8) {
@@ -339,13 +339,13 @@ bool WebSocketParser::_ResolveExtendedPayloadLen() {
             uint8_t c = *buffer_->Ptr(resolved_len_++);
             extended_payload_len += (c << shift) & (0xff << shift);
         }
-        ws_packet->SetExtendedPayloadLen(extended_payload_len);
+        ws_packet_->SetExtendedPayloadLen(extended_payload_len);
         
     } else {
         position_ = kError;
         return false;
     }
-    position_ = ws_packet->IsMasked() ? kMaskingKey : kPayload;
+    position_ = ws_packet_->IsMasked() ? kMaskingKey : kPayload;
     return true;
 }
 
@@ -353,12 +353,12 @@ bool WebSocketParser::_ResolveMaskingKey() {
     if (buffer_->Length() - resolved_len_ < 4) {
         return false;
     }
-    if (ws_packet->IsMasked()) {
+    if (ws_packet_->IsMasked()) {
         uint8_t mask_key[4];
         memcpy(mask_key, buffer_->Ptr(resolved_len_), sizeof(mask_key));
         LogI("mask-key: %02x %02x %02x %02x", mask_key[0],
                     mask_key[1], mask_key[2], mask_key[3])
-        ws_packet->SetMaskingKey(mask_key);
+        ws_packet_->SetMaskingKey(mask_key);
         resolved_len_ += 4;
         position_ = kPayload;
     }
@@ -370,11 +370,11 @@ bool WebSocketParser::_ResolvePayload() {
     if (unresolved_len <= 0) {
         return false;
     }
-    size_t payload_len = ws_packet->PayloadLen();
-    std::string &payload = ws_packet->Payload();
+    size_t payload_len = ws_packet_->PayloadLen();
+    std::string &payload = ws_packet_->Payload();
     
-    bool mask = ws_packet->IsMasked();
-    uint8_t *masking_key = ws_packet->MaskingKey();
+    bool mask = ws_packet_->IsMasked();
+    uint8_t *masking_key = ws_packet_->MaskingKey();
     
     for (int i = 0; i < unresolved_len; ++i) {
         uint8_t raw = *buffer_->Ptr(resolved_len_ + i);
