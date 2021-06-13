@@ -1,5 +1,6 @@
 #include "netscenedispatcher.h"
 #include <cstdio>
+#include <exception>
 #include "basenetscenereq.pb.h"
 #include "netscene_getindexpage.h"
 #include "netscene_hellosvr.h"
@@ -83,16 +84,18 @@ NetSceneDispatcher::NetSceneWorker::~NetSceneWorker() = default;
 
 void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext::Ptr _recv_ctx) {
     TApplicationProtocol app_proto = _recv_ctx->application_packet->Protocol();
-    if (app_proto != kWebSocket && app_proto != kHttp1_1) {
-        LogE("unknown application protocol: %d", app_proto)
-        return;
-    }
     if (app_proto == kWebSocket) {
         LogI("dispatch to WebSocket")
         HandleWebSocket(_recv_ctx);
-        return;
+    } else if (app_proto == kHttp1_1) {
+        HandleHttp(_recv_ctx);
+    } else {
+        LogE("unknown application protocol: %d", app_proto)
     }
-    
+}
+
+void NetSceneDispatcher::NetSceneWorker::HandleHttp(
+                        const tcp::RecvContext::Ptr &_recv_ctx) {
     /* Handle Http */
     auto http_request = std::dynamic_pointer_cast<http::request::HttpRequest>(
             _recv_ctx->application_packet);
@@ -136,26 +139,30 @@ void NetSceneDispatcher::NetSceneWorker::HandleImpl(tcp::RecvContext::Ptr _recv_
     
     LogI("fd(%d) dispatch to type %d", fd, type)
     
-    NetSceneBase *net_scene = NetSceneDispatcher::Instance().__MakeNetScene(type);
-    if (!net_scene) {
-        LogE("fd(%d) !net_scene", fd)
-        return;
-    }
+    auto *net_scene = NetSceneDispatcher::Instance().__MakeNetScene(type);
     
-    uint64_t start = ::gettickcount();
-    if (http_request->IsMethodPost()) {
-        net_scene->DoScene(req_buffer);
-    } else {
-        net_scene->DoScene(http_request->Url());
-    }
-    uint64_t cost = ::gettickcount() - start;
-    LogI("fd(%d) type(%d), cost %llu ms", fd, type, cost)
+    try {
+        uint64_t start = ::gettickcount();
+        if (http_request->IsMethodPost()) {
+            net_scene->DoScene(req_buffer);
+        } else {
+            net_scene->DoScene(http_request->Url());
+        }
+        uint64_t cost = ::gettickcount() - start;
+        LogI("fd(%d) type(%d), cost %llu ms", fd, type, cost)
     
-    AutoBuffer &http_resp_msg = _recv_ctx->return_packet->buffer;
-    PackHttpRespPacket(net_scene, http_resp_msg);
+        PackHttpRespPacket(net_scene, _recv_ctx->return_packet->buffer);
+        
+    } catch (std::exception &ex) {
+        LogE("fd(%d), type: %d, exception occurs during handling net scene: %s",
+                fd, type, ex.what())
+        HandleNetSceneException(_recv_ctx);
+        
+    } catch (...) {
+        HandleNetSceneException(_recv_ctx);
+    }
     
     delete net_scene, net_scene = nullptr;
-
 }
 
 void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext::Ptr _recv_ctx) {
@@ -165,7 +172,7 @@ void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext::Ptr _r
         return;
     }
     
-    std::string resp_str = "server is busy now";
+    std::string resp_str = "Unixtar is busy now";
     std::string resp;
     
     BaseNetSceneResp::BaseNetSceneResp base_resp;
@@ -195,7 +202,8 @@ void NetSceneDispatcher::NetSceneWorker::HandleOverload(tcp::RecvContext::Ptr _r
     }
 }
 
-void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(const tcp::RecvContext::Ptr& _recv_ctx) {
+void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(
+            const tcp::RecvContext::Ptr& _recv_ctx) {
     assert(_recv_ctx->application_packet->Protocol() == kWebSocket);
     auto ws_packet = std::dynamic_pointer_cast<ws::WebSocketPacket>(
                 _recv_ctx->application_packet);
@@ -223,6 +231,18 @@ void NetSceneDispatcher::NetSceneWorker::HandleWebSocket(const tcp::RecvContext:
     WriteFakeWsResp(_recv_ctx);
 }
 
+void NetSceneDispatcher::NetSceneWorker::HandleNetSceneException(
+            const tcp::RecvContext::Ptr &_recv_ctx) {
+    std::map<std::string, std::string> headers;
+    headers[http::HeaderField::kConnection] = http::HeaderField::kConnectionClose;
+    
+    AutoBuffer &http_resp_msg = _recv_ctx->return_packet->buffer;
+    std::string resp("Unixtar encounters an exception during handling net scene.");
+    
+    http::response::Pack(http::kHTTP_1_1, 500, http::StatusLine::kStatusDescOk,
+                         &headers, http_resp_msg, &resp);
+}
+
 void NetSceneDispatcher::NetSceneWorker::HandleException(std::exception &ex) {
     LogE("%s", ex.what())
     running_ = false;
@@ -232,7 +252,7 @@ void NetSceneDispatcher::NetSceneWorker::WriteFakeWsResp(
                 const tcp::RecvContext::Ptr& _recv_ctx) {
     static uint64_t visit = 0;
     char resp[256];
-    snprintf(resp, sizeof(resp), R"({"msg":"This is %llu visits to unixtar"})", ++visit);
+    snprintf(resp, sizeof(resp), R"({"msg":"This is %llu visits to Unixtar"})", ++visit);
     std::string resp_str(resp);
     // websocket can make send_context here
     // _recv_ctx->packet_push_others.push_back(new tcp::SendContext);

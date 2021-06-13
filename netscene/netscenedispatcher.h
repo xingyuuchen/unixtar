@@ -50,7 +50,11 @@ class NetSceneDispatcher final {
     
         void HandleException(std::exception &ex) override;
     
+        static void HandleHttp(const tcp::RecvContext::Ptr&);
+        
         static void HandleWebSocket(const tcp::RecvContext::Ptr&);
+        
+        static void HandleNetSceneException(const tcp::RecvContext::Ptr&);
         
         // debug only
         static void WriteFakeWsResp(const tcp::RecvContext::Ptr&);
