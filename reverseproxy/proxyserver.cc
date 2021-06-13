@@ -188,10 +188,6 @@ void ReverseProxyServer::NetThread::HandleHttpResponse(
         // causing its TCP byte array to be deleted as well.
         return_packet->buffer.Write(http_packet->Ptr(nsend),
                    http_packet->Length() - nsend);
-    } else {
-        if (return_packet->OnSendDone) {
-            return_packet->OnSendDone();
-        }
     }
     DelConnection(webserver_uid);     // del connection to webserver.
 }
@@ -206,14 +202,12 @@ void ReverseProxyServer::NetThread::HandleForwardFailed(
                 const tcp::RecvContext::Ptr& _recv_ctx) {
     static std::string forward_failed_msg("Internal Server Error: Reverse Proxy Error");
     tcp::SendContext::Ptr return_packet = _recv_ctx->return_packet;
+    
     http::response::Pack(http::THttpVersion::kHTTP_1_1, 500,
                          http::StatusLine::kStatusDescOk, nullptr,
                          return_packet->buffer, &forward_failed_msg);
-    if (TrySendAndMarkPendingIfUndone(return_packet)) {
-        if (return_packet->OnSendDone) {
-            return_packet->OnSendDone();
-        }
-    }
+    
+    TrySendAndMarkPendingIfUndone(return_packet);
 }
 
 ReverseProxyServer::NetThread::~NetThread() = default;

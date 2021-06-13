@@ -180,7 +180,7 @@ uint64_t SocketEpoll::IsErrSet(int _idx) {
 #endif
 }
 
-epoll_data *SocketEpoll::__IsFlagSet(int _idx, int _flag) {
+epoll_data *SocketEpoll::__IsFlagSet(int _idx, uint32_t _flag) {
 #ifdef __linux__
     if (_idx < 0 || _idx >= kMaxFds) {
         LogE("invalid _idx: %d", _idx)

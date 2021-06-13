@@ -61,6 +61,8 @@ class Socket {
                      socklen_t _option_len) const;
     
     bool IsNonblocking() const;
+    
+    int SocketError() const;
 
   private:
     static const int    kBufferSize;

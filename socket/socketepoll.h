@@ -74,7 +74,7 @@ class SocketEpoll {
      * @param _flag: EPOLLIN, EPOLLOUT, EPOLLERR, etc.
      * @return: NULL if flag not set, else &epoll_event.data.
      */
-    epoll_data *__IsFlagSet(int _idx, int _flag);
+    epoll_data *__IsFlagSet(int _idx, uint32_t _flag);
     
     int __EpollCtl(int _op, SOCKET _fd, struct epoll_event *_event = nullptr);
     

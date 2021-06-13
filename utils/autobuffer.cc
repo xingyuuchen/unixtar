@@ -1,14 +1,12 @@
 #include "autobuffer.h"
-#include <cstdlib>
 #include <cstring>
 #include <cassert>
 #include <cstdio>
 #include "log.h"
-#include <cerrno>
 
 
 AutoBuffer::AutoBuffer(size_t _malloc_unit_size)
-        : byte_array_(nullptr)
+        : byte_array_p_(nullptr)
         , is_shallow_copy_(false)
         , pos_(0)
         , length_(0)
@@ -18,6 +16,7 @@ AutoBuffer::AutoBuffer(size_t _malloc_unit_size)
 
 void AutoBuffer::Write(const char *_byte_array, size_t _len) {
     if (_len <= 0 || _byte_array == nullptr) { return; }
+    assert(!is_shallow_copy_);
     if (capacity_ < length_ + _len) {
         AddCapacity(length_ + _len - capacity_);
     }
@@ -47,11 +46,7 @@ size_t AutoBuffer::Length() const {
 }
 
 char *AutoBuffer::Ptr(const size_t _offset /* = 0*/) const {
-    return byte_array_ + _offset;
-}
-
-void AutoBuffer::SetPtr(char *_ptr) {
-    byte_array_ = _ptr;
+    return byte_array_p_ + _offset;
 }
 
 void AutoBuffer::AddCapacity(size_t _size_to_add) {
@@ -59,19 +54,15 @@ void AutoBuffer::AddCapacity(size_t _size_to_add) {
         LogE("Illegal arg _size_to_add: %zd", _size_to_add);
         return;
     }
+    assert(!is_shallow_copy_);
+    
     if (_size_to_add % malloc_unit_size_ != 0) {
         _size_to_add = (_size_to_add / malloc_unit_size_ + 1) * malloc_unit_size_;
     }
     
-    void *p = realloc(byte_array_, capacity_ + _size_to_add);
-    if (!p) {
-        LogE("realloc failed, errno(%d): %s", errno, strerror(errno));
-        free(byte_array_), byte_array_ = nullptr;
-        capacity_ = 0;
-        return;
-    }
+    byte_array_.resize(capacity_ + _size_to_add);
     capacity_ += _size_to_add;
-    byte_array_ = (char *) p;
+    byte_array_p_ = byte_array_.data();
 }
 
 size_t AutoBuffer::Capacity() const {
@@ -87,19 +78,19 @@ AutoBuffer::~AutoBuffer() {
 }
 
 void AutoBuffer::ShallowCopyFrom(char *_ptr, size_t _len) {
-    SetPtr(_ptr);
+    byte_array_p_ = _ptr;
     SetLength(_len);
     is_shallow_copy_ = true;
+    byte_array_.clear();
 }
 
 void AutoBuffer::Reset() {
     capacity_ = 0;
     length_ = 0;
     pos_ = 0;
-    if (!is_shallow_copy_ && byte_array_) {
-        free(byte_array_);
-    }
-    byte_array_ = nullptr;
+    byte_array_.clear();
+    byte_array_p_ = nullptr;
+    is_shallow_copy_ = false;
 }
 
 void AutoBuffer::SetLength(size_t _len) {

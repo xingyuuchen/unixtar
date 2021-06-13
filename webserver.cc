@@ -185,24 +185,26 @@ void WebServer::NetThread::NotifySend() {
     epoll_notifier_.NotifyEpoll(notification_send_);
 }
 
-bool WebServer::NetThread::HandleNotification(EpollNotifier::Notification &_notification) {
+bool WebServer::NetThread::CheckNotification(
+                EpollNotifier::Notification &_notification) {
     if (__IsNotifySend(_notification)) {
-        HandleSend();
         return true;
     }
     return false;
+}
+
+void WebServer::NetThread::HandleNotification(
+                EpollNotifier::Notification &_notification) {
+    if (__IsNotifySend(_notification)) {
+        HandleSend();
+    }
 }
 
 void WebServer::NetThread::HandleSend() {
     tcp::SendContext::Ptr send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
         LogD("fd(%d) doing send task", send_ctx->fd)
-        bool is_send_done = TrySendAndMarkPendingIfUndone(send_ctx);
-        if (is_send_done) {
-            if (send_ctx->OnSendDone) {
-                send_ctx->OnSendDone();
-            }
-        }
+        TrySendAndMarkPendingIfUndone(send_ctx);
     }
 }
 

@@ -1,11 +1,12 @@
 #pragma once
 
 #include <cstddef>
+#include <vector>
 
 
 class AutoBuffer {
   public:
-    AutoBuffer(size_t _malloc_unit_size = 128);
+    explicit AutoBuffer(size_t _malloc_unit_size = 128);
 
     AutoBuffer(const AutoBuffer &_auto_buffer) = delete;
     
@@ -22,8 +23,6 @@ class AutoBuffer {
     void AddLength(size_t _len);
     
     char *Ptr(size_t _offset = 0) const;
-    
-    void SetPtr(char *_ptr);
     
     size_t Capacity() const;
     
@@ -43,8 +42,9 @@ class AutoBuffer {
     void ShallowCopyFrom(char *_ptr, size_t _len);
 
   private:
-    char *              byte_array_;
+    char              * byte_array_p_;
     bool                is_shallow_copy_;
+    std::vector<char>   byte_array_;
     size_t              pos_;
     size_t              length_;
     size_t              capacity_;

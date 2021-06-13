@@ -122,7 +122,9 @@ class WebServer final : public ServerBase {
     
         void NotifySend();
         
-        bool HandleNotification(EpollNotifier::Notification &) override;
+        bool CheckNotification(EpollNotifier::Notification &) override;
+        
+        void HandleNotification(EpollNotifier::Notification &) override;
     
         void HandleSend();
     

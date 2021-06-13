@@ -1,6 +1,7 @@
 #pragma once
 #include <cassert>
 #include <queue>
+#include <list>
 #include <memory>
 #include <functional>
 #include "socket/unixsocket.h"
@@ -20,11 +21,13 @@ enum TConnectionType {
 
 struct SendContext {
     using Ptr = std::shared_ptr<tcp::SendContext>;
-    SendContext();
+    explicit SendContext(uint32_t _seq);
     
+    uint32_t                seq;
     uint32_t                tcp_connection_uid;
     SOCKET                  fd;
     AutoBuffer              buffer;
+    bool                    is_tcp_conn_valid;
     std::function<void()>   MarkAsPendingPacket;
     std::function<void()>   OnSendDone;
 };
@@ -127,6 +130,8 @@ class ConnectionProfile {
     
     void CloseTcpConnection();
     
+    Socket &GetSocket();
+    
     SOCKET FD() const;
     
     bool IsTimeout(uint64_t _now = 0) const;
@@ -135,7 +140,7 @@ class ConnectionProfile {
     
     bool HasReceivedFin() const;
     
-    void SendContextSendDoneCallback();
+    void SendContextSendDoneCallback(const SendContext::Ptr&);
     
     virtual TConnectionType GetType() const = 0;
     
@@ -144,6 +149,8 @@ class ConnectionProfile {
     RecvContext::Ptr MakeRecvContext(bool _with_send_ctx = false);
 
     SendContext::Ptr MakeSendContext();
+    
+    void DelSendContext(uint32_t _send_ctx_seq);
     
     std::string &RemoteIp();
     
@@ -163,6 +170,8 @@ class ConnectionProfile {
     AutoBuffer                          tcp_byte_arr_;
     ApplicationPacket::Ptr              curr_application_packet_;
     ApplicationProtocolParser         * application_protocol_parser_;
+    uint32_t                            send_ctx_seq_;
+    std::list<SendContext::Ptr>         send_contexts_;
     std::queue<SendContext::Ptr>        pending_send_ctx_;
     
 };

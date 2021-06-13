@@ -96,7 +96,9 @@ class ServerBase {
          *
          * @return: true if you handled your Notification, else false.
          */
-        virtual bool HandleNotification(EpollNotifier::Notification &);
+        virtual bool CheckNotification(EpollNotifier::Notification &);
+        
+        virtual void HandleNotification(EpollNotifier::Notification &);
     
         /**
          *

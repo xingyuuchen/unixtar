@@ -201,6 +201,15 @@ bool Socket::IsNonblocking() const {
     return nonblocking_;
 }
 
+int Socket::SocketError() const {
+    int error = 0;
+    socklen_t errlen = sizeof(error);
+    if (getsockopt(fd_, SOL_SOCKET, SO_ERROR, (void *) &error, &errlen) == 0) {
+        LogE("error = %s\n", strerror(error))
+    }
+    return error;
+}
+
 int Socket::SetSocketOpt(int _level, int _option_name,
                          const void *_option_value,
                          socklen_t _option_len) const {

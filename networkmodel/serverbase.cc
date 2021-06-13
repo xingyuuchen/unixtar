@@ -314,6 +314,7 @@ void ServerBase::NetThreadBase::Run() {
     
     const uint64_t clear_timeout_period = 10 * 1000;
     uint64_t last_clear_ts = 0;
+    std::vector<EpollNotifier::Notification> notifications;
     
     while (running_) {
         
@@ -336,7 +337,8 @@ void ServerBase::NetThreadBase::Run() {
                 return;
             }
             
-            if (HandleNotification(probable_notification)) {
+            if (CheckNotification(probable_notification)) {
+                notifications.push_back(probable_notification);
                 continue;
             }
             
@@ -359,6 +361,15 @@ void ServerBase::NetThreadBase::Run() {
             }
         }
         
+        // Handle epoll events before notifications,
+        // because sometimes epoll notifies important events such as peer FIN,
+        // in which case data transferring during processing notification cannot be execute.
+        for (auto & notification : notifications) {
+            HandleNotification(notification);
+        }
+        
+        notifications.clear();
+        
         uint64_t now = ::gettickcount();
         if (now - last_clear_ts > clear_timeout_period) {
             last_clear_ts = now;
@@ -368,8 +379,12 @@ void ServerBase::NetThreadBase::Run() {
     
 }
 
-bool ServerBase::NetThreadBase::HandleNotification(EpollNotifier::Notification &) {
+bool ServerBase::NetThreadBase::CheckNotification(EpollNotifier::Notification &) {
     return false;
+}
+
+void ServerBase::NetThreadBase::HandleNotification(EpollNotifier::Notification &) {
+    // Implement if needed,
 }
 
 void ServerBase::NetThreadBase::UpgradeApplicationProtocol(tcp::ConnectionProfile *,
@@ -467,14 +482,14 @@ bool ServerBase::NetThreadBase::__OnReadEvent(tcp::ConnectionProfile *_conn) {
     
         if (_conn->GetType() == tcp::TConnectionType::kAcceptFrom
                         && !is_upgrade_app_proto) {
-            // only requests need a packet to send back.
+            // Only requests need a packet to send back.
             recv_ctx->return_packet = _conn->MakeSendContext();
         }
         
         if (is_upgrade_app_proto) {
             LogI("upgrade application protocol")
             UpgradeApplicationProtocol(_conn, recv_ctx);
-            // after upgrading protocol, the request need
+            // After upgrading protocol, the request need
             // a packet to send back handshake, etc.
             recv_ctx = _conn->MakeRecvContext(true);
         }
@@ -489,7 +504,7 @@ void ServerBase::NetThreadBase::__OnWriteEvent(
     if (_conn->HasPendingPacketToSend()) {
         bool write_done = _conn->TrySendPendingPackets();
         if (!_conn->IsLongLinkApplicationProtocol() && write_done) {
-            // no deleting the connection, waiting for
+            // No deleting the connection, waiting for
             // the client to time out or send Tcp FIN.
         }
     }
@@ -497,8 +512,18 @@ void ServerBase::NetThreadBase::__OnWriteEvent(
 
 bool ServerBase::NetThreadBase::TrySendAndMarkPendingIfUndone(
                 const tcp::SendContext::Ptr& _send_ctx) {
+    if (!_send_ctx->is_tcp_conn_valid) {
+        LogI("tcp conn already been deleted, fd(%d), uid: %u",
+                _send_ctx->fd, _send_ctx->tcp_connection_uid)
+        return true;
+    }
     bool is_send_done = tcp::ConnectionProfile::TrySend(_send_ctx);
-    if (!is_send_done) {
+    
+    if (is_send_done) {
+        if (_send_ctx->OnSendDone) {
+            _send_ctx->OnSendDone();
+        }
+    } else if (_send_ctx->MarkAsPendingPacket) {
         // Mark self as pending so that epoll will
         // continue to notify sending if it's possible.
         _send_ctx->MarkAsPendingPacket();
@@ -511,7 +536,10 @@ int ServerBase::NetThreadBase::__OnErrEvent(tcp::ConnectionProfile *_conn) {
         return -1;
     }
     uint32_t uid = _conn->Uid();
-    LogE("fd(%d), uid: %u, _conn: %p", _conn->FD(), uid, _conn)
+    SOCKET fd = _conn->FD();
+    int error = _conn->GetSocket().SocketError();
+    LogE("fd(%d), uid: %u, _conn: %p, errno(%d): %s",
+            fd, uid, _conn, error, strerror(error))
     DelConnection(uid);
     return 0;
 }

@@ -9,9 +9,11 @@
 
 namespace tcp {
 
-SendContext::SendContext()
-        : tcp_connection_uid(0)
+SendContext::SendContext(uint32_t _seq)
+        : seq(_seq)
+        , tcp_connection_uid(0)
         , fd(INVALID_SOCKET)
+        , is_tcp_conn_valid(true)
         , MarkAsPendingPacket(nullptr)
         , OnSendDone(nullptr) {
 }
@@ -43,7 +45,8 @@ ConnectionProfile::ConnectionProfile(std::string _remote_ip,
         , has_received_Fin_(false)
         , timeout_ts_(record_ + kDefaultTimeout)
         , curr_application_packet_(nullptr)
-        , application_protocol_parser_(nullptr) {
+        , application_protocol_parser_(nullptr)
+        , send_ctx_seq_(0) {
 }
 
 
@@ -84,7 +87,8 @@ int ConnectionProfile::Receive() {
     }
 }
 
-void ConnectionProfile::AddPendingPacketToSend(SendContext::Ptr _send_ctx) {
+void ConnectionProfile::AddPendingPacketToSend(
+            SendContext::Ptr _send_ctx) {
     pending_send_ctx_.push(std::move(_send_ctx));
 }
 
@@ -205,6 +209,8 @@ AutoBuffer *ConnectionProfile::TcpByteArray() { return &tcp_byte_arr_; }
 
 void ConnectionProfile::CloseTcpConnection() { socket_.Close(); }
 
+Socket &ConnectionProfile::GetSocket() { return socket_; }
+
 SOCKET ConnectionProfile::FD() const { return socket_.FD(); }
 
 bool ConnectionProfile::IsTimeout(uint64_t _now) const {
@@ -228,7 +234,8 @@ void ConnectionProfile::SendTcpFin() const {
 
 bool ConnectionProfile::HasReceivedFin() const { return has_received_Fin_; }
 
-void ConnectionProfile::SendContextSendDoneCallback() {
+void ConnectionProfile::SendContextSendDoneCallback(
+                const SendContext::Ptr& _send_ctx) {
     if (!IsLongLinkApplicationProtocol()) {
         // After sending the return packet, the client is expected
         // to send a Tcp Fin within the specific interval,
@@ -238,6 +245,7 @@ void ConnectionProfile::SendContextSendDoneCallback() {
             timeout_ts_ += kDefaultTimeout;
         }
     }
+    DelSendContext(_send_ctx->seq);
 }
 
 bool ConnectionProfile::IsTypeValid() const {
@@ -270,14 +278,22 @@ RecvContext::Ptr ConnectionProfile::MakeRecvContext(
 }
 
 SendContext::Ptr ConnectionProfile::MakeSendContext() {
-    auto neo = std::make_shared<tcp::SendContext>();
+    auto neo = std::make_shared<tcp::SendContext>(++send_ctx_seq_);
     neo->tcp_connection_uid = Uid();
     neo->fd = socket_.FD();
+    neo->is_tcp_conn_valid = true;
     neo->MarkAsPendingPacket = std::bind(
             &ConnectionProfile::AddPendingPacketToSend, this, neo);
     neo->OnSendDone = std::bind(
-            &ConnectionProfile::SendContextSendDoneCallback, this);
+            &ConnectionProfile::SendContextSendDoneCallback, this, neo);
+    send_contexts_.push_back(neo);
     return neo;
+}
+
+void ConnectionProfile::DelSendContext(uint32_t _send_ctx_seq) {
+    send_contexts_.remove_if([=] (SendContext::Ptr &ptr) -> bool {
+        return ptr->seq == _send_ctx_seq;
+    });
 }
 
 std::string &ConnectionProfile::RemoteIp() { return remote_ip_; }
@@ -287,6 +303,10 @@ uint16_t ConnectionProfile::RemotePort() const { return remote_port_; }
 ConnectionProfile::~ConnectionProfile() {
     if (!pending_send_ctx_.empty()) {
         LogI("pending_send_ctx_ NOT empty, deleted probably because of FIN")
+    }
+    // Notify all send_ctx not to send anymore.
+    for (auto & send_ctx : send_contexts_) {
+        send_ctx->is_tcp_conn_valid = false;
     }
     delete application_protocol_parser_;
     application_protocol_parser_ = nullptr;
