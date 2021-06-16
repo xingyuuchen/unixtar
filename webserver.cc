@@ -361,7 +361,7 @@ bool WebServer::_CustomConfig(yaml::YamlDescriptor *_desc) {
     if (config->worker_thread_cnt > 4 * config->net_thread_cnt) {
         LogW("Excessive proportion of worker_thread / net_thread "
              "may lower performance of net_thread.")
-        config->worker_thread_cnt = 4 * config->net_thread_cnt;
+        // TODO CO-Routine
     }
     if (config->max_backlog < 0) {
         LogE("Please config max_backlog a positive number.")
