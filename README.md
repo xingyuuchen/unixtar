@@ -17,6 +17,7 @@ The framework focuses on the following tasks:
 * Http server. Responsible for short connection requests. Framework completes Http protocol Serialization and Parsing. The Http body can be serialized by `Protobuf`. Framework Provides overload protection capability.
 * WebSocket server. Responsible for long connection requests, providing the ability to actively push messages to self or/and other connections. Framework completes WebSocket protocol handshake, Packing, Parsing, wave.
 * Reverse proxy. Provides the ability to forward requests to service nodes and load balancing. You can choose among several load balancing strategies.
+* Coroutine. Coroutine context switching implemented by AT&T assembly (implementation in progress).
 * The code of the transport layer module is completely independent of the specific application layer protocol, you can easily add your own application layer protocols by inheriting the `ApplicationPacket` class.
 * You can easily add network interfaces by inheriting the `NetSceneBase` class.
 * You can use the built-in thread pool singleton to complete your own asynchronous tasks, which can be: immediate, immediate with serialized tag, periodic, or delayed task.
@@ -28,10 +29,10 @@ Workflow when processing HTTP short link requests:
 
 ## ✨ Build (unix)
 ```shell
-git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
-cd framework/script
-bash autogen.sh   # do this if you want to use ProtoBuf.
-bash cmake.sh -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
+$ git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
+$ cd framework/script
+$ bash autogen.sh   # do this if you want to use ProtoBuf.
+$ bash cmake.sh -d   # -d: build will run as a daemon process, logs redirected to file using linux rsyslog, instead of stdout.
 ```
 
 ## ✨ Example Usage
@@ -170,8 +171,8 @@ const char *NetSceneGetIndexPage::Route() { return kUrlRoute; }
 ```
 Note: It is highly recommended to use `ProtoBuf`. Some predefined protobuf .proto files is in `/protos/`, you can run:
 ```shell
-cd framework/script
-bash autogen.sh
+$ cd framework/script
+$ bash autogen.sh
 ```
 to generate protobuf c++ files, see `NetSceneHelloSvr.cc` for instance.
 
@@ -187,8 +188,8 @@ Although Http protocol can maintain long links, it does not provide the server w
 ## ✨ Reverse Proxy
 You can launch a reverse proxy by commands below:
 ```shell
-cd framework/script
-bash launchproxy.sh
+$ cd framework/script
+$ bash launchproxy.sh
 ```
 
 Reverse proxy do such things:

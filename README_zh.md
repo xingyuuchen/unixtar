@@ -17,6 +17,7 @@
 * Http服务器。负责短连接请求。框架已完成Http协议Serialize与Parse。请求包体可用`Protobuf`序列化数据（业务代码请继承自`NetSceneProtoBuf`）。
 * WebSocket服务器。负责长连接请求，提供向自身或（和）其他连接主动推送消息的能力。框架已完成WebSocket协议握手、Serialize、Parse、挥手。
 * 反向代理。提供转发请求到服务节点、负载均衡的能力。你可以从多个负载均衡策略（此处实现较粗糙）中选择。
+* 协程支持。协程上下文切换由AT&T汇编语言实现（实现中）。
 * 传输层模块的代码完全独立于具体的应用层协议，你可以通过继承 `ApplicationPacket` 类，轻易地添加自己的应用层协议。
 * 框架完全独立于业务，你可以通过继承 `NetSceneBase` 类，轻易地添加自己的网络接口。
 * 你可以使用内置的线程池单例完成自己的异步任务，它可以是：立即型、带序列化标签的立即型、周期型、延时型任务。
@@ -28,10 +29,10 @@
 
 ## ✨ 编译 (unix)
 ```shell
-git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
-cd framework/script
-bash autogen.sh    # 当你需要使用protobuf时运行此脚本
-bash cmake.sh -d   # -d选项将使得进程成为linux的守护进程。日志通过rsyslog系统重定向到指定的文件
+$ git clone --recursive https://github.com/xingyuuchen/unixtar.git framework
+$ cd framework/script
+$ bash autogen.sh    # 当你需要使用protobuf时运行此脚本
+$ bash cmake.sh -d   # -d选项将使得进程成为linux的守护进程。日志通过rsyslog系统重定向到指定的文件
 ```
 
 ## ✨ 用法
@@ -172,8 +173,8 @@ const char *NetSceneGetIndexPage::Route() { return kUrlRoute; }
 
 注: 推荐使用 `ProtoBuf`。一些预定义好的protobuf `.proto` 文件存放于 `/protos/`。你可以运行：
 ```shell
-cd framework/script
-bash autogen.sh
+$ cd framework/script
+$ bash autogen.sh
 ```
 来生成protobuf的C++文件，参阅 `NetSceneHelloSvr.cc` 作为示例以获取更多信息。
 
@@ -190,8 +191,8 @@ Http协议虽可以保持长链接，但它不提供向客户端主动推送消�
 ## ✨ 反向代理
 你可以通过以下命令来启动一个反向代理服务器：
 ```shell
-cd framework/script
-bash launchproxy.sh
+$ cd framework/script
+$ bash launchproxy.sh
 ```
 
 反向代理完成以下工作:
