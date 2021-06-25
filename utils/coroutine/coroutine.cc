@@ -1,8 +1,6 @@
 #include "coroutine.h"
-#include <cstdio>
 #include <cstring>
 #include <cassert>
-#include <thread>
 
 
 #ifdef __x86_64__
@@ -26,99 +24,96 @@ void RevertStackFrames(void *_buf, void *_stack_start, uint64_t _size)
 #endif
 
 
+void InitialCoContext(CoroutineContext *_co_ctx) {
+    memset(_co_ctx, 0, sizeof(CoroutineContext));
+    _co_ctx->stack_frames_buf =
+            (char *) malloc(CoroutineProfile::kCoStackFramesBuffMallocUnit);
+    _co_ctx->stack_frames_buf_capacity =
+            CoroutineProfile::kCoStackFramesBuffMallocUnit;
+}
+
+void DestroyCoContext(CoroutineContext *_co_ctx) {
+    free(_co_ctx->stack_frames_buf);
+    _co_ctx->stack_frames_buf = nullptr;
+}
+
+
 uint64_t CoroutineProfile::kInvalidUid = 0;
+const uint64_t CoroutineProfile::kCoStackFramesBuffMallocUnit = 1024;
 
 CoroutineProfile::CoroutineProfile(CoEntry _entry)
-        : co_context()
-        , co_uid(kInvalidUid)
+        : co_ctx_()
+        , co_uid_(kInvalidUid)
+        , co_entry_(_entry)
         , has_start_(false) {
     
     static uint64_t curr_uid = kInvalidUid;
-    co_uid = ++curr_uid;
-    memset(&co_context, 0, sizeof(co_context));
-    co_context.co_resume_addr = (void *) _entry;
+    co_uid_ = ++curr_uid;
+    InitialCoContext(&co_ctx_);
+    co_ctx_.co_resume_addr = (void *) co_entry_;
 }
 
 void CoroutineProfile::CoResumeSelf(CoroutineProfile *_curr) {
-    CoroutineContext *ctx_from = &_curr->co_context;
+    assert(this != _curr);
+    auto *ctx_from = &_curr->co_ctx_;
     uint64_t rsp;
     GetRsp(&rsp);
 #ifdef __x86_64__
     rsp += 8;   // `addq $8, %rsp` because this is a procedure call.
 #endif
-    assert(this != _curr);
     
-    // save stack frames of `_from`, except for main coroutine.
-    if (_curr->co_context.stack_frames_start) {
+    // save stack frames of `_curr`, except for main coroutine.
+    if (_curr->co_ctx_.stack_frames_start) {
         if ((uint64_t) ctx_from->stack_frames_start < rsp) {
             assert(false);
         }
         // x86 full descent stack.
         ctx_from->stack_frames_len =
                     (uint64_t) ctx_from->stack_frames_start - rsp + 8;
-        assert(ctx_from->stack_frames_len < sizeof(ctx_from->stack_frames));
+        if (ctx_from->stack_frames_len > ctx_from->stack_frames_buf_capacity) {
+            assert(ctx_from->stack_frames_len < 102400);    // debug
+            uint64_t malloc_unit = CoroutineProfile::kCoStackFramesBuffMallocUnit;
+            uint64_t new_capacity = ctx_from->stack_frames_len;
+            if (new_capacity % malloc_unit != 0) {
+                new_capacity = (new_capacity / malloc_unit + 1) * malloc_unit;
+            }
+            ctx_from->stack_frames_buf =
+                    (char *) realloc(ctx_from->stack_frames_buf, new_capacity);
+            ctx_from->stack_frames_buf_capacity = new_capacity;
+        }
     
-        SaveStackFrames(ctx_from->stack_frames, ctx_from->stack_frames_start,
+        SaveStackFrames(ctx_from->stack_frames_buf, ctx_from->stack_frames_start,
                         ctx_from->stack_frames_len);
     }
     
     if (has_start_) {
-        assert(ctx_from->stack_frames_len < sizeof(ctx_from->stack_frames));
+        assert(ctx_from->stack_frames_len < 102400);    // debug
     
-        RevertStackFrames(co_context.stack_frames, co_context.stack_frames_start,
-                          co_context.stack_frames_len);
-        SwitchCoroutineContext(&_curr->co_context, &co_context);
+        RevertStackFrames(co_ctx_.stack_frames_buf, co_ctx_.stack_frames_start,
+                          co_ctx_.stack_frames_len);
+        SwitchCoroutineContext(&_curr->co_ctx_, &co_ctx_);
         
     } else {
-        assert(co_context.co_resume_addr);
+        assert(co_ctx_.co_resume_addr);
         has_start_ = true;
-        StartCoroutine(&_curr->co_context, &co_context);
+        StartCoroutine(&_curr->co_ctx_, &co_ctx_);
     }
 }
 
 void CoroutineProfile::SetEntry(
         CoroutineProfile::CoEntry _entry) {
-    co_context.co_resume_addr = (void *) _entry;
+    assert(!has_start_);
+    co_ctx_.co_resume_addr = (void *) _entry;
 }
 
-uint64_t CoroutineProfile::CoUid() const { return co_uid; }
+uint64_t CoroutineProfile::CoUid() const { return co_uid_; }
 
-void CoroutineProfile::__CoEntryWrap() {
+void CoroutineProfile::CoEntryWrapper() const {
 
 }
 
-void *Producer(void *) {
-    int i = 0;
-    while (true) {
-        printf("Produce %d\n", i++);
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        CoroutineDispatcher::Instance().CoYieldCurr();
-    }
-    return nullptr;
-}
-
-void *Consumer(void *) {
-    int i = 0;
-    while (true) {
-        printf("Consume %d\n", i++);
-        CoroutineDispatcher::Instance().CoYieldCurr();
-    }
-    return nullptr;
-}
-
-
-void CoYield() {
-}
-
-int main() {
-    CoroutineProfile co1(Producer);
-    CoroutineProfile co2(Consumer);
-    CoroutineDispatcher::Instance().AddCoroutine(&co1);
-    CoroutineDispatcher::Instance().AddCoroutine(&co2);
-    CoroutineDispatcher::Instance().CoResume(&co1);
-    
-    printf("-%llu\n", CoroutineDispatcher::Instance().MainCoro()->co_context.rbp);
-    printf("-%llu\n", CoroutineDispatcher::Instance().MainCoro()->co_context.rsp);
+CoroutineProfile::~CoroutineProfile() {
+    DestroyCoContext(&co_ctx_);
 }
 
 CoroutineDispatcher::CoroutineDispatcher() {

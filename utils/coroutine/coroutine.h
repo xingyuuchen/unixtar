@@ -28,8 +28,13 @@ struct CoroutineContext {     // POD.
     void      * co_resume_addr;
     void      * stack_frames_start;     // 136
     uint64_t    stack_frames_len;
-    char        stack_frames[10240];
+    char      * stack_frames_buf;
+    uint64_t    stack_frames_buf_capacity;
 }__attribute__((packed));   // compact, no align.
+
+// No constructor nor destructor in CoroutineContext to make it a POD.
+void InitialCoContext(CoroutineContext *);
+void DestroyCoContext(CoroutineContext *);
 
 
 class CoroutineProfile {
@@ -37,6 +42,8 @@ class CoroutineProfile {
     using CoEntry = void *(*)(void *);
     
     explicit CoroutineProfile(CoEntry = nullptr);
+    
+    ~CoroutineProfile();
     
     void CoResumeSelf(CoroutineProfile *_from);
     
@@ -47,17 +54,15 @@ class CoroutineProfile {
     uint64_t CoUid() const;
 
   private:
-    void __CoEntryWrap();
+    void CoEntryWrapper() const;
 
   public:
     static uint64_t                 kInvalidUid;
-    uint64_t                        co_uid;
-    CoroutineContext                co_context;
+    static const uint64_t           kCoStackFramesBuffMallocUnit;
+    uint64_t                        co_uid_;
+    CoEntry                         co_entry_;
+    CoroutineContext                co_ctx_;
     bool                            has_start_;
-//    std::stack<CoroutineContext *>  stack_frames_;
-    
-//    CoroutineProfile  * prev;
-//    CoroutineProfile  * next;
 };
 
 
@@ -86,9 +91,9 @@ class CoroutineDispatcher {
 
 
   private:
-    CoroutineProfile                main_coro_;
-    std::list<CoroutineProfile *>   coroutines_;
-    std::list<CoroutineProfile *>::iterator  curr_coro_;
+    CoroutineProfile                            main_coro_;
+    std::list<CoroutineProfile *>               coroutines_;
+    std::list<CoroutineProfile *>::iterator     curr_coro_;
 };
 
 
@@ -107,7 +112,7 @@ class CoroutineDispatcher {
 extern "C" {
 #endif
 
-extern void SwitchCoroutineContext(CoroutineContext *_from,
+void SwitchCoroutineContext(CoroutineContext *_from,
                             CoroutineContext *_to)
                             asm("SwitchCoroutineContext");
 

@@ -27,7 +27,10 @@ SwitchCoroutineContext:
     // save register set.
     movq %rax, (%rdi)
     callq SaveRbxToR15
+#ifdef __x86_64__
+    // add 8: revert %rsp before calling this procedure.
     addq $8, 40(%rdi)
+#endif
 
     movq (%rsp), %rax
     movq %rax, 128(%rdi)
@@ -64,7 +67,9 @@ StartCoroutine:
     movq %rax, 128(%rdi)
 
     callq SaveRbxToR15
+#ifdef __x86_64__
     addq $8, 40(%rdi)
+#endif
 
     movq (%rdi), %rax
     pushq 128(%rsi)   // where coroutine starts.
@@ -89,7 +94,9 @@ SaveRbxToR15:
     movq %rbp, 32(%rdi)
     movq %rsp, 40(%rdi)
     // add $8 to %rsp because this is a procedure call.
+#ifdef __x86_64__
     addq $8, 40(%rdi)
+#endif
     movq %rsi, 48(%rdi)
     movq %rdi, 56(%rdi)
     movq %r8, 64(%rdi)
@@ -108,14 +115,18 @@ SaveRbxToR15:
 .type SaveStackFrames, @function
 #endif
 SaveStackFrames:
+    pushq %rax
   save_qword:
     movq (%rsi), %rax
     movq %rax, (%rdi)
-    subq $8, %rsi
     addq $8, %rdi
+#ifdef __x86_64__
+    subq $8, %rsi
+#endif
     subq $8, %rdx
+    // TODO.
     jnz save_qword
-
+    popq %rax
     retq
 
 .global RevertStackFrames
@@ -123,12 +134,16 @@ SaveStackFrames:
 .type RevertStackFrames, @function
 #endif
 RevertStackFrames:
+    pushq %rax
   revert_qword:
     movq (%rdi), %rax
     movq %rax, (%rsi)
-    subq $8, %rsi
     addq $8, %rdi
+#ifdef __x86_64__
+    subq $8, %rsi
+#endif
     subq $8, %rdx
+    // TODO.
     jnz revert_qword
-
+    popq %rax
     retq

@@ -25,4 +25,6 @@ if (${DAEMON})
 endif()
 
 add_library(${PROJECT_NAME} SHARED ${SELF_SRC_FILES})
-add_executable(testco coroutine/coroutine.cc coroutine/coroutine_ctx_switch.S)
+
+add_executable(testco coroutine/test_producer_consumer.cc coroutine/coroutine.cc coroutine/coroutine_util.S)
+
