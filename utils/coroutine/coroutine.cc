@@ -4,19 +4,33 @@
 
 
 #ifdef __x86_64__
+/**
+ * 1. The output symbol to the linker is produced in the C language.
+ *    If the output symbol is generated in the C++ way,
+ *    the function name will be treated specially
+ *    because the function can be overloaded,
+ *    so the linker cannot find the corresponding symbol.
+ *
+ * 2. The function call rules are in the form of C language,
+ *    such as register order for passing parameters.
+ */
 extern "C" {
 
 void StartCoroutine(CoroutineContext *_from,
                     CoroutineContext *_to)
                     asm("StartCoroutine");
 
+void SwitchCoroutine(CoroutineContext *_from,
+                     CoroutineContext *_to)
+                     asm("SwitchCoroutine");
+
 void GetRsp(uint64_t *_rsp) asm("GetRsp");
 
 void SaveStackFrames(void *_buf, void *_stack_start, uint64_t _size)
                      asm("SaveStackFrames");
 
-void RevertStackFrames(void *_buf, void *_stack_start, uint64_t _size)
-                       asm("RevertStackFrames");
+void RestoreStackFrames(void *_buf, void *_stack_start, uint64_t _size)
+                       asm("RestoreStackFrames");
 
 }
 #else
@@ -27,9 +41,9 @@ void RevertStackFrames(void *_buf, void *_stack_start, uint64_t _size)
 void InitialCoContext(CoroutineContext *_co_ctx) {
     memset(_co_ctx, 0, sizeof(CoroutineContext));
     _co_ctx->stack_frames_buf =
-            (char *) malloc(CoroutineProfile::kCoStackFramesBuffMallocUnit);
+            (char *) malloc(CoroutineProfile::kCoStackFramesBufMallocUnit);
     _co_ctx->stack_frames_buf_capacity =
-            CoroutineProfile::kCoStackFramesBuffMallocUnit;
+            CoroutineProfile::kCoStackFramesBufMallocUnit;
 }
 
 void DestroyCoContext(CoroutineContext *_co_ctx) {
@@ -39,7 +53,8 @@ void DestroyCoContext(CoroutineContext *_co_ctx) {
 
 
 uint64_t CoroutineProfile::kInvalidUid = 0;
-const uint64_t CoroutineProfile::kCoStackFramesBuffMallocUnit = 1024;
+const size_t CoroutineProfile::kCoStackFramesBufMallocUnit = 1024;
+const size_t CoroutineProfile::kMaxCoStackFramesBuffSize = 102400;
 
 CoroutineProfile::CoroutineProfile(CoEntry _entry)
         : co_ctx_()
@@ -71,14 +86,16 @@ void CoroutineProfile::CoResumeSelf(CoroutineProfile *_curr) {
         ctx_from->stack_frames_len =
                     (uint64_t) ctx_from->stack_frames_start - rsp + 8;
         if (ctx_from->stack_frames_len > ctx_from->stack_frames_buf_capacity) {
-            assert(ctx_from->stack_frames_len < 102400);    // debug
-            uint64_t malloc_unit = CoroutineProfile::kCoStackFramesBuffMallocUnit;
+            assert(ctx_from->stack_frames_len < kMaxCoStackFramesBuffSize);
+            
+            uint64_t malloc_unit = CoroutineProfile::kCoStackFramesBufMallocUnit;
             uint64_t new_capacity = ctx_from->stack_frames_len;
             if (new_capacity % malloc_unit != 0) {
                 new_capacity = (new_capacity / malloc_unit + 1) * malloc_unit;
             }
             ctx_from->stack_frames_buf =
                     (char *) realloc(ctx_from->stack_frames_buf, new_capacity);
+            assert(ctx_from->stack_frames_buf);
             ctx_from->stack_frames_buf_capacity = new_capacity;
         }
     
@@ -87,11 +104,11 @@ void CoroutineProfile::CoResumeSelf(CoroutineProfile *_curr) {
     }
     
     if (has_start_) {
-        assert(ctx_from->stack_frames_len < 102400);    // debug
+        assert(ctx_from->stack_frames_len < kMaxCoStackFramesBuffSize);
     
-        RevertStackFrames(co_ctx_.stack_frames_buf, co_ctx_.stack_frames_start,
-                          co_ctx_.stack_frames_len);
-        SwitchCoroutineContext(&_curr->co_ctx_, &co_ctx_);
+        RestoreStackFrames(co_ctx_.stack_frames_buf, co_ctx_.stack_frames_start,
+                           co_ctx_.stack_frames_len);
+        SwitchCoroutine(&_curr->co_ctx_, &co_ctx_);
         
     } else {
         assert(co_ctx_.co_resume_addr);
