@@ -55,9 +55,10 @@ class CoroutineProfile {
     void CoEntryWrapper() const;
 
   public:
-    static uint64_t                 kInvalidUid;
+    static const uint64_t           kInvalidUid;
     static const size_t             kCoStackFramesBufMallocUnit;
     static const size_t             kMaxCoStackFramesBuffSize;
+  private:
     uint64_t                        co_uid_;
     CoroutineContext                co_ctx_;
     CoEntry                         co_entry_;

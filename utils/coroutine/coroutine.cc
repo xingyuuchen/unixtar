@@ -1,5 +1,6 @@
 #include "coroutine.h"
 #include <cstring>
+#include <cstdlib>
 #include <cassert>
 
 
@@ -52,7 +53,7 @@ void DestroyCoContext(CoroutineContext *_co_ctx) {
 }
 
 
-uint64_t CoroutineProfile::kInvalidUid = 0;
+const uint64_t CoroutineProfile::kInvalidUid = 0;
 const size_t CoroutineProfile::kCoStackFramesBufMallocUnit = 1024;
 const size_t CoroutineProfile::kMaxCoStackFramesBuffSize = 102400;
 
