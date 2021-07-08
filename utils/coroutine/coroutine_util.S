@@ -16,14 +16,14 @@ test_str:
 
 .text
 // make symbol "SwitchCoroutineContext" visible for linker.
-.global SwitchCoroutineContext
+.global SwitchCoroutine
 
 #ifndef __APPLE__
 // below is unnecessary in MacOS assembly.
-.type SwitchCoroutineContext, @function
+.type SwitchCoroutine, @function
 #endif
 
-SwitchCoroutineContext:
+SwitchCoroutine:
     // save register set.
     movq %rax, (%rdi)
     callq SaveRbxToR15
@@ -35,7 +35,7 @@ SwitchCoroutineContext:
     movq (%rsp), %rax
     movq %rax, 128(%rdi)
 
-    // revert register set.
+    // restore register set.
     movq (%rsi), %rax
     movq 8(%rsi), %rbx
     movq 16(%rsi), %rcx
@@ -124,16 +124,16 @@ SaveStackFrames:
     subq $8, %rsi
 #endif
     subq $8, %rdx
-    // TODO.
-    jnz save_qword
+    ja save_qword
     popq %rax
     retq
 
-.global RevertStackFrames
+
+.global RestoreStackFrames
 #ifndef __APPLE__
-.type RevertStackFrames, @function
+.type RestoreStackFrames, @function
 #endif
-RevertStackFrames:
+RestoreStackFrames:
     pushq %rax
   revert_qword:
     movq (%rdi), %rax
@@ -143,7 +143,7 @@ RevertStackFrames:
     subq $8, %rsi
 #endif
     subq $8, %rdx
-    // TODO.
-    jnz revert_qword
+    ja revert_qword
     popq %rax
     retq
+

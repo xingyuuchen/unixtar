@@ -17,7 +17,7 @@ The framework focuses on the following tasks:
 * Http server. Responsible for short connection requests. Framework completes Http protocol Serialization and Parsing. The Http body can be serialized by `Protobuf`. Framework Provides overload protection capability.
 * WebSocket server. Responsible for long connection requests, providing the ability to actively push messages to self or/and other connections. Framework completes WebSocket protocol handshake, Packing, Parsing, wave.
 * Reverse proxy. Provides the ability to forward requests to service nodes and load balancing. You can choose among several load balancing strategies.
-* Coroutine. Coroutine context switching is implemented by AT&T assembly (implementation in progress).
+* Coroutine. Coroutine switching, register set saving and restoring, stack frames saving and restoring are all implemented by AT&T assembly, Api still implementation in progress.
 * The code of the transport layer module is completely independent of the specific application layer protocol, you can easily add your own application layer protocols by inheriting the `ApplicationPacket` class.
 * You can easily add network interfaces by inheriting the `NetSceneBase` class.
 * You can use the built-in thread pool singleton to complete your own asynchronous tasks, which can be: immediate, immediate with serialized tag, periodic, or delayed task.

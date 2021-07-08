@@ -1,12 +1,12 @@
 #pragma once
-#include <cstdint>
-#include <list>
-
 /**
  *
  * Currently the coroutine only supports x86-64 arch.
  *
  */
+#include <cstdint>
+#include <list>
+
 
 struct CoroutineContext {     // POD.
     uint64_t    rax;
@@ -47,8 +47,6 @@ class CoroutineProfile {
     
     void CoResumeSelf(CoroutineProfile *_from);
     
-//    void CoYield();
-    
     void SetEntry(CoEntry _entry);
     
     uint64_t CoUid() const;
@@ -57,11 +55,13 @@ class CoroutineProfile {
     void CoEntryWrapper() const;
 
   public:
-    static uint64_t                 kInvalidUid;
-    static const uint64_t           kCoStackFramesBuffMallocUnit;
+    static const uint64_t           kInvalidUid;
+    static const size_t             kCoStackFramesBufMallocUnit;
+    static const size_t             kMaxCoStackFramesBuffSize;
+  private:
     uint64_t                        co_uid_;
-    CoEntry                         co_entry_;
     CoroutineContext                co_ctx_;
+    CoEntry                         co_entry_;
     bool                            has_start_;
 };
 
@@ -96,31 +96,4 @@ class CoroutineDispatcher {
     std::list<CoroutineProfile *>::iterator     curr_coro_;
 };
 
-
-#ifdef __x86_64__
-#ifdef __cplusplus
-/**
- * 1. The output symbol to the linker is produced in the C language.
- *    If the output symbol is generated in the C++ way,
- *    the function name will be treated specially
- *    because the function can be overloaded,
- *    so the linker cannot find the corresponding symbol.
- *
- * 2. The function call rules are in the form of C language,
- *    such as register order for passing parameters.
- */
-extern "C" {
-#endif
-
-void SwitchCoroutineContext(CoroutineContext *_from,
-                            CoroutineContext *_to)
-                            asm("SwitchCoroutineContext");
-
-#ifdef __cplusplus
-}
-#endif
-
-#else
-// Only support x64.
-#endif
 
