@@ -514,7 +514,7 @@ bool ServerBase::NetThreadBase::TrySendAndMarkPendingIfUndone(
                 const tcp::SendContext::Ptr& _send_ctx) {
     if (!_send_ctx->is_tcp_conn_valid) {
         LogI("tcp conn already been deleted, fd(%d), uid: %u",
-                _send_ctx->fd, _send_ctx->tcp_connection_uid)
+                _send_ctx->socket->FD(), _send_ctx->tcp_connection_uid)
         return true;
     }
     bool is_send_done = tcp::ConnectionProfile::TrySend(_send_ctx);

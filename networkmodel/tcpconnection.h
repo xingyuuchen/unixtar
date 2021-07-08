@@ -25,7 +25,7 @@ struct SendContext {
     
     uint32_t                seq;
     uint32_t                tcp_connection_uid;
-    SOCKET                  fd;
+    Socket                * socket;
     AutoBuffer              buffer;
     bool                    is_tcp_conn_valid;
     std::function<void()>   MarkAsPendingPacket;

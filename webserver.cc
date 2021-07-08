@@ -203,7 +203,7 @@ void WebServer::NetThread::HandleNotification(
 void WebServer::NetThread::HandleSend() {
     tcp::SendContext::Ptr send_ctx;
     while (send_queue_.pop_front_to(send_ctx, false)) {
-        LogD("fd(%d) doing send task", send_ctx->fd)
+        LogD("fd(%d) doing send task", send_ctx->socket->FD())
         TrySendAndMarkPendingIfUndone(send_ctx);
     }
 }

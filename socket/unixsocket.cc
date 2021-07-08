@@ -153,6 +153,43 @@ ssize_t Socket::Receive(AutoBuffer *_buff, bool *_is_buffer_full) {
     return n;
 }
 
+ssize_t Socket::Send(AutoBuffer *_buff, bool *_is_send_done) {
+    size_t pos = _buff->Pos();
+    size_t ntotal = _buff->Length() - pos;
+    
+    *_is_send_done = false;
+    
+    if (fd_ <= 0 || ntotal == 0) {
+        return 0;
+    }
+    
+    ssize_t nwrite = ::write(fd_, _buff->Ptr(pos), ntotal);
+    
+    if (nwrite == ntotal) {
+        LogI("fd(%d), write %zd/%zu B, done", fd_, nwrite, ntotal)
+        _buff->Seek(AutoBuffer::kEnd);
+        *_is_send_done = true;
+        return nwrite;
+    }
+    if (nwrite >= 0 || (nwrite < 0 && IS_EAGAIN(errno))) {
+        nwrite = nwrite > 0 ? nwrite : 0;
+        LogI("fd(%d): write %zd/%zu B", fd_, nwrite, ntotal)
+        _buff->Seek(AutoBuffer::kCurrent, nwrite);
+    }
+    if (nwrite < 0) {
+        errno_ = errno;
+        if (errno == EPIPE) {
+            // fd probably closed by peer, or cleared because of timeout.
+            LogE("fd(%d) already closed, send nothing", fd_)
+            return nwrite;
+        }
+        LogE("fd(%d) nwrite(%zd), errno(%d): %s",
+             fd_, nwrite, errno, strerror(errno))
+        LogPrintStacktrace(5)
+    }
+    return nwrite;
+}
+
 void Socket::Set(SOCKET _fd) {
     assert(fd_ < 0);
     if (_fd > 0) {

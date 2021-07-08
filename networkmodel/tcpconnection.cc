@@ -12,7 +12,7 @@ namespace tcp {
 SendContext::SendContext(uint32_t _seq)
         : seq(_seq)
         , tcp_connection_uid(0)
-        , fd(INVALID_SOCKET)
+        , socket(nullptr)
         , is_tcp_conn_valid(true)
         , MarkAsPendingPacket(nullptr)
         , OnSendDone(nullptr) {
@@ -99,37 +99,11 @@ bool ConnectionProfile::TrySend(const SendContext::Ptr& _send_ctx) {
         return false;
     }
     AutoBuffer &resp = _send_ctx->buffer;
-    size_t pos = resp.Pos();
-    size_t ntotal = resp.Length() - pos;
-    SOCKET fd = _send_ctx->fd;
+    bool is_send_done = false;
 
-    if (fd <= 0 || ntotal == 0) {
-        return false;
-    }
+    _send_ctx->socket->Send(&resp, &is_send_done);
 
-    ssize_t nwrite = ::write(fd, resp.Ptr(pos), ntotal);
-
-    if (nwrite == ntotal) {
-        LogI("fd(%d), write %zd/%zu B, done", fd, nwrite, ntotal)
-        resp.Seek(AutoBuffer::kEnd);
-        return true;
-    }
-    if (nwrite >= 0 || (nwrite < 0 && IS_EAGAIN(errno))) {
-        nwrite = nwrite > 0 ? nwrite : 0;
-        LogI("fd(%d): write %zd/%zu B", fd, nwrite, ntotal)
-        resp.Seek(AutoBuffer::kCurrent, nwrite);
-    }
-    if (nwrite < 0) {
-        if (errno == EPIPE) {
-            // fd probably closed by peer, or cleared because of timeout.
-            LogE("fd(%d) already closed, send nothing", fd)
-            return false;
-        }
-        LogE("fd(%d) nwrite(%zd), errno(%d): %s",
-             fd, nwrite, errno, strerror(errno))
-        LogPrintStacktrace(5)
-    }
-    return false;
+    return is_send_done;
 }
 
 bool ConnectionProfile::HasPendingPacketToSend() const {
@@ -280,7 +254,7 @@ RecvContext::Ptr ConnectionProfile::MakeRecvContext(
 SendContext::Ptr ConnectionProfile::MakeSendContext() {
     auto neo = std::make_shared<tcp::SendContext>(++send_ctx_seq_);
     neo->tcp_connection_uid = Uid();
-    neo->fd = socket_.FD();
+    neo->socket = &socket_;
     neo->is_tcp_conn_valid = true;
     neo->MarkAsPendingPacket = std::bind(
             &ConnectionProfile::AddPendingPacketToSend, this, neo);

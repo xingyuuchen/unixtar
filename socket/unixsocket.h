@@ -32,6 +32,8 @@ class Socket {
     
     ssize_t Receive(AutoBuffer *_buff, bool *_is_buffer_full);
     
+    ssize_t Send(AutoBuffer *_buff, bool *_is_send_done);
+    
     bool IsEAgain() const;
     
     void Set(SOCKET _fd);
