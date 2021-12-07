@@ -10,16 +10,16 @@ if [ ! -d "/autogen" ]; then
   mkdir -p autogen
 fi 
 
-cd protos
+cd protos || exit
 
 for file in `ls`
 do
 
-  if [ ${file##*.} == "proto" ]; then
-    echo "processing" ${file}" ..."
+  if [ "${file##*.}" == "proto" ]; then
+    echo "processing" "${file}"" ..."
 
-    protoc -I=$(pwd) --cpp_out=${project_dir}/autogen \
-      $(pwd)/${file}
+    protoc -I=$(pwd) --cpp_out="${project_dir}"/autogen \
+      $(pwd)/"${file}"
   fi
 
 done
