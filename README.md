@@ -1,8 +1,8 @@
+[![readme_zh](docs/images/readme_zh.svg)](README_zh.md)
+
 # 🌟 Unixtar
 
 ### `✨Unique Star✨`
-
-[中文版传送门](README_zh.md)
 
 The framework is a Web-Server on unix based system.
 
