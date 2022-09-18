@@ -2,9 +2,7 @@
 
 # 🌟 Unixtar
 
-### `✨Unique Star✨`
-
-[English version portal](README.md)
+## `✨Unique Star: 西安交通大学2021届本科生优秀毕业设计（论文）✨`
 
 一个不知道自己性能高不高的Web服务端框架。
 

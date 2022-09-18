@@ -2,7 +2,7 @@
 
 # 🌟 Unixtar
 
-### `✨Unique Star✨`
+## `✨Unique Star✨`
 
 The framework is a Web-Server on unix based system.
 
