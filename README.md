@@ -6,7 +6,7 @@
 
 The framework is a Web-Server on unix based system.
 
-Without using any third-party libraries, the framework writes from unix system calls and standard C library functions.
+Without using any third-party libraries, the framework implements from scratch by using unix system calls and standard C library functions.
 
 The framework adopts the model of `Epoll + NetThreads + WorkerThreads`:
 ![model-overview](docs/images/model-overview.png)
@@ -14,13 +14,13 @@ The framework adopts the model of `Epoll + NetThreads + WorkerThreads`:
 
 The framework focuses on the following tasks:
 * The transport and IP layers use UNIX domain socket directly, with each network thread working with an Epoll object and multiple worker threads to provide concurrency.
-* Http server. Responsible for short connection requests. Framework completes Http protocol Serialization and Parsing. The Http body can be serialized by `Protobuf`. Framework Provides overload protection capability.
-* WebSocket server. Responsible for long connection requests, providing the ability to actively push messages to self or/and other connections. Framework completes WebSocket protocol handshake, Packing, Parsing, wave.
-* Reverse proxy. Provides the ability to forward requests to service nodes and load balancing. You can choose among several load balancing strategies.
-* Coroutine. Coroutine switching, register set saving and restoring, stack frames saving and restoring are all implemented by AT&T assembly, Api still implementation in progress.
-* The code of the transport layer module is completely independent of the specific application layer protocol, you can easily add your own application layer protocols by inheriting the `ApplicationPacket` class.
-* You can easily add network interfaces by inheriting the `NetSceneBase` class.
-* You can use the built-in thread pool singleton to complete your own asynchronous tasks, which can be: immediate, immediate with serialized tag, periodic, or delayed task.
+* Http server. Responsible for short connection requests. The framework completes Http protocol serialization and parsing. The Http body can be serialized by `Protobuf`. The framework provides overload protection capability.
+* WebSocket server. Responsible for long connection requests, providing the ability to actively push messages to self or/and other connections. Framework completes WebSocket protocol handshaking, packing, parsing, finishing.
+* Reverse proxy. We provide the ability of forwarding requests to service nodes and load balancing. You can choose from several load balancing strategies.
+* Coroutine. Coroutine switching, register set saving and restoring, stack frames saving and restoring are all implemented using AT&T assembly. Api implementation in progress.
+* The code of the transport layer module is completely independent of the specific application layer protocol, you can easily add your own application layer protocols by deriving from the `ApplicationPacket` class.
+* You can easily add network interfaces by deriving from the `NetSceneBase` class.
+* You can use the built-in thread-pool singleton to complete your own asynchronous tasks, types of which can be: immediate, immediate with serialized tag, periodic, or delayed task.
 
 Workflow when processing HTTP short link requests:
 ![workflow](docs/images/workflow.png)
@@ -47,7 +47,7 @@ Else, to customize your network communication protocol, inherit from `NetSceneCu
 
 After defining your network interface classes and implement your business logic, please register your class to the framework: `NetSceneDispatcher::Instance()::RegisterNetScene<NetScene_YourBusiness>();`.
 
-You can custom some configuration by editing `webserverconf.yml`. You can custom:
+You can customize some configuration by editing `webserverconf.yml`. You can customize:
 * Port on which the process is listening.
 * Number of threads handling network events.
 * Number of threads handling business logic.
@@ -182,7 +182,7 @@ Although Http protocol can maintain long links, it does not provide the server w
 
 
 ## ✨ Example Project
-[Plant-Recognition-Server](https://github.com/xingyuuchen/object-identify-SVR.git) is a web-server project, under the hood it is `unixtar` provides basic http network capability.
+[Plant-Recognition-Server](https://github.com/xingyuuchen/object-identify-SVR.git) is a web-server project, under the hood it is `unixtar` providing basic http network capability.
 
 
 ## ✨ Reverse Proxy
@@ -194,10 +194,10 @@ $ bash launchproxy.sh
 
 Reverse proxy do such things:
 * Forward. Forward Http packet to web servers who truly handles request, then pass back Http response.
-* Load Balance. You can chose among three different rules: `Poll`, `By weight`, `IP Hash`.
+* Load Balance. You can choose from three different rules: `Poll`, `By weight`, `IP Hash`.
 * Registry Center. Receive heartbeats from all web server nodes and maintain states for them. 
 
-Configure your reverse proxy by editing `reverseproxy/proxyserverconf.yml`. You can custom:
+Configure your reverse proxy by editing `reverseproxy/proxyserverconf.yml`. You can customize:
 * Port that reverse proxy server listens on.
 * Load balancing strategy.
 * All web server nodes available to forward Http request.
