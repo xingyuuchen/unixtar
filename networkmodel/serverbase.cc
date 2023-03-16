@@ -363,7 +363,7 @@ void ServerBase::NetThreadBase::Run() {
         
         // Handle epoll events before notifications,
         // because sometimes epoll notifies important events such as peer FIN,
-        // in which case data transferring during processing notification cannot be execute.
+        // in which case data transferring during processing notification cannot be executed.
         for (auto & notification : notifications) {
             HandleNotification(notification);
         }

@@ -1,5 +1,5 @@
 #include "connection.h"
-#include <mysql++.h>
+#include <mysql++/mysql++.h>
 #include <string>
 #include "log.h"
 #include "yamlutil.h"

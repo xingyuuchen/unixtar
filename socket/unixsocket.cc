@@ -70,7 +70,7 @@ int Socket::Connect(std::string &_ip, uint16_t _port) {
     sockaddr.sin_port = htons(_port);
     sockaddr.sin_addr.s_addr = inet_addr(_ip.c_str());
     
-    int ret = connect(fd_, (struct sockaddr *) &sockaddr,
+    int ret = ::connect(fd_, (struct sockaddr *) &sockaddr,
             sizeof(sockaddr));
     if (ret < 0) {
         is_connected_ = false;
@@ -100,7 +100,7 @@ int Socket::SetNonblocking() {
 int Socket::SetTcpNoDelay() const {
     int tcp_no_delay = 1;
     return SetSocketOpt(IPPROTO_TCP, TCP_NODELAY,
-                &tcp_no_delay, sizeof(tcp_no_delay));;
+                &tcp_no_delay, sizeof(tcp_no_delay));
 }
 
 int Socket::SetTcpKeepAlive() const {

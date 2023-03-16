@@ -273,6 +273,7 @@ void WebServer::NetThread::UpgradeApplicationProtocol(tcp::ConnectionProfile *_c
         
         auto http_request = std::dynamic_pointer_cast<http::request::HttpRequest>(
                 _recv_ctx->application_packet);
+        assert(http_request);
         http::HeaderField *headers = http_request->Headers();
         
         _conn->ConfigApplicationLayer<ws::WebSocketPacket,

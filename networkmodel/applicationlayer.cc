@@ -51,11 +51,11 @@ bool ApplicationPacket::IsLongLink() const {
 ApplicationPacket::Ptr ApplicationPacket::AllocNewPacket() {
     /**
      * Implemented by long link application protocol,
-     * because we cannot reuse the Packet object in such condition:
+     * because we cannot reuse the Packet object in such a condition:
      *
      *      The new packet has been parsed successfully while the
      *      last parsed packet has not been processed in
-     *      the same tcp connection.
+     *      the same tcp connection yet.
      *
      * Otherwise, A collision between two packets occurs.
      */

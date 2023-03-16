@@ -5,8 +5,7 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++11")
 
 include_directories(.)
 include_directories(/usr/include/mysql)
-include_directories(/usr/local/include/mysql++)
-include_directories(/usr/local/Cellar/mysql-client/8.0.21/include/mysql)
+include_directories(/usr/local/include/mysql)
 
 file(GLOB SELF_TEMP_SRC_FILES RELATIVE ${PROJECT_SOURCE_DIR} *.cc)
 list(APPEND SELF_SRC_FILES ${SELF_TEMP_SRC_FILES})

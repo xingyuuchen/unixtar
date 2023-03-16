@@ -75,9 +75,9 @@ class WebServer final : public ServerBase {
      * Sets the Worker-class who handles the business logic of all request,
      * by default one WorkerThread corresponds to one NetThread.
      *
-     * The workers' lifecycle is managed by framework,
-     * just implement WorkerThread's {@func HandleImpl} and register it here.
-     *
+     * The workers' lifecycle is managed by the Unixtar framework,
+     * just implement WorkerThread's {@func HandleImpl} and
+     * register the class using this function.
      */
     template<class WorkerImpl/* : public WorkerThread*/, class ...Args>
     void SetWorker(Args &&..._init_args) {

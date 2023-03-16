@@ -95,7 +95,7 @@ bool http::HttpParser::_ResolveBody() {
     
     size_t curr_body_len = buffer_->Length() - first_line_len_ - header_len_;
     if (content_length < curr_body_len) {
-        LogI("recv more bytes than Content-Length(%lld)", content_length)
+        LogI("recv more bytes than Content-Length(%llu)", content_length)
         position_ = kError;
         return false;
     } else if (content_length == curr_body_len) {

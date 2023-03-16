@@ -105,7 +105,7 @@ class ConnectionProfile {
         application_protocol_ = curr_application_packet_->Protocol();
         is_longlink_app_proto_ = curr_application_packet_->IsLongLink();
         
-        delete old_parser;
+        delete old_parser, old_parser = nullptr;
         LogI("app proto config to: %s", ApplicationProtocolName())
     
         if (upgrade) {

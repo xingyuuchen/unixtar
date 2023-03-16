@@ -252,7 +252,7 @@ void NetSceneDispatcher::NetSceneWorker::WriteFakeWsResp(
                 const tcp::RecvContext::Ptr& _recv_ctx) {
     static uint64_t visit = 0;
     char resp[256];
-    snprintf(resp, sizeof(resp), R"({"msg":"This is %llu visits to Unixtar"})", ++visit);
+    ::snprintf(resp, sizeof(resp), R"({"msg":"This is %llu visits to Unixtar"})", ++visit);
     std::string resp_str(resp);
     // websocket can make send_context here
     // _recv_ctx->packet_push_others.push_back(new tcp::SendContext);

@@ -283,11 +283,12 @@ bool WebSocketParser::IsEnd() const { return position_ == kEnd; }
 void WebSocketParser::OnApplicationPacketChanged(
         const ApplicationPacket::Ptr& _neo) {
     ws_packet_ = std::dynamic_pointer_cast<ws::WebSocketPacket>(_neo);
+    assert(ws_packet_);
 }
 
 bool WebSocketParser::_ResolveFirstByte() {
     ws_packet_->SetFirstByte(*buffer_->Ptr(0));
-    resolved_len_ += 1;
+    ++resolved_len_;
     position_ = kPayloadLen;
     return true;
 }
@@ -311,7 +312,7 @@ bool WebSocketParser::_ResolvePayloadLen() {
         return false;
     }
     ws_packet_->SetPayloadLen(payload_len);
-    resolved_len_ += 1;
+    ++resolved_len_;
     return true;
 }
 
