@@ -15,7 +15,7 @@ test_str:
 
 
 .text
-// make symbol "SwitchCoroutineContext" visible for linker.
+// make symbol "SwitchCoroutine" visible for linker.
 .global SwitchCoroutine
 
 #ifndef __APPLE__
@@ -32,6 +32,7 @@ SwitchCoroutine:
     addq $8, 40(%rdi)
 #endif
 
+    // save where the current coroutine will resume next.
     movq (%rsp), %rax
     movq %rax, 128(%rdi)
 
@@ -51,7 +52,7 @@ SwitchCoroutine:
     movq 104(%rsi), %r13
     movq 112(%rsi), %r14
     movq 120(%rsi), %r15
-    pushq 128(%rsi)   // where coroutine continues.
+    pushq 128(%rsi)   // where to switch %rip to.
     movq 48(%rsi), %rsi  // revert %rsi at last.
     retq
 
@@ -63,6 +64,12 @@ SwitchCoroutine:
 StartCoroutine:
     movq %rax, (%rdi)
 
+    // save where the current coroutine will resume next.
+    // TODO (xingyuuchen):
+    // Since the last corotine will not end with `CoYield` (in fact, it
+    // ends like normal function call), it is insufficient to just save the
+    // returned addr in the `128(%rdi)`, we must additionally guarantee the
+    // current value of (%rsp) is unchanged until the final function-like return.
     movq (%rsp), %rax
     movq %rax, 128(%rdi)
 
@@ -115,6 +122,7 @@ SaveRbxToR15:
 .type SaveStackFrames, @function
 #endif
 SaveStackFrames:
+// rdi: stack_frames_buf; rsi: stack_frames_start; rdx: stack_frames_len
     pushq %rax
   save_qword:
     movq (%rsi), %rax

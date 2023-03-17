@@ -8,6 +8,7 @@ void *Produce(void *) {
         std::this_thread::sleep_for(std::chrono::milliseconds(200));
         CoroutineDispatcher::Instance().CoYieldCurr();
     }
+    printf("produce done\n");
     return nullptr;
 }
 
@@ -16,6 +17,7 @@ void *Consume(void *) {
         printf("Consume: %d\n", i);
         CoroutineDispatcher::Instance().CoYieldCurr();
     }
+    printf("consume done\n");
     return nullptr;
 }
 
@@ -26,6 +28,6 @@ int main() {
     CoroutineDispatcher::Instance().AddCoroutine(&producer);
     CoroutineDispatcher::Instance().AddCoroutine(&consumer);
     
-    CoroutineDispatcher::Instance().CoResume(&producer);
+    CoroutineDispatcher::Instance().CoStart();
 }
 

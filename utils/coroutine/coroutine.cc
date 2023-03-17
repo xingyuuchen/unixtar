@@ -52,6 +52,21 @@ void DestroyCoContext(CoroutineContext *_co_ctx) {
     _co_ctx->stack_frames_buf = nullptr;
 }
 
+void CheckStackFramesBufCapacity(CoroutineContext *_co_ctx) {
+    if (_co_ctx->stack_frames_len > _co_ctx->stack_frames_buf_capacity) {
+        assert(_co_ctx->stack_frames_len < CoroutineProfile::kMaxCoStackFramesBuffSize);
+        
+        uint64_t malloc_unit = CoroutineProfile::kCoStackFramesBufMallocUnit;
+        uint64_t new_capacity = _co_ctx->stack_frames_len;
+        if (new_capacity % malloc_unit != 0) {
+            new_capacity = (new_capacity / malloc_unit + 1) * malloc_unit;
+        }
+        _co_ctx->stack_frames_buf =
+                (char *) realloc(_co_ctx->stack_frames_buf, new_capacity);
+        assert(_co_ctx->stack_frames_buf);
+        _co_ctx->stack_frames_buf_capacity = new_capacity;
+    }
+}
 
 const uint64_t CoroutineProfile::kInvalidUid = 0;
 const size_t CoroutineProfile::kCoStackFramesBufMallocUnit = 1024;
@@ -69,52 +84,37 @@ CoroutineProfile::CoroutineProfile(CoEntry _entry)
     co_ctx_.co_resume_addr = (void *) co_entry_;
 }
 
-void CoroutineProfile::CoResumeSelf(CoroutineProfile *_curr) {
-    assert(this != _curr);
-    auto *ctx_from = &_curr->co_ctx_;
+void CoroutineProfile::CoYieldTo(CoroutineProfile *_to) {
+    assert(this != _to);
     uint64_t rsp;
     GetRsp(&rsp);
 #ifdef __x86_64__
     rsp += 8;   // `addq $8, %rsp` because this is a procedure call.
 #endif
     
-    // save stack frames of `_curr`, except for main coroutine.
-    if (_curr->co_ctx_.stack_frames_start) {
-        if ((uint64_t) ctx_from->stack_frames_start < rsp) {
-            assert(false);
-        }
+    // save current stack frames
+    if (has_start_) {
+        assert((uint64_t) co_ctx_.stack_frames_start >= rsp);
+
         // x86 full descent stack.
-        ctx_from->stack_frames_len =
-                    (uint64_t) ctx_from->stack_frames_start - rsp + 8;
-        if (ctx_from->stack_frames_len > ctx_from->stack_frames_buf_capacity) {
-            assert(ctx_from->stack_frames_len < kMaxCoStackFramesBuffSize);
-            
-            uint64_t malloc_unit = CoroutineProfile::kCoStackFramesBufMallocUnit;
-            uint64_t new_capacity = ctx_from->stack_frames_len;
-            if (new_capacity % malloc_unit != 0) {
-                new_capacity = (new_capacity / malloc_unit + 1) * malloc_unit;
-            }
-            ctx_from->stack_frames_buf =
-                    (char *) realloc(ctx_from->stack_frames_buf, new_capacity);
-            assert(ctx_from->stack_frames_buf);
-            ctx_from->stack_frames_buf_capacity = new_capacity;
-        }
-    
-        SaveStackFrames(ctx_from->stack_frames_buf, ctx_from->stack_frames_start,
-                        ctx_from->stack_frames_len);
+        co_ctx_.stack_frames_len = (uint64_t) co_ctx_.stack_frames_start - rsp + 8;
+        CheckStackFramesBufCapacity(&co_ctx_);
+        
+        SaveStackFrames(co_ctx_.stack_frames_buf, co_ctx_.stack_frames_start,
+                        co_ctx_.stack_frames_len);
     }
     
-    if (has_start_) {
-        assert(ctx_from->stack_frames_len < kMaxCoStackFramesBuffSize);
+    if (_to->has_start_) {
+        assert(co_ctx_.stack_frames_len < kMaxCoStackFramesBuffSize);
     
-        RestoreStackFrames(co_ctx_.stack_frames_buf, co_ctx_.stack_frames_start,
-                           co_ctx_.stack_frames_len);
-        SwitchCoroutine(&_curr->co_ctx_, &co_ctx_);
+        RestoreStackFrames(_to->co_ctx_.stack_frames_buf, _to->co_ctx_.stack_frames_start,
+                           _to->co_ctx_.stack_frames_len);
+        SwitchCoroutine(&co_ctx_, &_to->co_ctx_);
         
     } else {
-        assert(co_ctx_.co_resume_addr);
-        has_start_ = true;
-        StartCoroutine(&_curr->co_ctx_, &co_ctx_);
+        assert(_to->co_ctx_.co_resume_addr);
+        _to->has_start_ = true;
+        StartCoroutine(&co_ctx_, &_to->co_ctx_);
     }
 }
 
@@ -134,25 +134,23 @@ CoroutineProfile::~CoroutineProfile() {
     DestroyCoContext(&co_ctx_);
 }
 
+
+
 CoroutineDispatcher::CoroutineDispatcher() {
     coroutines_.push_back(&main_coro_);
     curr_coro_ = coroutines_.begin();
 }
 
-void CoroutineDispatcher::CoResume(CoroutineProfile *_co) {
-    CoroutineProfile *from_co = *curr_coro_;
-    for (auto it = coroutines_.begin(); it != coroutines_.end(); it++) {
-        if ((*it) == _co) {
-            curr_coro_ = it;
-            break;
-        }
+void CoroutineDispatcher::CoStart() {
+    if (coroutines_.size() <= 1) {
+        return;
     }
-    assert(curr_coro_ != coroutines_.end());
-    (*curr_coro_)->CoResumeSelf(from_co);
+    curr_coro_ = ++coroutines_.begin();
+    main_coro_.CoYieldTo(*(curr_coro_));
 }
 
 void CoroutineDispatcher::AddCoroutine(CoroutineProfile *_co) {
-    coroutines_.push_back(_co);
+    coroutines_.emplace_back(_co);
 }
 
 void CoroutineDispatcher::DelCoroutine(CoroutineProfile *) {
@@ -165,7 +163,7 @@ void CoroutineDispatcher::CoYieldCurr() {
         curr_coro_ = coroutines_.begin();
         ++curr_coro_;
     }
-    (*curr_coro_)->CoResumeSelf(from_co);
+    from_co->CoYieldTo(*(curr_coro_));
 }
 
 CoroutineProfile *CoroutineDispatcher::CurrCoro() const { return *curr_coro_; }

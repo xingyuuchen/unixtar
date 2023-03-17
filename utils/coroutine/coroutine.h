@@ -37,6 +37,9 @@ struct CoroutineContext {     // POD.
 void InitialCoContext(CoroutineContext *);
 void DestroyCoContext(CoroutineContext *);
 
+void CheckStackFramesBufCapacity(CoroutineContext *);
+
+
 
 class CoroutineProfile {
   public:
@@ -46,7 +49,7 @@ class CoroutineProfile {
     
     ~CoroutineProfile();
     
-    void CoResumeSelf(CoroutineProfile *_from);
+    void CoYieldTo(CoroutineProfile *_to);
     
     void SetEntry(CoEntry _entry);
     
@@ -78,7 +81,7 @@ class CoroutineDispatcher {
     
     ~CoroutineDispatcher();
     
-    void CoResume(CoroutineProfile *);
+    void CoStart();
     
     void AddCoroutine(CoroutineProfile *);
     
